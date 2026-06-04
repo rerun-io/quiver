@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use arrow_quiver::arrow::array::Array as _;
 use arrow_quiver::arrow::array::{
     ArrayRef, DurationMillisecondArray, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
     TimestampNanosecondArray, TimestampSecondArray,
@@ -233,4 +234,24 @@ fn standalone_duration_column() {
     let column = Column::<Option<Duration<Millisecond>>>::try_from(array).unwrap();
     let values: Vec<Option<i64>> = column.iter().collect();
     assert_eq!(values, [Some(1), None]);
+}
+
+#[test]
+fn default_column_is_empty() {
+    let column = Column::<i64>::default();
+    assert!(column.is_empty());
+
+    let column = Column::<List<Option<String>>>::default();
+    assert!(column.is_empty());
+    assert_eq!(column.iter().count(), 0);
+    assert!(column.metadata().is_empty());
+
+    let column = Column::<Timestamp<Nanosecond, Utc>>::default();
+    assert!(column.is_empty());
+
+    let column = Column::<[u8; 16]>::default();
+    assert_eq!(
+        column.as_arrow().data_type(),
+        &DataType::FixedSizeBinary(16)
+    );
 }

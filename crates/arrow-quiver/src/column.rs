@@ -198,6 +198,14 @@ impl<L: Datatype> Column<L> {
     }
 }
 
+/// An empty column.
+impl<L: Datatype> Default for Column<L> {
+    fn default() -> Self {
+        let array = arrow::array::new_empty_array(&L::datatype());
+        Self::try_new(array).expect("An empty array of the right datatype is always valid")
+    }
+}
+
 impl<L: Datatype> Clone for Column<L> {
     fn clone(&self) -> Self {
         Self {
