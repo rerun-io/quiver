@@ -5,11 +5,7 @@
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 
-A schema specification and validator for [Apache Arrow](https://arrow.apache.org/) record batches,
-with codegen for integrating with [`arrow-rs`](https://github.com/apache/arrow-rs).
-
-A quiver holds arrows; this crate holds typed Arrow arrays.
-
+A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.org/) record batches, for Rust's [`arrow-rs`](https://github.com/apache/arrow-rs).
 
 ## Example
 For a complete, compiling example, see [`example.rs`](crates/arrow-quiver/examples/example.rs).
@@ -28,7 +24,7 @@ use arrow_quiver::{Column, DynColumn, List, Quiver};
 /// Important thing
 #[derive(Quiver)]
 struct Thing {
-    /// …of the record-batch
+    /// Optional
     #[quiver(metadata)]
     pub metadata: BTreeMap<String, String>,
 
@@ -44,7 +40,7 @@ struct Thing {
     /// A raw arrow array: any datatype, any nullability — dynamically typed
     pub comment: ArrayRef,
 
-    /// If missing, the proc-macro enforces no additional columns may exist
+    /// Optional: other, dynamic columns
     #[quiver(extra_columns)]
     pub other_columns: Vec<DynColumn>,
 }
@@ -86,14 +82,17 @@ What is checked when parsing a `RecordBatch`:
 
 |                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
 |----------------|------------------------------------------------------------------------------|------------------------------------------------------------------|
-| Datatype       | Downcast only — parameterized arrays (`ListArray`, …) accept *any* inner types | Exact match, recursively (`List<String>` ≠ `List<i64>`)           |
+| Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Exact match, recursively (`List<String>` ≠ `List<i64>`)           |
 | Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
-| Timestamps     | Unit only — the timezone is ignored (`TimestampNanosecondArray`)             | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
+| Timestamps     | Unit checked; the timezone must be `None` (`TimestampNanosecondArray`)       | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
 | Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
 | Cost           | None                                                                         | One eager validation pass at the parse boundary                   |
 
 All validation happens once, when the record batch enters: after that, a `Column<L>` cannot
 be invalid (its fields are private and immutable), so element access never returns a `Result`.
+
+Structs whose columns all have a statically-known datatype also get a generated
+`fn schema()` with the exact arrow schema, including optional columns.
 
 The supported logical types:
 
@@ -158,6 +157,8 @@ Work-in-progress
 * [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
 * [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
 * [x] `Duration` logical type for `quiver::Column`: `Column<Duration<Millisecond>>`
+* [ ] Add `exhaustive/nonexhaustive` attributes (whether or not extra columns are allowed).
+* [ ] Forbid `#[quiver(extra_columns)]` if the `exhaustive` attribute is set
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
-* [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
+* [ ] `#[quiver(readonly)]` — invariant-by-construction variant: private fields, read-only accessors, and a validating constructor
 * [ ] Publish to crates.io

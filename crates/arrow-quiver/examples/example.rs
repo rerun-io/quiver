@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use arrow_quiver::arrow::array::{ArrayRef, Float64Array, StringArray};
+use arrow_quiver::arrow::array::{ArrayRef, StringArray};
 use arrow_quiver::arrow::record_batch::RecordBatch;
 use arrow_quiver::{Column, Quiver};
 
@@ -40,14 +40,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build a typed record — the struct literal is the builder:
     let measurements = Measurements {
         metadata: BTreeMap::from([("origin".to_owned(), "lab".to_owned())]),
-        sensor: Column::try_new(Arc::new(StringArray::from(vec![
-            "kitchen", "bedroom", "attic",
-        ])))?,
-        temperature: Column::try_new(Arc::new(Float64Array::from(vec![
-            Some(22.1),
-            None,
-            Some(30.5),
-        ])))?,
+        sensor: Column::from_values(["kitchen", "bedroom", "attic"]),
+        temperature: Column::from_values([Some(22.1), None, Some(30.5)]),
         comment: Arc::new(StringArray::from(vec!["cozy", "quiet", "spooky"])),
     };
 
