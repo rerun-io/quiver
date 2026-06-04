@@ -298,7 +298,8 @@ impl Quiver {
         }
     }
 
-    /// Generates `impl TryFrom<#ident> for RecordBatch`.
+    /// Generates `impl TryFrom<#ident> for RecordBatch`,
+    /// plus the discoverable `fn into_record_batch()` alias.
     fn try_into_batch(&self) -> TokenStream {
         let Self {
             ident,
@@ -349,6 +350,22 @@ impl Quiver {
                         record_type: #record_type,
                         kind: ::arrow_quiver::ErrorKind::BuildRecordBatch(err),
                     })
+                }
+            }
+
+            #[automatically_derived]
+            impl #ident {
+                /// Converts into an arrow record batch.
+                ///
+                /// # Errors
+                /// Errors on column length mismatch.
+                pub fn into_record_batch(
+                    self,
+                ) -> ::core::result::Result<
+                    ::arrow_quiver::arrow::record_batch::RecordBatch,
+                    ::arrow_quiver::Error,
+                > {
+                    ::arrow_quiver::arrow::record_batch::RecordBatch::try_from(self)
                 }
             }
         }

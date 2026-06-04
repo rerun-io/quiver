@@ -632,3 +632,12 @@ fn try_from_record_batch_reference() {
     assert_eq!(strict.name, StringArray::from(vec!["Alice"]));
     assert_eq!(batch.num_rows(), 1);
 }
+
+#[test]
+fn into_record_batch() {
+    let strict = Strict {
+        name: StringArray::from(vec!["Alice"]),
+    };
+    let batch = strict.into_record_batch().unwrap();
+    assert_eq!(batch.num_rows(), 1);
+}

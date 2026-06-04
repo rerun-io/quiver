@@ -13,6 +13,7 @@ use proc_macro::TokenStream;
 /// * `impl TryFrom<RecordBatch>` and `impl TryFrom<&RecordBatch>` — validates the schema
 ///   (column names, datatypes, nullability), then downcasts the columns (zero-copy)
 /// * `impl TryFrom<Self> for RecordBatch` — fails on column length mismatch
+/// * `fn into_record_batch()` — discoverable alias for the above
 /// * `fn schema()` — the static arrow schema of the declared columns; only generated when all
 ///   columns have a statically-known datatype (no `ArrayRef`, `ListArray`, …)
 ///

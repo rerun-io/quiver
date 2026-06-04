@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use arrow_quiver::arrow::array::{ArrayRef, StringArray};
-use arrow_quiver::arrow::record_batch::RecordBatch;
 use arrow_quiver::{Column, Quiver};
 
 /// A set of measurements.
@@ -46,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Convert into an ordinary arrow `RecordBatch` (fails on column length mismatch):
-    let batch = RecordBatch::try_from(measurements)?;
+    let batch = measurements.into_record_batch()?;
 
     // … write to disk, send over the network, etc …
 
