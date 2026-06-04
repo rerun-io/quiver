@@ -75,15 +75,8 @@ jobs:
   # ---------------------------------------------------------------------------
 
   arrow-versions:
-    # The main job tests the locked (newest) arrow version; this matrix
-    # covers the rest of the declared support range. Keep it in sync
-    # with the `arrow` version requirement in Cargo.toml.
-    name: Test with arrow ${{ matrix.arrow-version }}
+    name: Test all supported arrow versions
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arrow-version: ["57.0.0", "58.0.0"]
     steps:
       - uses: actions/checkout@v4
 
@@ -92,11 +85,9 @@ jobs:
           toolchain: 1.92.0
           override: true
 
-      - name: Pin arrow
-        run: cargo update -p arrow --precise ${{ matrix.arrow-version }}
-
-      - name: Test
-        run: cargo test --all-features
+      # The version list lives in the script, which can also be run locally:
+      - name: Test all supported arrow versions
+        run: ./scripts/test_arrow_versions.sh
 
   # ---------------------------------------------------------------------------
 
