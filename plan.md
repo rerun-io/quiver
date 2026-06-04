@@ -289,10 +289,8 @@ Alternatives considered:
    attributes instead of types defeats the point.
 
 Open questions:
-* `Struct<T>` columns: needs a per-struct derive for typed field access (typed-arrow
-  generates `{Name}View`). Phase 2; `Array<Struct>` could start as downcast-only.
-* Do raw arrow array fields (`StringArray`) stay supported alongside wrappers? Probably
-  yes — zero-friction interop — but wrappers become the documented default.
-* Naming: `quiver::Array<L>` vs `Col<L>` vs `Column<L>` (clashes with existing
-  `quiver::Column` extra-columns type).
+* ~~`Struct<T>` columns~~ DECIDED: punted for now.
+* ~~Raw arrow array fields~~ DECIDED: stay supported alongside wrappers, for now.
+* ~~Naming~~ DECIDED: `quiver::Column<L>`; the old dynamically-typed extra-columns type is
+  renamed `DynColumn`. `Column` may also grow per-column metadata in the future.
 * `Dictionary<K, V>`: typed keys matter less than typed values; start with values only?

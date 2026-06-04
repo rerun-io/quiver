@@ -11,7 +11,7 @@ use arrow_quiver::arrow::array::{
 };
 use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use arrow_quiver::arrow::record_batch::RecordBatch;
-use arrow_quiver::{Column, Error, ErrorKind, Quiver};
+use arrow_quiver::{DynColumn, Error, ErrorKind, List, Quiver};
 
 /// Important thing
 #[derive(Quiver)]
@@ -29,7 +29,7 @@ struct Thing {
 
     /// All columns not declared above
     #[quiver(extra_columns)]
-    other_columns: Vec<Column>,
+    other_columns: Vec<DynColumn>,
 }
 
 /// No extra columns or metadata allowed.
@@ -77,7 +77,7 @@ fn roundtrip_full() {
         metadata: BTreeMap::from([("key".to_owned(), "value".to_owned())]),
         name: StringArray::from(vec!["Alice", "Bob"]),
         dob: Some(TimestampNanosecondArray::from(vec![1, 2])),
-        other_columns: vec![Column {
+        other_columns: vec![DynColumn {
             field: Arc::new(Field::new("age", DataType::Int64, true)),
             array: Arc::new(Int64Array::from(vec![30, 40])),
         }],
@@ -405,4 +405,113 @@ fn error_messages() {
         err.to_string(),
         "Strict: Column \"name\" has 1 null(s), but the field is marked #[quiver(non_null)]"
     );
+}
+
+/// Strongly-typed wrapper columns.
+#[derive(Quiver)]
+struct Typed {
+    name: arrow_quiver::Column<String>,
+    maybe_age: arrow_quiver::Column<Option<i64>>,
+    tags: arrow_quiver::Column<List<String>>,
+    scores: Option<arrow_quiver::Column<List<Option<f64>>>>,
+}
+
+#[test]
+fn roundtrip_typed_columns() {
+    let list =
+        ListArray::from_iter_primitive::<arrow_quiver::arrow::datatypes::Float64Type, _, _>(vec![
+            Some(vec![Some(1.0), None]),
+            Some(vec![Some(3.0)]),
+        ]);
+    // `from_iter_primitive` marks the item field nullable, matching `List<Option<f64>>`.
+
+    let typed = Typed {
+        name: arrow_quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice", "Bob"])))
+            .unwrap(),
+        maybe_age: arrow_quiver::Column::try_new(Arc::new(Int64Array::from(vec![Some(30), None])))
+            .unwrap(),
+        tags: arrow_quiver::Column::try_new(string_list_array()).unwrap(),
+        scores: Some(arrow_quiver::Column::try_new(Arc::new(list)).unwrap()),
+    };
+
+    let batch = RecordBatch::try_from(typed).unwrap();
+    assert_eq!(batch.num_columns(), 4);
+
+    let typed = Typed::try_from(batch).unwrap();
+
+    let names: Vec<&str> = typed.name.iter().collect();
+    assert_eq!(names, ["Alice", "Bob"]);
+
+    let ages: Vec<Option<i64>> = typed.maybe_age.iter().collect();
+    assert_eq!(ages, [Some(30), None]);
+
+    let tags: Vec<Vec<&str>> = typed.tags.iter().map(Iterator::collect).collect();
+    assert_eq!(tags, [vec!["a", "b"], vec!["c"]]);
+
+    let scores: Vec<Vec<Option<f64>>> = typed
+        .scores
+        .unwrap()
+        .iter()
+        .map(Iterator::collect)
+        .collect();
+    assert_eq!(scores, [vec![Some(1.0), None], vec![Some(3.0)]]);
+}
+
+/// A `List<Utf8>` array with non-nullable items: `[["a", "b"], ["c"]]`
+fn string_list_array() -> ArrayRef {
+    let values = StringArray::from(vec!["a", "b", "c"]);
+    let offsets = arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
+    let field = Arc::new(Field::new("item", DataType::Utf8, false));
+    Arc::new(ListArray::new(field, offsets, Arc::new(values), None))
+}
+
+#[test]
+fn typed_column_rejects_nulls() {
+    let batch = batch_of(&[
+        (
+            "name",
+            Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
+        ),
+        (
+            "maybe_age",
+            Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef,
+        ),
+        ("tags", string_list_array()),
+    ]);
+    let result = Typed::try_from(batch);
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Typed",
+            kind: ErrorKind::UnexpectedNulls {
+                column,
+                null_count: 1,
+            },
+        }) if column == "name"
+    ));
+}
+
+#[test]
+fn typed_column_validates_inner_list_type() {
+    // A List<Int64> where List<Utf8> is expected:
+    let list =
+        ListArray::from_iter_primitive::<arrow_quiver::arrow::datatypes::Int64Type, _, _>(vec![
+            Some(vec![Some(1)]),
+        ]);
+    let batch = batch_of(&[
+        (
+            "name",
+            Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+        ),
+        ("maybe_age", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+        ("tags", Arc::new(list) as ArrayRef),
+    ]);
+    let result = Typed::try_from(batch);
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Typed",
+            kind: ErrorKind::WrongDatatype { column, .. },
+        }) if column == "tags"
+    ));
 }

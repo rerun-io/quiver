@@ -63,6 +63,10 @@ enum ColumnKind {
         /// Name of the array type, e.g. `ListArray`. Used in error messages.
         type_name: String,
     },
+
+    /// `quiver::Column<L>` — a strongly-typed wrapper. Validates itself
+    /// (exact datatype incl. nested types, and nullability from the logical type).
+    Wrapper { column_type: Box<syn::Type> },
 }
 
 impl Quiver {
@@ -153,6 +157,13 @@ impl Quiver {
             self.extra_columns_field = Some(ident);
         } else {
             let (optional, kind) = classify_type(&field.ty)?;
+            if non_null && matches!(kind, ColumnKind::Wrapper { .. }) {
+                return Err(syn::Error::new_spanned(
+                    field,
+                    "#[quiver(non_null)] is redundant on a `Column<…>`: \
+                     it is non-null unless the logical type is an `Option<…>`",
+                ));
+            }
             self.columns.push(ColumnField {
                 ident,
                 column_name,
@@ -195,10 +206,10 @@ impl Quiver {
         // Either collect the unknown columns, or error on them:
         let extra_columns = if let Some(extra_ident) = extra_columns_field {
             quote! {
-                let #extra_ident: ::std::vec::Vec<::arrow_quiver::Column> =
+                let #extra_ident: ::std::vec::Vec<::arrow_quiver::DynColumn> =
                     ::std::iter::zip(batch.schema_ref().fields(), batch.columns())
                         .filter(|(field, _)| !KNOWN_COLUMNS.contains(&field.name().as_str()))
-                        .map(|(field, array)| ::arrow_quiver::Column {
+                        .map(|(field, array)| ::arrow_quiver::DynColumn {
                             field: ::std::sync::Arc::clone(field),
                             array: ::std::sync::Arc::clone(array),
                         })
@@ -342,6 +353,14 @@ impl ColumnField {
                 array_type,
                 type_name,
             } => downcast(record_type, column_name, array_type, type_name),
+            ColumnKind::Wrapper { column_type } => quote! {
+                <#column_type>::try_new(::std::sync::Arc::clone(array)).map_err(|err| {
+                    ::arrow_quiver::Error {
+                        record_type: #record_type,
+                        kind: err.for_column(#column_name.to_owned()),
+                    }
+                })?
+            },
         };
 
         let null_check = self.null_check(record_type);
@@ -439,6 +458,14 @@ impl ColumnField {
                 )));
                 columns.push(::std::sync::Arc::new(array));
             },
+            ColumnKind::Wrapper { column_type } => quote! {
+                fields.push(::std::sync::Arc::new(::arrow_quiver::arrow::datatypes::Field::new(
+                    #column_name,
+                    <#column_type>::datatype(),
+                    <#column_type>::NULLABLE,
+                )));
+                columns.push(array.into_arrow());
+            },
         };
 
         if *optional {
@@ -512,6 +539,10 @@ fn classify_array_type(ty: &syn::Type) -> syn::Result<ColumnKind> {
     let type_name = segment.ident.to_string();
     if type_name == "ArrayRef" {
         Ok(ColumnKind::Any)
+    } else if type_name == "Column" {
+        Ok(ColumnKind::Wrapper {
+            column_type: Box::new(ty.clone()),
+        })
     } else if let Some(datatype) = datatype_of_array(&type_name) {
         Ok(ColumnKind::Typed {
             array_type: Box::new(ty.clone()),

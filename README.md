@@ -26,7 +26,9 @@ Work-in-progress
 * [x] Explicitly punt on difficult and exotic datatypes: `Decimal`, `Map`, `Union`, `Interval`, run-ends, … (clear compile error)
 * [x] Compile-fail tests of the derive macro (`trybuild`)
 * [x] Test error messages (should be helpful and actionable, and mention the struct type by name)
-* [ ] Validate inner types of nested arrays (`List`, `Struct`, …)
+* [x] Strongly-typed wrapper `quiver::Column<L>` (`Column<List<String>>`, `Column<Option<i64>>`, …): validates inner types of nested arrays and nullability once at the parse boundary, then gives infallible typed access. Also usable standalone via `Column::<L>::try_from(array)`
+* [ ] `Struct` logical type for `quiver::Column` (punted for now)
+* [ ] `Timestamp`/`Duration`/`Dictionary` logical types for `quiver::Column`
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
 * [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
 * [ ] Publish to crates.io
@@ -52,7 +54,7 @@ struct Thing {
 
     /// If missing, the proc-macro enforces no additional columns may exist
     #[quiver(extra_columns)]
-    pub other_columns: Vec<Column>,
+    pub other_columns: Vec<DynColumn>,
 }
 
 // Proc-macro generates:
@@ -95,7 +97,7 @@ Cons:
 
 ## Crates
 
-* [`arrow-quiver`](crates/arrow-quiver) — the runtime crate: `Error`, `Column`, and the `arrow` re-export
+* [`arrow-quiver`](crates/arrow-quiver) — the runtime crate: `Column<L>`, `DynColumn`, `Error`, and the `arrow` re-export
 * [`arrow-quiver-derive`](crates/arrow-quiver-derive) — the `#[derive(Quiver)]` proc-macro
 
 ## License

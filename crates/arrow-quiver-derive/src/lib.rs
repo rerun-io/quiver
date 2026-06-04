@@ -15,6 +15,8 @@ use proc_macro::TokenStream;
 /// * `impl TryFrom<Self> for RecordBatch` — fails on column length mismatch
 ///
 /// ## Field types
+/// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact datatype
+///   (including the inner types of nested arrays) and nullability from the logical type `L`
 /// * A typed Arrow array (e.g. `StringArray`) — a required column with a specific datatype
 /// * A parameterized Arrow array (e.g. `ListArray`, `StructArray`, `DictionaryArray<…>`) —
 ///   a required column, validated by downcast only (the inner types are NOT validated)
@@ -23,9 +25,10 @@ use proc_macro::TokenStream;
 ///
 /// ## Attributes
 /// * `#[quiver(non_null)]` — eagerly check that the column contains no nulls
+///   (raw arrow array fields only; for `Column<…>` nullability is part of the logical type)
 /// * `#[quiver(name = "special:name")]` — the column name, when it isn't a valid Rust identifier
 /// * `#[quiver(metadata)]` — this `BTreeMap<String, String>` field holds the record batch metadata
-/// * `#[quiver(extra_columns)]` — this `Vec<Column>` field holds all columns not declared in the struct.
+/// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.
 ///   If absent, unknown columns are an error.
 #[proc_macro_derive(Quiver, attributes(quiver))]
 pub fn derive_quiver(input: TokenStream) -> TokenStream {
