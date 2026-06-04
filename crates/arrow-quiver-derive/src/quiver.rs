@@ -274,7 +274,8 @@ impl Quiver {
         }
     }
 
-    /// Generates `impl #ident { fn schema() }`, if all columns have a statically-known datatype.
+    /// Generates `impl #ident { fn min_schema(); fn max_schema(); … }`,
+    /// if all columns have a statically-known datatype.
     fn schema_fn(&self) -> Option<TokenStream> {
         let Self { ident, columns, .. } = self;
 
@@ -285,6 +286,7 @@ impl Quiver {
                     column_name,
                     declared_metadata,
                     kind,
+                    optional,
                     ..
                 } = column;
                 let declared = declared_metadata.iter().map(|(key, value)| {
@@ -293,44 +295,65 @@ impl Quiver {
                 let metadata = quote! {
                     .with_metadata([#(#declared),*].into_iter().collect())
                 };
-                match kind {
-                    ColumnKind::Wrapper { column_type } => Some(quote! {
+                let field = match kind {
+                    ColumnKind::Wrapper { column_type } => quote! {
                         ::arrow_quiver::arrow::datatypes::Field::new(
                             #column_name,
                             <#column_type>::datatype(),
                             <#column_type>::NULLABLE,
                         )
                         #metadata
-                    }),
-                    ColumnKind::Typed { datatype, .. } => Some(quote! {
+                    },
+                    ColumnKind::Typed { datatype, .. } => quote! {
                         // The nullability of raw arrow arrays is not statically known:
                         ::arrow_quiver::arrow::datatypes::Field::new(#column_name, #datatype, true)
                             #metadata
-                    }),
+                    },
                     // Not statically known:
-                    ColumnKind::Any | ColumnKind::Downcast { .. } => None,
-                }
+                    ColumnKind::Any | ColumnKind::Downcast { .. } => return None,
+                };
+                Some((field, *optional))
             })
             .collect::<Option<Vec<_>>>()?;
+
+        let max_fields: Vec<_> = fields.iter().map(|(field, _)| field).collect();
+        let min_fields: Vec<_> = fields
+            .iter()
+            .filter(|(_, optional)| !optional)
+            .map(|(field, _)| field)
+            .collect();
 
         Some(quote! {
             #[automatically_derived]
             impl #ident {
-                /// The static schema of the declared columns.
+                /// The static schema of the *required* columns:
+                /// the guaranteed-present subset of every matching record batch.
+                /// Optional (`Option<…>`) columns are excluded; see [`Self::max_schema`].
                 ///
-                /// Optional (`Option<…>`) columns are included, even though
-                /// they may be missing from an actual record batch.
                 /// Per-instance metadata is not included.
-                pub fn schema() -> ::arrow_quiver::arrow::datatypes::Schema {
+                pub fn min_schema() -> ::arrow_quiver::arrow::datatypes::Schema {
                     ::arrow_quiver::arrow::datatypes::Schema::new(::std::vec![
-                        #(#fields),*
+                        #(#min_fields),*
                     ])
                 }
 
-                /// An empty (zero-row) record batch with [`Self::schema`].
+                /// The static schema of *all* declared columns,
+                /// including optional (`Option<…>`) ones —
+                /// which may be missing from an actual record batch;
+                /// see [`Self::min_schema`].
+                ///
+                /// Per-instance metadata is not included.
+                pub fn max_schema() -> ::arrow_quiver::arrow::datatypes::Schema {
+                    ::arrow_quiver::arrow::datatypes::Schema::new(::std::vec![
+                        #(#max_fields),*
+                    ])
+                }
+
+                /// An empty (zero-row) record batch with [`Self::max_schema`]:
+                /// all declared columns present, with zero rows.
                 pub fn empty_record_batch() -> ::arrow_quiver::arrow::record_batch::RecordBatch {
                     ::arrow_quiver::arrow::record_batch::RecordBatch::new_empty(
-                        ::std::sync::Arc::new(Self::schema()),
+                        ::std::sync::Arc::new(Self::max_schema()),
                     )
                 }
             }

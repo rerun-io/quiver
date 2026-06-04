@@ -16,9 +16,10 @@ use proc_macro::TokenStream;
 /// * `fn from_record_batch()` and `fn into_record_batch()` — discoverable aliases for the above
 /// * `COLUMN_*` constants (e.g. `COLUMN_TEMPERATURE`) — per-column descriptors with the column
 ///   name and an `extract(&batch)` method for pulling out one column
-/// * `fn schema()` — the static arrow schema of the declared columns; only generated when all
-///   columns have a statically-known datatype (no `ArrayRef`, `ListArray`, …)
-/// * `fn empty_record_batch()` — an infallible, zero-row record batch with that schema
+/// * `fn min_schema()` / `fn max_schema()` — the static arrow schema of the required columns /
+///   of all declared columns (including optional ones); only generated when all columns have a
+///   statically-known datatype (no `ArrayRef`, `ListArray`, …)
+/// * `fn empty_record_batch()` — an infallible, zero-row record batch with the max schema
 ///
 /// ## Field types
 /// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact datatype

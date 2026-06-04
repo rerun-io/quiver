@@ -51,7 +51,7 @@ struct Thing {
 // * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
 // * `fn from_record_batch()` and `fn into_record_batch()` - discoverable aliases for the above
 // * `COLUMN_*` descriptor constants - single-column access without hard-coding names
-// * `fn schema()` and `fn empty_record_batch()` - when all columns are statically typed
+// * `fn min_schema()`/`fn max_schema()` and `fn empty_record_batch()` - when all columns are statically typed
 ```
 
 Building columns from values is infallible:
@@ -87,7 +87,7 @@ assert_eq!(sensors.to_vec(), ["kitchen"]); // `to_vec()` returns owned values
 assert_eq!(Reading::COLUMN_SENSOR.name, "sensor");
 
 // Static schema + infallible empty batches (when all columns are statically typed):
-let empty = Reading::empty_record_batch();
+let empty = Reading::empty_record_batch(); // all declared columns, zero rows
 assert_eq!(empty.num_rows(), 0);
 ```
 
@@ -137,9 +137,9 @@ What is checked when parsing a `RecordBatch`:
 All validation happens once, when the record batch enters: after that, a `Column<L>` cannot
 be invalid (its fields are private and immutable), so element access never returns a `Result`.
 
-Structs whose columns all have a statically-known datatype also get a generated
-`fn schema()` with the exact arrow schema (including optional columns),
-and an infallible `fn empty_record_batch()`.
+Structs whose columns all have a statically-known datatype also get generated
+`fn min_schema()` (the required columns) and `fn max_schema()` (all declared columns,
+including optional ones), plus an infallible `fn empty_record_batch()`.
 
 More of the `Column` API:
 
@@ -245,9 +245,7 @@ Work-in-progress.
 ## TODO
 From the 2026-06-04 self-review:
 * [x] BUG: validation counts *physical* nulls, not *logical* ones — fixed: list/dictionary validation masks by reachability, and nested datatype matching is structural (inner field names/nullability flags/metadata ignored)
-* [ ] `::schema()` is a foot-gun: it doesn't communicate clearly what happens with optional columns.
-    * Maybe a `fn required_fields()` would be a more useful helper?
-    * And/or maybe `min_schema` vs `max_schema`?
+* [x] ~~`::schema()` is a foot-gun~~: replaced by `min_schema()` (required columns) and `max_schema()` (all declared columns)
 * [x] `FixedSizeList<L, N>` logical type (vec3s, tensors), with logical-null-masked child validation
 * [x] `Date32`/`Date64` and `Time32`/`Time64` logical types
 * [x] `LargeUtf8` logical type

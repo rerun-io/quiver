@@ -1,8 +1,10 @@
 //! `Dictionary<Option<K>, V>` is not a thing:
 //! row nullability is `Option<Dictionary<K, V>>`.
 
-use arrow_quiver::{Column, Dictionary};
+use arrow_quiver::{Datatype, Dictionary};
+
+fn assert_datatype<L: Datatype>() {}
 
 fn main() {
-    let _ = Column::<Dictionary<Option<i32>, String>>::datatype();
+    assert_datatype::<Dictionary<Option<i32>, String>>();
 }

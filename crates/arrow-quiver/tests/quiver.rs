@@ -597,7 +597,7 @@ fn error_converts_to_arrow_error() {
 #[test]
 fn static_schema() {
     // All-static struct (quiver columns):
-    let schema = Typed::schema();
+    let schema = Typed::max_schema();
     let name = schema.field_with_name("name").unwrap();
     assert_eq!(name.data_type(), &DataType::Utf8);
     assert!(!name.is_nullable());
@@ -606,18 +606,21 @@ fn static_schema() {
     assert_eq!(maybe_age.data_type(), &DataType::Int64);
     assert!(maybe_age.is_nullable());
 
-    // Optional columns are included:
+    // Optional columns are included in the max schema, but not the min:
     assert!(schema.field_with_name("scores").is_ok());
+    let min = Typed::min_schema();
+    assert!(min.field_with_name("scores").is_err());
+    assert!(min.field_with_name("name").is_ok());
 
     // Raw arrow arrays with an exact datatype are included, as nullable
     // (their nullability is not statically known):
-    let schema = Strict::schema();
+    let schema = Strict::max_schema();
     let name = schema.field_with_name("name").unwrap();
     assert_eq!(name.data_type(), &DataType::Utf8);
     assert!(name.is_nullable());
 
     // Structs with dynamically-typed columns (ArrayRef, ListArray, …)
-    // get no `schema()` at all.
+    // get no schema functions at all.
 }
 
 #[test]
@@ -900,7 +903,7 @@ fn declared_metadata_merges_with_instance_metadata() {
 
 #[test]
 fn declared_metadata_in_static_schema() {
-    let schema = Annotated::schema();
+    let schema = Annotated::max_schema();
     let expected = Field::new("chunk_id", DataType::FixedSizeBinary(16), false)
         .with_metadata(std::iter::once(("rerun:kind".to_owned(), "control".to_owned())).collect());
     assert_eq!(schema.field_with_name("chunk_id").unwrap(), &expected);

@@ -1,5 +1,5 @@
 //! Structs with dynamically-typed columns (`ArrayRef`, `ListArray`, …)
-//! get no static `schema()`.
+//! get no static schema functions.
 
 use arrow_quiver::arrow::array::ArrayRef;
 
@@ -9,5 +9,5 @@ struct Thing {
 }
 
 fn main() {
-    let _ = Thing::schema();
+    let _ = Thing::max_schema();
 }
