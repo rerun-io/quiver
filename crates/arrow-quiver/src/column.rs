@@ -408,3 +408,32 @@ impl_flat_datatype!(u64, arrow::array::UInt64Array, u64, DataType::UInt64);
 impl_flat_datatype!(f32, arrow::array::Float32Array, f32, DataType::Float32);
 impl_flat_datatype!(f64, arrow::array::Float64Array, f64, DataType::Float64);
 impl_flat_datatype!(String, arrow::array::StringArray, &'a str, DataType::Utf8);
+
+/// `[u8; N]`: an arrow `FixedSizeBinary(N)` column, e.g. `[u8; 16]` for UUIDs.
+impl<const N: usize> Datatype for [u8; N] {
+    type Typed = arrow::array::FixedSizeBinaryArray;
+    type Value<'a> = &'a [u8; N];
+
+    fn datatype() -> DataType {
+        const {
+            assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
+        }
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        DataType::FixedSizeBinary(N as i32)
+    }
+
+    fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        downcast_array::<arrow::array::FixedSizeBinaryArray>(array)
+    }
+
+    fn is_null(typed: &Self::Typed, index: usize) -> bool {
+        typed.is_null(index)
+    }
+
+    fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        typed
+            .value(index)
+            .first_chunk::<N>()
+            .expect("The length is guaranteed by the validated datatype")
+    }
+}

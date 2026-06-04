@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use arrow_quiver::arrow::array::{ArrayRef, Int64Array, ListArray, StringArray};
+use arrow_quiver::arrow::array::{
+    ArrayRef, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
+};
 use arrow_quiver::arrow::datatypes::{DataType, Field, Int64Type};
 use arrow_quiver::{Column, ColumnError, List};
 
@@ -93,4 +95,50 @@ fn standalone_nested_list() {
         .map(|outer| outer.map(Iterator::collect).collect())
         .collect();
     assert_eq!(nested, [vec![vec!["a"], vec!["b", "c"]]]);
+}
+
+#[test]
+fn standalone_fixed_size_binary_column() {
+    let dynamic_array: ArrayRef = Arc::new(
+        FixedSizeBinaryArray::try_from_iter(vec![[1_u8; 16], [2; 16]].into_iter()).unwrap(),
+    );
+
+    // Wrong size is rejected:
+    let result = Column::<[u8; 8]>::try_from(Arc::clone(&dynamic_array));
+    assert!(matches!(
+        result,
+        Err(ColumnError::WrongDatatype {
+            expected: DataType::FixedSizeBinary(8),
+            actual: DataType::FixedSizeBinary(16),
+        })
+    ));
+
+    // Matching size:
+    let column = Column::<[u8; 16]>::try_from(dynamic_array).unwrap();
+    assert_eq!(column.value(0), &[1_u8; 16]);
+    let values: Vec<&[u8; 16]> = column.iter().collect();
+    assert_eq!(values, [&[1_u8; 16], &[2; 16]]);
+}
+
+#[test]
+fn standalone_nullable_fixed_size_binary_column() {
+    let dynamic_array: ArrayRef = Arc::new(
+        FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+            vec![Some([1_u8; 4]), None].into_iter(),
+            4,
+        )
+        .unwrap(),
+    );
+
+    // Non-nullable logical type rejects the nulls:
+    let result = Column::<[u8; 4]>::try_from(Arc::clone(&dynamic_array));
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Nullable logical type accepts them:
+    let column = Column::<Option<[u8; 4]>>::try_from(dynamic_array).unwrap();
+    let values: Vec<Option<&[u8; 4]>> = column.iter().collect();
+    assert_eq!(values, [Some(&[1_u8; 4]), None]);
 }

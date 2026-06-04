@@ -15,8 +15,7 @@ Work-in-progress
 
 ## TODO
 * [ ] strong quiver datatypes
-* [ ] support const-generics-based support for DataType::FixedSizeBinary(16) etc
-  (should map to `[u8; 16]` in this case)
+* [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
 * [ ] `Struct` logical type for `quiver::Column` (punted for now)
 * [ ] `Timestamp`/`Duration`/`Dictionary` logical types for `quiver::Column`
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`

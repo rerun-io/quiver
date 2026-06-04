@@ -498,3 +498,30 @@ fn typed_column_validates_inner_list_type() {
         }) if column == "tags"
     ));
 }
+
+#[derive(Quiver)]
+struct Uuids {
+    uuid: arrow_quiver::Column<[u8; 16]>,
+}
+
+#[test]
+fn roundtrip_fixed_size_binary() {
+    let array = arrow_quiver::arrow::array::FixedSizeBinaryArray::try_from_iter(
+        vec![[7_u8; 16], [8; 16]].into_iter(),
+    )
+    .unwrap();
+
+    let uuids = Uuids {
+        uuid: arrow_quiver::Column::try_new(Arc::new(array)).unwrap(),
+    };
+
+    let batch = RecordBatch::try_from(uuids).unwrap();
+    assert_eq!(
+        batch.schema_ref().field(0).data_type(),
+        &DataType::FixedSizeBinary(16)
+    );
+
+    let uuids = Uuids::try_from(batch).unwrap();
+    let values: Vec<&[u8; 16]> = uuids.uuid.iter().collect();
+    assert_eq!(values, [&[7_u8; 16], &[8; 16]]);
+}
