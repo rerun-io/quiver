@@ -641,3 +641,27 @@ fn into_record_batch() {
     let batch = strict.into_record_batch().unwrap();
     assert_eq!(batch.num_rows(), 1);
 }
+
+/// Documents a roundtrip asymmetry: extra columns are re-encoded *after*
+/// the declared columns, even if they originally appeared before them.
+#[test]
+fn extra_columns_are_reordered_on_roundtrip() {
+    let batch = batch_of(&[
+        ("age", Arc::new(Int64Array::from(vec![30])) as ArrayRef), // extra, first
+        (
+            "name",
+            Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+        ),
+    ]);
+
+    let thing = Thing::try_from(batch).unwrap();
+    let batch = thing.into_record_batch().unwrap();
+
+    let names: Vec<&String> = batch
+        .schema_ref()
+        .fields()
+        .iter()
+        .map(|field| field.name())
+        .collect();
+    assert_eq!(names, ["name", "age"], "Declared columns come first");
+}

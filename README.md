@@ -131,6 +131,7 @@ Cons:
 * **Invalid states are representable**: a column length mismatch is only caught when converting *to* a `RecordBatch`, possibly far from the mistake site
 * **Fields stay mutable**: a parsed struct can be modified into invalidity after validation (`quiver::Column` itself stays valid — it is immutable after construction)
 * **Raw arrow fields are unchecked by design**: nullability and the inner types of nested arrays are only validated for `quiver::Column<L>` fields
+* **Extra-column order is not preserved**: re-encoding emits the declared columns first and appends the `extra_columns` at the end, even if they originally appeared in between
 * **No per-row view**: data is accessed column-wise (that's the point), but there is no generated row iterator
 * **Rust only**: no IDL, no cross-language codegen (so far)
 

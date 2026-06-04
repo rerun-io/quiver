@@ -34,6 +34,11 @@ use proc_macro::TokenStream;
 /// * `#[quiver(metadata)]` — this `BTreeMap<String, String>` field holds the record batch metadata
 /// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.
 ///   If absent, unknown columns are an error.
+///
+/// ## Roundtrip caveat
+/// Column *order* is not always preserved: encoding emits the declared columns first
+/// (in declaration order) and appends the `#[quiver(extra_columns)]` at the end —
+/// even if they appeared between the declared columns in the original record batch.
 #[proc_macro_derive(Quiver, attributes(quiver))]
 pub fn derive_quiver(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
