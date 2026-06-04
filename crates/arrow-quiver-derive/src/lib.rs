@@ -10,8 +10,8 @@ use proc_macro::TokenStream;
 /// [`RecordBatch`](https://docs.rs/arrow/latest/arrow/record_batch/struct.RecordBatch.html).
 ///
 /// Generates:
-/// * `impl TryFrom<RecordBatch>` — validates the schema (column names, datatypes, nullability),
-///   then downcasts the columns (zero-copy)
+/// * `impl TryFrom<RecordBatch>` and `impl TryFrom<&RecordBatch>` — validates the schema
+///   (column names, datatypes, nullability), then downcasts the columns (zero-copy)
 /// * `impl TryFrom<Self> for RecordBatch` — fails on column length mismatch
 /// * `fn schema()` — the static arrow schema of the declared columns; only generated when all
 ///   columns have a statically-known datatype (no `ArrayRef`, `ListArray`, …)
