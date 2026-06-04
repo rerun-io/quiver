@@ -41,3 +41,4 @@ arrow-quiver-derive = { workspace = true, optional = true }
 
 
 [dev-dependencies]
+trybuild.workspace = true

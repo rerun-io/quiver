@@ -1,0 +1,5 @@
+error: `MapArray` is explicitly not supported (yet)
+ --> tests/compile_fail/punted_type.rs:7:10
+  |
+7 |     map: MapArray,
+  |          ^^^^^^^^

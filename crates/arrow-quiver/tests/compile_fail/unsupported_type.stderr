@@ -1,0 +1,5 @@
+error: Unsupported column type. Expected a typed Arrow array (e.g. `StringArray` or `ListArray`), or `ArrayRef` for any datatype
+ --> tests/compile_fail/unsupported_type.rs:5:11
+  |
+5 |     name: String,
+  |           ^^^^^^

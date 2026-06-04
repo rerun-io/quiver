@@ -25,11 +25,10 @@ Work-in-progress
 * [x] More datatypes: `Duration`, `Time`, `Float16`, string/binary views (exact match), plus `List`, `FixedSizeList`, `Struct`, `Dictionary` (downcast-only — inner types not validated)
 * [x] Explicitly punt on difficult and exotic datatypes: `Decimal`, `Map`, `Union`, `Interval`, run-ends, … (clear compile error)
 * [ ] Validate inner types of nested arrays (`List`, `Struct`, …)
-* [ ] `Timestamp` with timezones
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
-* [ ] Compile-fail tests of the derive macro (e.g. `trybuild`)
+* [x] Compile-fail tests of the derive macro (`trybuild`)
 * [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
-* [ ] Test error messages (should be helpful and actionable, and mention the struct type by name)
+* [x] Test error messages (should be helpful and actionable, and mention the struct type by name)
 * [ ] Publish to crates.io
 
 ## Example
@@ -73,7 +72,7 @@ Pros:
 Cons:
 * **Invalid states are representable**: a column length mismatch is only caught when converting *to* a `RecordBatch`, possibly far from the mistake site
 * **Fields stay mutable**: a parsed struct can be modified into invalidity after validation
-* **Schema = Rust array types**: limited to the datatypes with a typed Arrow array (no `List`/`Struct`/`Dictionary` support yet), and no per-row view
+* **Schema = Rust array types**: limited to the datatypes with a typed Arrow array (`List`/`Struct`/`Dictionary` are validated by downcast only — their inner types are not checked), and no per-row view
 * **Nullability at runtime**: since we use the datatypes from `arrow-rs` there is no way to enforce that a column has no nulls
 * **Rust only**: no IDL, no cross-language codegen (so far)
 

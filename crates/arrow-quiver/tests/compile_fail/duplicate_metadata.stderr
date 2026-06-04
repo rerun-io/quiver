@@ -1,0 +1,6 @@
+error: Multiple fields marked #[quiver(metadata)]
+  --> tests/compile_fail/duplicate_metadata.rs:10:5
+   |
+10 | /     #[quiver(metadata)]
+11 | |     more_metadata: BTreeMap<String, String>,
+   | |___________________________________________^

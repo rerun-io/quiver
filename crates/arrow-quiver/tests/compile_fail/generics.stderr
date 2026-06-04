@@ -1,0 +1,5 @@
+error: #[derive(Quiver)] does not support generics
+ --> tests/compile_fail/generics.rs:4:13
+  |
+4 | struct Thing<T> {
+  |             ^^^
