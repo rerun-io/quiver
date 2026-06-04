@@ -1,10 +1,4 @@
-# Mac stuff:
-.DS_Store
-
 # Rust compile target directories:
 target
 target_ra
 target_wasm
-
-# Cargo.lock is committed (overriding any global *.lock ignore):
-!Cargo.lock
