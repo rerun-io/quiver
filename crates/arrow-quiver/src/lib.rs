@@ -9,7 +9,7 @@ pub use arrow;
 
 mod error;
 
-pub use self::error::Error;
+pub use self::error::{Error, ErrorKind};
 
 #[cfg(feature = "derive")]
 pub use arrow_quiver_derive::Quiver;

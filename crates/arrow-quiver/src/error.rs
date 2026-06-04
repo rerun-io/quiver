@@ -1,10 +1,22 @@
 use arrow::datatypes::DataType;
 use arrow::error::ArrowError;
 
-/// The errors that can happen when converting between a record batch and a typed record.
+/// An error from converting between a record batch and a `#[derive(Quiver)]` struct.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Missing column {column:?}")]
+#[error("{record_type}: {kind}")]
+pub struct Error {
+    /// The name of the `#[derive(Quiver)]` struct that was converted to/from.
+    pub record_type: &'static str,
+
+    pub kind: ErrorKind,
+}
+
+/// What went wrong when converting between a record batch and a `#[derive(Quiver)]` struct.
+#[derive(Debug, thiserror::Error)]
+pub enum ErrorKind {
+    #[error(
+        "Missing required column {column:?}. If the column is allowed to be missing, declare the field as `Option<…>`"
+    )]
     MissingColumn { column: String },
 
     #[error("Column {column:?}: expected datatype {expected:?}, found {actual:?}")]
@@ -14,10 +26,14 @@ pub enum Error {
         actual: DataType,
     },
 
-    #[error("Unexpected column {column:?}")]
+    #[error(
+        "Unexpected column {column:?}. Either add it to the struct, or accept unknown columns with a `#[quiver(extra_columns)]` field"
+    )]
     UnexpectedColumn { column: String },
 
-    #[error("Column {column:?} has {null_count} null(s), but was marked as non-null")]
+    #[error(
+        "Column {column:?} has {null_count} null(s), but the field is marked #[quiver(non_null)]"
+    )]
     UnexpectedNulls { column: String, null_count: usize },
 
     #[error("Column {column:?}: expected a {expected}, found datatype {actual:?}")]
@@ -30,6 +46,6 @@ pub enum Error {
         actual: DataType,
     },
 
-    #[error(transparent)]
-    Arrow(#[from] ArrowError),
+    #[error("Failed to build the record batch: {0}")]
+    BuildRecordBatch(ArrowError),
 }

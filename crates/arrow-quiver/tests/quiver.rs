@@ -11,7 +11,7 @@ use arrow_quiver::arrow::array::{
 };
 use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use arrow_quiver::arrow::record_batch::RecordBatch;
-use arrow_quiver::{Column, Error, Quiver};
+use arrow_quiver::{Column, Error, ErrorKind, Quiver};
 
 /// Important thing
 #[derive(Quiver)]
@@ -119,7 +119,13 @@ fn missing_required_column() {
         Arc::new(TimestampNanosecondArray::from(vec![1])) as ArrayRef,
     )]);
     let result = Thing::try_from(batch);
-    assert!(matches!(result, Err(Error::MissingColumn { column }) if column == "name"));
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Thing",
+            kind: ErrorKind::MissingColumn { column },
+        }) if column == "name"
+    ));
 }
 
 #[test]
@@ -128,10 +134,13 @@ fn wrong_datatype() {
     let result = Strict::try_from(batch);
     assert!(matches!(
         result,
-        Err(Error::WrongDatatype {
-            column,
-            expected: DataType::Utf8,
-            actual: DataType::Int64,
+        Err(Error {
+            record_type: "Strict",
+            kind: ErrorKind::WrongDatatype {
+                column,
+                expected: DataType::Utf8,
+                actual: DataType::Int64,
+            },
         }) if column == "name"
     ));
 }
@@ -145,9 +154,12 @@ fn nulls_in_non_null_column() {
     let result = Strict::try_from(batch);
     assert!(matches!(
         result,
-        Err(Error::UnexpectedNulls {
-            column,
-            null_count: 1,
+        Err(Error {
+            record_type: "Strict",
+            kind: ErrorKind::UnexpectedNulls {
+                column,
+                null_count: 1,
+            },
         }) if column == "name"
     ));
 }
@@ -172,7 +184,13 @@ fn unexpected_column() {
         ("age", Arc::new(Int64Array::from(vec![30])) as ArrayRef),
     ]);
     let result = Strict::try_from(batch);
-    assert!(matches!(result, Err(Error::UnexpectedColumn { column }) if column == "age"));
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Strict",
+            kind: ErrorKind::UnexpectedColumn { column },
+        }) if column == "age"
+    ));
 }
 
 #[test]
@@ -270,10 +288,13 @@ fn wrong_array_type() {
     let result = Nested::try_from(batch);
     assert!(matches!(
         result,
-        Err(Error::WrongArrayType {
-            column,
-            expected,
-            actual: DataType::Int64,
+        Err(Error {
+            record_type: "Nested",
+            kind: ErrorKind::WrongArrayType {
+                column,
+                expected,
+                actual: DataType::Int64,
+            },
         }) if column == "list" && expected == "ListArray"
     ));
 }
@@ -287,7 +308,13 @@ fn column_length_mismatch() {
         other_columns: vec![],
     };
     let result = RecordBatch::try_from(thing);
-    assert!(matches!(result, Err(Error::Arrow(_))));
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Thing",
+            kind: ErrorKind::BuildRecordBatch(_),
+        })
+    ));
 }
 
 #[test]
@@ -298,4 +325,74 @@ fn non_null_column_is_emitted_as_non_nullable() {
     let batch = RecordBatch::try_from(strict).unwrap();
     let field = batch.schema_ref().field(0);
     assert!(!field.is_nullable());
+}
+
+#[test]
+fn nulls_rejected_when_encoding() {
+    let strict = Strict {
+        name: StringArray::from(vec![Some("Alice"), None]),
+    };
+    let result = RecordBatch::try_from(strict);
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Strict",
+            kind: ErrorKind::UnexpectedNulls {
+                column,
+                null_count: 1,
+            },
+        }) if column == "name"
+    ));
+}
+
+#[test]
+fn error_messages() {
+    let err = Thing::try_from(batch_of(&[(
+        "age",
+        Arc::new(Int64Array::from(vec![30])) as ArrayRef,
+    )]))
+    .err()
+    .unwrap();
+    assert_eq!(
+        err.to_string(),
+        "Thing: Missing required column \"name\". \
+         If the column is allowed to be missing, declare the field as `Option<…>`"
+    );
+
+    let err = Thing::try_from(batch_of(&[(
+        "name",
+        Arc::new(Int64Array::from(vec![30])) as ArrayRef,
+    )]))
+    .err()
+    .unwrap();
+    assert_eq!(
+        err.to_string(),
+        "Thing: Column \"name\": expected datatype Utf8, found Int64"
+    );
+
+    let err = Strict::try_from(batch_of(&[
+        (
+            "name",
+            Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+        ),
+        ("age", Arc::new(Int64Array::from(vec![30])) as ArrayRef),
+    ]))
+    .err()
+    .unwrap();
+    assert_eq!(
+        err.to_string(),
+        "Strict: Unexpected column \"age\". Either add it to the struct, \
+         or accept unknown columns with a `#[quiver(extra_columns)]` field"
+    );
+
+    let err = Strict::try_from(batch_of(&[(
+        "name",
+        Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
+    )]))
+    .err()
+    .unwrap();
+    assert_eq!(
+        err.to_string(),
+        "Strict: Column \"name\" has 1 null(s), but the field is marked #[quiver(non_null)]"
+    );
 }

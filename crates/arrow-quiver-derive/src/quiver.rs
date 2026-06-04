@@ -190,6 +190,8 @@ impl Quiver {
             }
         });
 
+        let record_type = ident.to_string();
+
         // Either collect the unknown columns, or error on them:
         let extra_columns = if let Some(extra_ident) = extra_columns_field {
             quote! {
@@ -206,15 +208,18 @@ impl Quiver {
             quote! {
                 for field in batch.schema_ref().fields() {
                     if !KNOWN_COLUMNS.contains(&field.name().as_str()) {
-                        return ::core::result::Result::Err(::arrow_quiver::Error::UnexpectedColumn {
-                            column: field.name().clone(),
+                        return ::core::result::Result::Err(::arrow_quiver::Error {
+                            record_type: #record_type,
+                            kind: ::arrow_quiver::ErrorKind::UnexpectedColumn {
+                                column: field.name().clone(),
+                            },
                         });
                     }
                 }
             }
         };
 
-        let extractors = columns.iter().map(ColumnField::extractor);
+        let extractors = columns.iter().map(|column| column.extractor(&record_type));
 
         let field_idents = metadata_field
             .iter()
@@ -248,7 +253,9 @@ impl Quiver {
             columns,
         } = self;
 
-        let pushes = columns.iter().map(ColumnField::push);
+        let record_type = ident.to_string();
+
+        let pushes = columns.iter().map(|column| column.push(&record_type));
 
         let push_extra = extra_columns_field.as_ref().map(|extra_ident| {
             quote! {
@@ -285,7 +292,10 @@ impl Quiver {
                         ::std::sync::Arc::new(schema),
                         columns,
                     )
-                    .map_err(::arrow_quiver::Error::from)
+                    .map_err(|err| ::arrow_quiver::Error {
+                        record_type: #record_type,
+                        kind: ::arrow_quiver::ErrorKind::BuildRecordBatch(err),
+                    })
                 }
             }
         }
@@ -294,12 +304,12 @@ impl Quiver {
 
 impl ColumnField {
     /// Generates `let #ident = …;`, extracting the column from `batch`.
-    fn extractor(&self) -> TokenStream {
+    fn extractor(&self, record_type: &str) -> TokenStream {
         let Self {
             ident,
             column_name,
             optional,
-            non_null,
+            non_null: _, // handled by `null_check`
             kind,
         } = self;
 
@@ -310,15 +320,18 @@ impl ColumnField {
                 array_type,
                 datatype,
             } => {
-                let downcast = downcast(column_name, array_type, "a matching array");
+                let downcast = downcast(record_type, column_name, array_type, "a matching array");
                 quote! {
                     {
                         let actual = ::arrow_quiver::arrow::array::Array::data_type(&**array);
                         if actual != &#datatype {
-                            return ::core::result::Result::Err(::arrow_quiver::Error::WrongDatatype {
-                                column: #column_name.to_owned(),
-                                expected: #datatype,
-                                actual: actual.clone(),
+                            return ::core::result::Result::Err(::arrow_quiver::Error {
+                                record_type: #record_type,
+                                kind: ::arrow_quiver::ErrorKind::WrongDatatype {
+                                    column: #column_name.to_owned(),
+                                    expected: #datatype,
+                                    actual: actual.clone(),
+                                },
                             });
                         }
                         #downcast
@@ -328,20 +341,10 @@ impl ColumnField {
             ColumnKind::Downcast {
                 array_type,
                 type_name,
-            } => downcast(column_name, array_type, type_name),
+            } => downcast(record_type, column_name, array_type, type_name),
         };
 
-        let null_check = non_null.then(|| {
-            quote! {
-                let null_count = ::arrow_quiver::arrow::array::Array::null_count(&array);
-                if 0 < null_count {
-                    return ::core::result::Result::Err(::arrow_quiver::Error::UnexpectedNulls {
-                        column: #column_name.to_owned(),
-                        null_count,
-                    });
-                }
-            }
-        });
+        let null_check = self.null_check(record_type);
 
         if *optional {
             quote! {
@@ -359,8 +362,11 @@ impl ColumnField {
                 let #ident = {
                     let array = batch
                         .column_by_name(#column_name)
-                        .ok_or_else(|| ::arrow_quiver::Error::MissingColumn {
-                            column: #column_name.to_owned(),
+                        .ok_or_else(|| ::arrow_quiver::Error {
+                            record_type: #record_type,
+                            kind: ::arrow_quiver::ErrorKind::MissingColumn {
+                                column: #column_name.to_owned(),
+                            },
                         })?;
                     let array = #convert;
                     #null_check
@@ -370,8 +376,32 @@ impl ColumnField {
         }
     }
 
+    /// Generates a check that `array` contains no nulls, if the field is marked `#[quiver(non_null)]`.
+    fn null_check(&self, record_type: &str) -> Option<TokenStream> {
+        let Self {
+            column_name,
+            non_null,
+            ..
+        } = self;
+
+        non_null.then(|| {
+            quote! {
+                let null_count = ::arrow_quiver::arrow::array::Array::null_count(&array);
+                if 0 < null_count {
+                    return ::core::result::Result::Err(::arrow_quiver::Error {
+                        record_type: #record_type,
+                        kind: ::arrow_quiver::ErrorKind::UnexpectedNulls {
+                            column: #column_name.to_owned(),
+                            null_count,
+                        },
+                    });
+                }
+            }
+        })
+    }
+
     /// Generates code pushing this column of `value` onto `fields` and `columns`.
-    fn push(&self) -> TokenStream {
+    fn push(&self, record_type: &str) -> TokenStream {
         let Self {
             ident,
             column_name,
@@ -381,6 +411,7 @@ impl ColumnField {
         } = self;
 
         let nullable = !non_null;
+        let null_check = self.null_check(record_type);
 
         // `array` is the (typed) array by value:
         let push_one = match kind {
@@ -413,6 +444,7 @@ impl ColumnField {
         if *optional {
             quote! {
                 if let ::core::option::Option::Some(array) = value.#ident {
+                    #null_check
                     #push_one
                 }
             }
@@ -420,6 +452,7 @@ impl ColumnField {
             quote! {
                 {
                     let array = value.#ident;
+                    #null_check
                     #push_one
                 }
             }
@@ -428,14 +461,22 @@ impl ColumnField {
 }
 
 /// Generates an expression downcasting `array` (a `&ArrayRef`) to `array_type`.
-fn downcast(column_name: &str, array_type: &syn::Type, expected: &str) -> TokenStream {
+fn downcast(
+    record_type: &str,
+    column_name: &str,
+    array_type: &syn::Type,
+    expected: &str,
+) -> TokenStream {
     quote! {
         ::arrow_quiver::arrow::array::Array::as_any(&**array)
             .downcast_ref::<#array_type>()
-            .ok_or_else(|| ::arrow_quiver::Error::WrongArrayType {
-                column: #column_name.to_owned(),
-                expected: #expected.to_owned(),
-                actual: ::arrow_quiver::arrow::array::Array::data_type(&**array).clone(),
+            .ok_or_else(|| ::arrow_quiver::Error {
+                record_type: #record_type,
+                kind: ::arrow_quiver::ErrorKind::WrongArrayType {
+                    column: #column_name.to_owned(),
+                    expected: #expected.to_owned(),
+                    actual: ::arrow_quiver::arrow::array::Array::data_type(&**array).clone(),
+                },
             })?
             .clone()
     }
