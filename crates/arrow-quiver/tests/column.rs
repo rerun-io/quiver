@@ -342,3 +342,22 @@ fn static_datatype() {
         assert!(!Column::<i64>::NULLABLE);
     }
 }
+
+#[test]
+fn to_vec_and_iter_owned() {
+    let column = Column::<String>::from_values(["a", "b"]);
+    let owned: Vec<String> = column.to_vec();
+    assert_eq!(owned, ["a".to_owned(), "b".to_owned()]);
+
+    let column = Column::<Option<String>>::from_values([Some("a".to_owned()), None]);
+    assert_eq!(column.to_vec(), [Some("a".to_owned()), None]);
+
+    let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
+    assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
+
+    let column = Column::<[u8; 2]>::from_values([[1_u8, 2], [3, 4]]);
+    assert_eq!(column.to_vec(), [[1_u8, 2], [3, 4]]);
+
+    let total: i64 = Column::<i64>::from_values([1, 2, 3]).iter_owned().sum();
+    assert_eq!(total, 6);
+}

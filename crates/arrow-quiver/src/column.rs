@@ -62,6 +62,10 @@ pub trait Datatype {
     ///
     /// `None` items only ever occur at `Option<…>` levels.
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef;
+
+    /// Converts a borrowed element value into an owned one,
+    /// e.g. `&str` → `String`.
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
 }
 
 /// What can go wrong when constructing a [`Column`].
@@ -213,6 +217,17 @@ impl<L: Datatype> Column<L> {
         }
     }
 
+    /// Iterates over owned values, e.g. `String` instead of `&str`.
+    pub fn iter_owned(&self) -> impl Iterator<Item = L::Owned> + '_ {
+        self.iter().map(L::to_owned_value)
+    }
+
+    /// Copies the values into a `Vec` of owned values,
+    /// e.g. `Vec<String>` for a `Column<String>`.
+    pub fn to_vec(&self) -> Vec<L::Owned> {
+        self.iter_owned().collect()
+    }
+
     /// The underlying arrow array.
     pub fn as_arrow(&self) -> &ArrayRef {
         &self.array
@@ -340,6 +355,10 @@ impl<L: Datatype> Datatype for Option<L> {
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
         L::build(values.map(Option::flatten))
     }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value.map(L::to_owned_value)
+    }
 }
 
 /// Marker for an arrow `List` column with items of logical type `L`.
@@ -365,7 +384,7 @@ impl<L: Datatype> Clone for TypedList<L> {
     }
 }
 
-impl<L: Datatype> Datatype for List<L> {
+impl<L: Datatype + 'static> Datatype for List<L> {
     type Typed = TypedList<L>;
     type Value<'a>
         = ListValue<'a, L>
@@ -439,6 +458,10 @@ impl<L: Datatype> Datatype for List<L> {
             nulls,
         ))
     }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value.map(L::to_owned_value).collect()
+    }
 }
 
 /// One list element of a `Column<List<L>>`: an iterator over the typed items.
@@ -510,6 +533,10 @@ macro_rules! impl_flat_datatype {
             fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
                 std::sync::Arc::new(<$array>::from_iter(values))
             }
+
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                value.into()
+            }
         }
     };
 }
@@ -565,6 +592,10 @@ impl<const N: usize> Datatype for [u8; N] {
             arrow::array::FixedSizeBinaryArray::try_from_sparse_iter_with_size(values, N as i32)
                 .expect("All values have the same size");
         std::sync::Arc::new(array)
+    }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        *value
     }
 }
 
@@ -672,6 +703,10 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
         let array: arrow::array::PrimitiveArray<U::TimestampType> = values.collect();
         std::sync::Arc::new(array.with_timezone_opt(Z::timezone()))
     }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value
+    }
 }
 
 /// Marker for an arrow `Duration` column, e.g. `Duration<Nanosecond>`.
@@ -710,5 +745,9 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
         let array: arrow::array::PrimitiveArray<U::DurationType> = values.collect();
         std::sync::Arc::new(array)
+    }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value
     }
 }
