@@ -164,6 +164,22 @@ The supported logical types:
 | `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
+Not *yet* supported as logical types:
+
+* `Struct` (punted for now), `Dictionary`
+* `Date32`/`Date64`, `Time32`/`Time64`
+* `Binary` (`Vec<u8>`), `LargeUtf8`/`LargeBinary`, and the string/binary *view* types
+* `LargeList`/`FixedSizeList`, `f16`
+
+Most of these can still be used as raw, downcast-only arrow array fields
+(`StructArray`, `DictionaryArray`, `LargeListArray`, …).
+The difficult and exotic datatypes — `Decimal`, `Map`, `Union`, `Interval`,
+and run-end arrays — are explicitly unsupported even as raw fields,
+with a clear compile error.
+
+Timezones are matched as exact strings: `Timestamp<Nanosecond, Utc>` ("UTC") will
+not accept an array with the equivalent timezone `"+00:00"`.
+
 ## Pros & cons
 
 Pros:
