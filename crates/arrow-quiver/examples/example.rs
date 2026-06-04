@@ -1,14 +1,16 @@
-//! A simple example of `#[derive(Quiver)]`.
+//! A simple example of `#[derive(Quiver)]`, mixing strongly-typed quiver columns
+//! with dynamically-typed raw arrow columns.
 //!
 //! Run with: `cargo run --example example`
 
 #![expect(clippy::print_stdout)] // This is an example, after all
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
-use arrow_quiver::Quiver;
-use arrow_quiver::arrow::array::{Float64Array, StringArray};
+use arrow_quiver::arrow::array::{ArrayRef, Float64Array, StringArray};
 use arrow_quiver::arrow::record_batch::RecordBatch;
+use arrow_quiver::{Column, Quiver};
 
 /// A set of measurements.
 #[derive(Quiver)]
@@ -17,20 +19,36 @@ struct Measurements {
     #[quiver(metadata)]
     metadata: BTreeMap<String, String>,
 
-    /// Name of the sensor. May not contain nulls.
-    #[quiver(non_null)]
-    sensor: StringArray,
+    /// Name of the sensor.
+    ///
+    /// A strongly-typed quiver column: guaranteed to be `Utf8` with no nulls.
+    sensor: Column<String>,
 
-    /// Measured temperature. The whole column may be missing.
-    temperature: Option<Float64Array>,
+    /// Measured temperature.
+    ///
+    /// `Column<Option<f64>>`: the *values* may be null.
+    /// (`Option<Column<f64>>` would instead mean the whole *column* may be missing.)
+    temperature: Column<Option<f64>>,
+
+    /// A raw arrow array: any datatype, any nullability.
+    ///
+    /// Use raw arrow types when you *want* things to be dynamic.
+    comment: ArrayRef,
 }
 
-fn main() -> Result<(), arrow_quiver::Error> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build a typed record — the struct literal is the builder:
     let measurements = Measurements {
         metadata: BTreeMap::from([("origin".to_owned(), "lab".to_owned())]),
-        sensor: StringArray::from(vec!["kitchen", "bedroom", "attic"]),
-        temperature: Some(Float64Array::from(vec![22.1, 21.9, 30.5])),
+        sensor: Column::try_new(Arc::new(StringArray::from(vec![
+            "kitchen", "bedroom", "attic",
+        ])))?,
+        temperature: Column::try_new(Arc::new(Float64Array::from(vec![
+            Some(22.1),
+            None,
+            Some(30.5),
+        ])))?,
+        comment: Arc::new(StringArray::from(vec!["cozy", "quiet", "spooky"])),
     };
 
     // Convert into an ordinary arrow `RecordBatch` (fails on column length mismatch):
@@ -43,14 +61,18 @@ fn main() -> Result<(), arrow_quiver::Error> {
 
     println!("origin: {:?}", measurements.metadata.get("origin"));
 
-    if let Some(temperature) = &measurements.temperature {
-        for (sensor, temperature) in std::iter::zip(measurements.sensor.iter(), temperature.iter())
-        {
-            if let (Some(sensor), Some(temperature)) = (sensor, temperature) {
-                println!("{sensor}: {temperature} °C");
-            }
+    // Typed columns iterate without any downcasting or unwrapping:
+    for (sensor, temperature) in
+        std::iter::zip(measurements.sensor.iter(), measurements.temperature.iter())
+    {
+        match temperature {
+            Some(temperature) => println!("{sensor}: {temperature} °C"),
+            None => println!("{sensor}: no reading"),
         }
     }
+
+    // The raw arrow column is dynamically typed:
+    println!("comments: {:?}", measurements.comment);
 
     Ok(())
 }

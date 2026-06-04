@@ -37,9 +37,6 @@ struct ColumnField {
     /// Is the column allowed to be missing? (the field is an `Option`)
     optional: bool,
 
-    /// Eagerly check that the column contains no nulls?
-    non_null: bool,
-
     kind: ColumnKind,
 }
 
@@ -110,7 +107,6 @@ impl Quiver {
             .clone()
             .ok_or_else(|| syn::Error::new_spanned(field, "Expected a named field"))?;
 
-        let mut non_null = false;
         let mut column_name = ident.to_string();
         let mut is_metadata = false;
         let mut is_extra_columns = false;
@@ -118,10 +114,7 @@ impl Quiver {
         for attr in &field.attrs {
             if attr.path().is_ident("quiver") {
                 attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("non_null") {
-                        non_null = true;
-                        Ok(())
-                    } else if meta.path.is_ident("name") {
+                    if meta.path.is_ident("name") {
                         let name: syn::LitStr = meta.value()?.parse()?;
                         column_name = name.value();
                         Ok(())
@@ -132,8 +125,7 @@ impl Quiver {
                         is_extra_columns = true;
                         Ok(())
                     } else {
-                        Err(meta
-                            .error("Expected `non_null`, `name`, `metadata`, or `extra_columns`"))
+                        Err(meta.error("Expected `name`, `metadata`, or `extra_columns`"))
                     }
                 })?;
             }
@@ -157,18 +149,10 @@ impl Quiver {
             self.extra_columns_field = Some(ident);
         } else {
             let (optional, kind) = classify_type(&field.ty)?;
-            if non_null && matches!(kind, ColumnKind::Wrapper { .. }) {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "#[quiver(non_null)] is redundant on a `Column<…>`: \
-                     it is non-null unless the logical type is an `Option<…>`",
-                ));
-            }
             self.columns.push(ColumnField {
                 ident,
                 column_name,
                 optional,
-                non_null,
                 kind,
             });
         }
@@ -265,8 +249,7 @@ impl Quiver {
         } = self;
 
         let record_type = ident.to_string();
-
-        let pushes = columns.iter().map(|column| column.push(&record_type));
+        let pushes = columns.iter().map(ColumnField::push);
 
         let push_extra = extra_columns_field.as_ref().map(|extra_ident| {
             quote! {
@@ -320,7 +303,6 @@ impl ColumnField {
             ident,
             column_name,
             optional,
-            non_null: _, // handled by `null_check`
             kind,
         } = self;
 
@@ -363,15 +345,11 @@ impl ColumnField {
             },
         };
 
-        let null_check = self.null_check(record_type);
-
         if *optional {
             quote! {
                 let #ident = match batch.column_by_name(#column_name) {
                     ::core::option::Option::Some(array) => {
-                        let array = #convert;
-                        #null_check
-                        ::core::option::Option::Some(array)
+                        ::core::option::Option::Some(#convert)
                     }
                     ::core::option::Option::None => ::core::option::Option::None,
                 };
@@ -387,50 +365,23 @@ impl ColumnField {
                                 column: #column_name.to_owned(),
                             },
                         })?;
-                    let array = #convert;
-                    #null_check
-                    array
+                    #convert
                 };
             }
         }
     }
 
-    /// Generates a check that `array` contains no nulls, if the field is marked `#[quiver(non_null)]`.
-    fn null_check(&self, record_type: &str) -> Option<TokenStream> {
-        let Self {
-            column_name,
-            non_null,
-            ..
-        } = self;
-
-        non_null.then(|| {
-            quote! {
-                let null_count = ::arrow_quiver::arrow::array::Array::null_count(&array);
-                if 0 < null_count {
-                    return ::core::result::Result::Err(::arrow_quiver::Error {
-                        record_type: #record_type,
-                        kind: ::arrow_quiver::ErrorKind::UnexpectedNulls {
-                            column: #column_name.to_owned(),
-                            null_count,
-                        },
-                    });
-                }
-            }
-        })
-    }
-
     /// Generates code pushing this column of `value` onto `fields` and `columns`.
-    fn push(&self, record_type: &str) -> TokenStream {
+    fn push(&self) -> TokenStream {
         let Self {
             ident,
             column_name,
             optional,
-            non_null,
             kind,
         } = self;
 
-        let nullable = !non_null;
-        let null_check = self.null_check(record_type);
+        // Raw arrow arrays are dynamically typed; we don't know if they contain nulls:
+        let nullable = true;
 
         // `array` is the (typed) array by value:
         let push_one = match kind {
@@ -471,7 +422,6 @@ impl ColumnField {
         if *optional {
             quote! {
                 if let ::core::option::Option::Some(array) = value.#ident {
-                    #null_check
                     #push_one
                 }
             }
@@ -479,7 +429,6 @@ impl ColumnField {
             quote! {
                 {
                     let array = value.#ident;
-                    #null_check
                     #push_one
                 }
             }

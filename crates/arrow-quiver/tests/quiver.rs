@@ -21,7 +21,6 @@ struct Thing {
     metadata: BTreeMap<String, String>,
 
     /// Name
-    #[quiver(non_null)]
     name: StringArray,
 
     /// Date of birth
@@ -35,7 +34,6 @@ struct Thing {
 /// No extra columns or metadata allowed.
 #[derive(Quiver)]
 struct Strict {
-    #[quiver(non_null)]
     name: StringArray,
 }
 
@@ -147,32 +145,15 @@ fn wrong_datatype() {
 }
 
 #[test]
-fn nulls_in_non_null_column() {
+fn raw_arrow_columns_are_dynamic_about_nulls() {
+    // Raw arrow array fields make no nullability guarantees;
+    // use `arrow_quiver::Column<…>` for compile-time guarantees.
     let batch = batch_of(&[(
         "name",
         Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
     )]);
-    let result = Strict::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Strict",
-            kind: ErrorKind::UnexpectedNulls {
-                column,
-                null_count: 1,
-            },
-        }) if column == "name"
-    ));
-}
-
-#[test]
-fn nulls_allowed_unless_non_null() {
-    let batch = batch_of(&[(
-        "anything",
-        Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
-    )]);
-    let anything = Anything::try_from(batch).unwrap();
-    assert_eq!(anything.anything.null_count(), 1);
+    let strict = Strict::try_from(batch).unwrap();
+    assert_eq!(strict.name.null_count(), 1);
 }
 
 #[test]
@@ -328,31 +309,25 @@ fn column_length_mismatch() {
 }
 
 #[test]
-fn non_null_column_is_emitted_as_non_nullable() {
-    let strict = Strict {
-        name: StringArray::from(vec!["Alice"]),
+fn typed_column_nullability_is_emitted() {
+    let typed = Typed {
+        name: arrow_quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice"]))).unwrap(),
+        maybe_age: arrow_quiver::Column::try_new(Arc::new(Int64Array::from(vec![30]))).unwrap(),
+        tags: arrow_quiver::Column::try_new(string_list_array_of_one()).unwrap(),
+        scores: None,
     };
-    let batch = RecordBatch::try_from(strict).unwrap();
-    let field = batch.schema_ref().field(0);
-    assert!(!field.is_nullable());
+    let batch = RecordBatch::try_from(typed).unwrap();
+    let schema = batch.schema_ref();
+    assert!(!schema.field_with_name("name").unwrap().is_nullable());
+    assert!(schema.field_with_name("maybe_age").unwrap().is_nullable());
 }
 
-#[test]
-fn nulls_rejected_when_encoding() {
-    let strict = Strict {
-        name: StringArray::from(vec![Some("Alice"), None]),
-    };
-    let result = RecordBatch::try_from(strict);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Strict",
-            kind: ErrorKind::UnexpectedNulls {
-                column,
-                null_count: 1,
-            },
-        }) if column == "name"
-    ));
+/// A `List<Utf8>` array with non-nullable items: `[["a"]]`
+fn string_list_array_of_one() -> ArrayRef {
+    let values = StringArray::from(vec!["a"]);
+    let offsets = arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 1].into());
+    let field = Arc::new(Field::new("item", DataType::Utf8, false));
+    Arc::new(ListArray::new(field, offsets, Arc::new(values), None))
 }
 
 #[test]
@@ -395,15 +370,23 @@ fn error_messages() {
          or accept unknown columns with a `#[quiver(extra_columns)]` field"
     );
 
-    let err = Strict::try_from(batch_of(&[(
-        "name",
-        Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
-    )]))
+    let err = Typed::try_from(batch_of(&[
+        (
+            "name",
+            Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
+        ),
+        (
+            "maybe_age",
+            Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef,
+        ),
+        ("tags", string_list_array()),
+    ]))
     .err()
     .unwrap();
     assert_eq!(
         err.to_string(),
-        "Strict: Column \"name\" has 1 null(s), but the field is marked #[quiver(non_null)]"
+        "Typed: Column \"name\" has 1 null(s) at a non-nullable level. \
+         Use `Option<…>` in the logical type to allow nulls"
     );
 }
 

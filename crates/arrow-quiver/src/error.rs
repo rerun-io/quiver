@@ -32,7 +32,7 @@ pub enum ErrorKind {
     UnexpectedColumn { column: String },
 
     #[error(
-        "Column {column:?} has {null_count} null(s), but the field is marked #[quiver(non_null)]"
+        "Column {column:?} has {null_count} null(s) at a non-nullable level. Use `Option<…>` in the logical type to allow nulls"
     )]
     UnexpectedNulls { column: String, null_count: usize },
 

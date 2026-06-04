@@ -23,9 +23,10 @@ use proc_macro::TokenStream;
 /// * `ArrayRef` — a required column of any datatype
 /// * `Option<…>` of the above — the column is allowed to be missing
 ///
+/// Use `quiver::Column<L>` for strong compile-time guarantees (exact datatypes, nullability),
+/// and raw arrow types when you *want* things to be dynamic.
+///
 /// ## Attributes
-/// * `#[quiver(non_null)]` — eagerly check that the column contains no nulls
-///   (raw arrow array fields only; for `Column<…>` nullability is part of the logical type)
 /// * `#[quiver(name = "special:name")]` — the column name, when it isn't a valid Rust identifier
 /// * `#[quiver(metadata)]` — this `BTreeMap<String, String>` field holds the record batch metadata
 /// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.

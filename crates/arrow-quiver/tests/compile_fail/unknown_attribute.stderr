@@ -1,4 +1,4 @@
-error: Expected `non_null`, `name`, `metadata`, or `extra_columns`
+error: Expected `name`, `metadata`, or `extra_columns`
  --> tests/compile_fail/unknown_attribute.rs:7:14
   |
 7 |     #[quiver(nullable)]

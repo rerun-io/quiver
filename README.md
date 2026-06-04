@@ -14,19 +14,9 @@ A quiver holds arrows; this crate holds typed Arrow arrays.
 Work-in-progress
 
 ## TODO
-* [x] Rust workspace with `arrow-quiver` and `arrow-quiver-derive` crates
-* [x] `#[derive(Quiver)]` with `TryFrom<RecordBatch>` (validate + zero-copy downcast) and `TryFrom<Self> for RecordBatch`
-* [x] Typed array columns with eager datatype validation (`StringArray`, primitives, binary, dates, timestamps)
-* [x] `Option<…>` for columns that are allowed to be missing
-* [x] `#[quiver(non_null)]` — eager `null_count == 0` check at the parse boundary
-* [x] `ArrayRef` columns accepting any datatype
-* [x] `#[quiver(name = "special:name")]` for column names that aren't Rust identifiers
-* [x] `#[quiver(metadata)]` and `#[quiver(extra_columns)]` (absence ⇒ unknown columns are an error)
-* [x] More datatypes: `Duration`, `Time`, `Float16`, string/binary views (exact match), plus `List`, `FixedSizeList`, `Struct`, `Dictionary`, `FixedSizeBinary` (downcast-only — inner types not validated)
-* [x] Explicitly punt on difficult and exotic datatypes: `Decimal`, `Map`, `Union`, `Interval`, run-ends, … (clear compile error)
-* [x] Compile-fail tests of the derive macro (`trybuild`)
-* [x] Test error messages (should be helpful and actionable, and mention the struct type by name)
-* [x] Strongly-typed wrapper `quiver::Column<L>` (`Column<List<String>>`, `Column<Option<i64>>`, …): validates inner types of nested arrays and nullability once at the parse boundary, then gives infallible typed access. Also usable standalone via `Column::<L>::try_from(array)`
+* [ ] strong quiver datatypes
+* [ ] support const-generics-based support for DataType::FixedSizeBinary(16) etc
+  (should map to `[u8; 16]` in this case)
 * [ ] `Struct` logical type for `quiver::Column` (punted for now)
 * [ ] `Timestamp`/`Duration`/`Dictionary` logical types for `quiver::Column`
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
@@ -37,6 +27,10 @@ Work-in-progress
 For a complete, compiling example, see [`example.rs`](crates/arrow-quiver/examples/example.rs).
 Run it with `cargo run --example example`.
 
+Use the strongly-typed `quiver::Column<L>` for compile-time guarantees (exact datatype,
+including nested types, and nullability), and raw `arrow` types when you _want_ things
+to be dynamic:
+
 ``` rust
 /// Important thing
 #[derive(arrow_quiver::Quiver)]
@@ -45,12 +39,17 @@ struct Thing {
     #[quiver(metadata)]
     pub metadata: BTreeMap<String, String>,
 
-    /// Name
-    #[quiver(non_null)]
-    pub name: StringArray,
+    /// Strongly typed: guaranteed to be Utf8, with no nulls
+    pub name: Column<String>,
 
-    /// Date of birth
-    pub dob: Option<TimestampNanosecondArray>,
+    /// Strongly typed: a List<Utf8> where the items may be null
+    pub tags: Column<List<Option<String>>>,
+
+    /// Strongly typed values; the whole *column* may be missing
+    pub dob: Option<Column<i64>>,
+
+    /// A raw arrow array: any datatype, any nullability — dynamically typed
+    pub comment: ArrayRef,
 
     /// If missing, the proc-macro enforces no additional columns may exist
     #[quiver(extra_columns)]
@@ -62,20 +61,32 @@ struct Thing {
 // * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
 ```
 
+`quiver::Column` is also usable standalone, without the derive:
+
+``` rust
+let column = quiver::Column::<List<String>>::try_from(dynamic_arrow_array)?;
+for list in &column {
+    for string in list {
+        // `string` is a `&str`; validation already happened, up front
+    }
+}
+```
+
 ## Pros & cons
 
 Pros:
 * **Zero-copy**: columns stay as reference-counted Arrow arrays (structure-of-arrays), never transposed into `Vec<RowStruct>`
 * **Parse, don't validate**: column names, datatypes, and nullability are all checked once, eagerly, at the `TryFrom<RecordBatch>` boundary
+* **Strong typing on demand**: `quiver::Column<L>` validates exact datatypes (including the inner types of nested arrays) and nullability, then gives infallible typed access; raw `arrow` types remain available when you _want_ dynamic
 * **Struct literal = builder**: plain `pub` fields; no builder machinery, free pattern matching
 * **Nothing is hidden**: record batch metadata and unknown columns are explicit fields, declared in the struct
 * **Thin**: the derive expands to plain `arrow-rs` calls; no runtime machinery
 
 Cons:
 * **Invalid states are representable**: a column length mismatch is only caught when converting *to* a `RecordBatch`, possibly far from the mistake site
-* **Fields stay mutable**: a parsed struct can be modified into invalidity after validation
-* **Schema = Rust array types**: limited to the datatypes with a typed Arrow array (`List`/`Struct`/`Dictionary` are validated by downcast only — their inner types are not checked), and no per-row view
-* **Nullability at runtime**: since we use the datatypes from `arrow-rs` there is no way to enforce that a column has no nulls
+* **Fields stay mutable**: a parsed struct can be modified into invalidity after validation (`quiver::Column` itself stays valid — it is immutable after construction)
+* **Raw arrow fields are unchecked by design**: nullability and the inner types of nested arrays are only validated for `quiver::Column<L>` fields
+* **No per-row view**: data is accessed column-wise (that's the point), but there is no generated row iterator
 * **Rust only**: no IDL, no cross-language codegen (so far)
 
 ### Prior art (researched 2026-06-04)
