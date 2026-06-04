@@ -13,32 +13,65 @@ A quiver holds arrows; this crate holds typed Arrow arrays.
 ## Status
 Work-in-progress
 
+## TODO
+* [x] Rust workspace with `arrow-quiver` and `arrow-quiver-derive` crates
+* [x] `#[derive(Quiver)]` with `TryFrom<RecordBatch>` (validate + zero-copy downcast) and `TryFrom<Self> for RecordBatch`
+* [x] Typed array columns with eager datatype validation (`StringArray`, primitives, binary, dates, timestamps)
+* [x] `Option<…>` for columns that are allowed to be missing
+* [x] `#[quiver(non_null)]` — eager `null_count == 0` check at the parse boundary
+* [x] `ArrayRef` columns accepting any datatype
+* [x] `#[quiver(name = "special:name")]` for column names that aren't Rust identifiers
+* [x] `#[quiver(metadata)]` and `#[quiver(extra_columns)]` (absence ⇒ unknown columns are an error)
+* [ ] More datatypes: `List`, `Struct`, `Duration`, `Timestamp` (no timezones), …
+* [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
+* [ ] Compile-fail tests of the derive macro (e.g. `trybuild`)
+* [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
+* [ ] Publish to crates.io
+
 ## Example
+For a complete, compiling example, see [`example.rs`](crates/arrow-quiver/examples/example.rs).
+Run it with `cargo run --example example`.
+
 ``` rust
 /// Important thing
-#[derive(Record)]
+#[derive(arrow_quiver::Quiver)]
 struct Thing {
     /// …of the record-batch
+    #[quiver(metadata)]
     pub metadata: BTreeMap<String, String>,
 
     /// Name
-    #[non_null]
+    #[quiver(non_null)]
     pub name: StringArray,
 
     /// Date of birth
     pub dob: Option<TimestampNanosecondArray>,
 
     /// If missing, the proc-macro enforces no additional columns may exist
+    #[quiver(extra_columns)]
     pub other_columns: Vec<Column>,
 }
 
 // Proc-macro generates:
-// * `impl TryFrom<RecordBatch> for Thing` - validates via the runtime schema, then downcasts
-// * `impl TryInto<RecordBatch> for Thing` - fails on column length mismatch
+// * `impl TryFrom<RecordBatch> for Thing` - validates the schema, then downcasts (zero-copy)
+// * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
 ```
 
-## Goals
-* Zero-copy conversion to and from arrow `RecordBatch`
+## Pros & cons
+
+Pros:
+* **Zero-copy**: columns stay as reference-counted Arrow arrays (structure-of-arrays), never transposed into `Vec<RowStruct>`
+* **Parse, don't validate**: column names, datatypes, and nullability are all checked once, eagerly, at the `TryFrom<RecordBatch>` boundary
+* **Struct literal = builder**: plain `pub` fields; no builder machinery, free pattern matching
+* **Nothing is hidden**: record batch metadata and unknown columns are explicit fields, declared in the struct
+* **Thin**: the derive expands to plain `arrow-rs` calls; no runtime machinery
+
+Cons:
+* **Invalid states are representable**: a column length mismatch is only caught when converting *to* a `RecordBatch`, possibly far from the mistake site
+* **Fields stay mutable**: a parsed struct can be modified into invalidity after validation
+* **Schema = Rust array types**: limited to the datatypes with a typed Arrow array (no `List`/`Struct`/`Dictionary` support yet), and no per-row view
+* **Nullability at runtime**: since we use the datatypes from `arrow-rs` there is no way to enforce that a column has no nulls
+* **Rust only**: no IDL, no cross-language codegen (so far)
 
 ### Prior art (researched 2026-06-04)
 
@@ -60,8 +93,8 @@ struct Thing {
 
 ## Crates
 
-* [`arrow-quiver`](crates/arrow-quiver) — the runtime `Schema` and validator
-* [`arrow-quiver-derive`](crates/arrow-quiver-derive) — the `#[derive(Record)]` proc-macro
+* [`arrow-quiver`](crates/arrow-quiver) — the runtime crate: `Error`, `Column`, and the `arrow` re-export
+* [`arrow-quiver-derive`](crates/arrow-quiver-derive) — the `#[derive(Quiver)]` proc-macro
 
 ## License
 

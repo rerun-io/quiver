@@ -25,6 +25,7 @@ arrow = { version = "58.3", default-features = false }
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0"
+thiserror = "2.0"
 
 
 [patch.crates-io]
