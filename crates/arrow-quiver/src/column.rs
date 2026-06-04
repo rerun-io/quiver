@@ -482,10 +482,14 @@ pub struct Timestamp<U, Z = NoTimezone> {
     _marker: PhantomData<fn() -> (U, Z)>,
 }
 
-/// A [`Timestamp`] time unit: [`Second`], [`Millisecond`], [`Microsecond`], or [`Nanosecond`].
+/// A [`Timestamp`]/[`Duration`] time unit:
+/// [`Second`], [`Millisecond`], [`Microsecond`], or [`Nanosecond`].
 pub trait TimeUnitSpec {
     /// The corresponding arrow timestamp type, e.g. `TimestampNanosecondType`.
     type TimestampType: arrow::datatypes::ArrowTimestampType;
+
+    /// The corresponding arrow duration type, e.g. `DurationNanosecondType`.
+    type DurationType: arrow::datatypes::ArrowPrimitiveType<Native = i64>;
 }
 
 pub struct Second;
@@ -495,15 +499,19 @@ pub struct Nanosecond;
 
 impl TimeUnitSpec for Second {
     type TimestampType = arrow::datatypes::TimestampSecondType;
+    type DurationType = arrow::datatypes::DurationSecondType;
 }
 impl TimeUnitSpec for Millisecond {
     type TimestampType = arrow::datatypes::TimestampMillisecondType;
+    type DurationType = arrow::datatypes::DurationMillisecondType;
 }
 impl TimeUnitSpec for Microsecond {
     type TimestampType = arrow::datatypes::TimestampMicrosecondType;
+    type DurationType = arrow::datatypes::DurationMicrosecondType;
 }
 impl TimeUnitSpec for Nanosecond {
     type TimestampType = arrow::datatypes::TimestampNanosecondType;
+    type DurationType = arrow::datatypes::DurationNanosecondType;
 }
 
 /// The timezone of a [`Timestamp`]: [`NoTimezone`], [`Utc`], or your own marker type.
@@ -542,6 +550,39 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
             <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
             Z::timezone(),
         )
+    }
+
+    fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        downcast_array::<Self::Typed>(array)
+    }
+
+    fn is_null(typed: &Self::Typed, index: usize) -> bool {
+        typed.is_null(index)
+    }
+
+    fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        typed.value(index)
+    }
+}
+
+/// Marker for an arrow `Duration` column, e.g. `Duration<Nanosecond>`.
+///
+/// The values are raw `i64` ticks in the given [`TimeUnitSpec`].
+///
+/// This type is never instantiated — it only appears as a type parameter.
+pub struct Duration<U> {
+    _marker: PhantomData<fn() -> U>,
+}
+
+impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
+    type Typed = arrow::array::PrimitiveArray<U::DurationType>;
+    type Value<'a>
+        = i64
+    where
+        Self: 'a;
+
+    fn datatype() -> DataType {
+        DataType::Duration(<U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT)
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

@@ -3,11 +3,13 @@
 use std::sync::Arc;
 
 use arrow_quiver::arrow::array::{
-    ArrayRef, FixedSizeBinaryArray, Int64Array, ListArray, StringArray, TimestampNanosecondArray,
-    TimestampSecondArray,
+    ArrayRef, DurationMillisecondArray, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
+    TimestampNanosecondArray, TimestampSecondArray,
 };
 use arrow_quiver::arrow::datatypes::{DataType, Field, Int64Type};
-use arrow_quiver::{Column, ColumnError, List, Nanosecond, Second, Timestamp, Utc};
+use arrow_quiver::{
+    Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc,
+};
 
 #[test]
 fn standalone_flat_column() {
@@ -206,4 +208,29 @@ fn column_metadata() {
         .metadata_mut()
         .insert("source".to_owned(), "sensor".to_owned());
     assert_eq!(column.metadata().len(), 2);
+}
+
+#[test]
+fn standalone_duration_column() {
+    let array: ArrayRef = Arc::new(DurationMillisecondArray::from(vec![100, 200]));
+
+    // The unit must match:
+    assert!(matches!(
+        Column::<Duration<Nanosecond>>::try_from(Arc::clone(&array)),
+        Err(ColumnError::WrongDatatype { .. })
+    ));
+
+    let column = Column::<Duration<Millisecond>>::try_from(array).unwrap();
+    let values: Vec<i64> = column.iter().collect();
+    assert_eq!(values, [100, 200]);
+
+    // Nullable:
+    let array: ArrayRef = Arc::new(DurationMillisecondArray::from(vec![Some(1), None]));
+    assert!(matches!(
+        Column::<Duration<Millisecond>>::try_from(Arc::clone(&array)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    let column = Column::<Option<Duration<Millisecond>>>::try_from(array).unwrap();
+    let values: Vec<Option<i64>> = column.iter().collect();
+    assert_eq!(values, [Some(1), None]);
 }

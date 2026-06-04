@@ -16,7 +16,7 @@ Work-in-progress
 ## TODO
 * [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
 * [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
-* [ ] `Duration` logical types for `quiver::Column`
+* [x] `Duration` logical type for `quiver::Column`: `Column<Duration<Millisecond>>`
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
 * [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
 * [ ] Publish to crates.io
