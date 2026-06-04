@@ -252,7 +252,7 @@ From the 2026-06-04 self-review:
 * [x] `Date32`/`Date64` and `Time32`/`Time64` logical types
 * [x] `LargeUtf8` logical type
 * [x] `Column::slice(offset, len)` — zero-copy, like arrow's
-* [ ] CI: the declared arrow version range (`>=57, <59`) is only tested at the locked version — test all versions on CI
+* [x] CI: all supported arrow versions are tested, via `scripts/test_arrow_versions.sh` (also runnable locally)
 * [x] Domain-newtype hooks: `arrow_quiver::newtype_datatype!(MyType, String)` makes `Column<MyType>` work (requires `From` conversions both ways; reading stays zero-copy via the repr's borrowed value)
 * [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
 
