@@ -16,6 +16,8 @@ use proc_macro::TokenStream;
 /// * `fn from_record_batch()` and `fn into_record_batch()` — discoverable aliases for the above
 /// * `COLUMN_*` constants (e.g. `COLUMN_TEMPERATURE`) — per-column descriptors with the column
 ///   name and an `extract(&batch)` method for pulling out one column
+/// * `COLUMN_*_NAME` constants — the column names as plain `&str` constants,
+///   usable in `match` patterns
 /// * `fn min_schema()` / `fn max_schema()` — the static arrow schema of the required columns /
 ///   of all declared columns (including optional ones); only generated when all columns have a
 ///   statically-known datatype (no `ArrayRef`, `ListArray`, …)

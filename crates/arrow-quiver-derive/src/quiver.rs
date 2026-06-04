@@ -258,22 +258,36 @@ impl Quiver {
                 ..
             } = column;
             let const_ident = format_ident!("COLUMN_{}", field_ident.to_string().to_uppercase());
+            let name_const_ident =
+                format_ident!("COLUMN_{}_NAME", field_ident.to_string().to_uppercase());
             let doc = format!("The {column_name:?} column.");
+            let name_doc = format!(
+                "The name of the {column_name:?} column: a plain `&str` constant, \
+                 usable in `match` patterns (unlike the field access `COLUMN_*.name`)."
+            );
+            let name_const = quote! {
+                #[doc = #name_doc]
+                pub const #name_const_ident: &'static str = #column_name;
+            };
             let declared = declared_metadata
                 .iter()
                 .map(|(key, value)| quote! { (#key, #value) });
             let declared = quote! { &[#(#declared),*] };
             match kind {
                 ColumnKind::Wrapper { column_type } => quote! {
+                    #name_const
+
                     #[doc = #doc]
                     pub const #const_ident: #krate::ColumnDesc<#column_type> =
-                        #krate::ColumnDesc::new(#record_type, #column_name, #declared);
+                        #krate::ColumnDesc::new(#record_type, Self::#name_const_ident, #declared);
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
                     quote! {
+                        #name_const
+
                         #[doc = #doc]
                         pub const #const_ident: #krate::DynColumnDesc =
-                            #krate::DynColumnDesc::new(#record_type, #column_name);
+                            #krate::DynColumnDesc::new(#record_type, Self::#name_const_ident);
                     }
                 }
             }

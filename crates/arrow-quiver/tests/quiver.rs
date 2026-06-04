@@ -939,3 +939,27 @@ mod crate_path_override {
         assert_eq!(Thing::COLUMN_X.name, "x");
     }
 }
+
+#[test]
+fn column_name_constants_in_patterns() {
+    let batch = annotated().into_record_batch().unwrap();
+
+    let mut kinds = Vec::new();
+    for field in batch.schema_ref().fields() {
+        // Plain consts are valid match patterns (COLUMN_*.name would not be):
+        kinds.push(match field.name().as_str() {
+            Annotated::COLUMN_CHUNK_ID_NAME => "control",
+            Annotated::COLUMN_FRAME_START_NAME => "index",
+            _ => "other",
+        });
+    }
+    assert_eq!(kinds, ["control", "index", "other"]);
+
+    // The descriptor's name is the same constant:
+    assert_eq!(
+        Annotated::COLUMN_CHUNK_ID.name,
+        Annotated::COLUMN_CHUNK_ID_NAME
+    );
+    // Renames are honored:
+    assert_eq!(Annotated::COLUMN_FRAME_START_NAME, "frame_nr");
+}
