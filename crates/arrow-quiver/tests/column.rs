@@ -698,3 +698,67 @@ fn fixed_size_list_columns() {
     let sliced = column.slice(1, 2);
     assert_eq!(sliced.to_vec(), [[3, 4], [5, 6]]);
 }
+
+/// Domain newtypes via `newtype_datatype!`.
+#[derive(Debug, PartialEq)]
+struct SensorName(String);
+
+impl From<String> for SensorName {
+    fn from(name: String) -> Self {
+        Self(name)
+    }
+}
+impl From<SensorName> for String {
+    fn from(name: SensorName) -> Self {
+        name.0
+    }
+}
+
+arrow_quiver::newtype_datatype!(SensorName, String);
+
+/// A `[u8; 16]`-backed newtype.
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct ChunkId([u8; 16]);
+
+impl From<[u8; 16]> for ChunkId {
+    fn from(id: [u8; 16]) -> Self {
+        Self(id)
+    }
+}
+impl From<ChunkId> for [u8; 16] {
+    fn from(id: ChunkId) -> Self {
+        id.0
+    }
+}
+
+arrow_quiver::newtype_datatype!(ChunkId, [u8; 16]);
+
+#[test]
+fn newtype_columns() {
+    let column = Column::<SensorName>::from_values([
+        SensorName("kitchen".to_owned()),
+        SensorName("attic".to_owned()),
+    ]);
+    assert_eq!(Column::<SensorName>::datatype(), DataType::Utf8);
+
+    // Reading is zero-copy, yielding the repr's borrowed value:
+    let values: Vec<&str> = column.iter().collect();
+    assert_eq!(values, ["kitchen", "attic"]);
+
+    // Owned values are the newtype:
+    assert_eq!(
+        column.to_vec(),
+        [
+            SensorName("kitchen".to_owned()),
+            SensorName("attic".to_owned())
+        ]
+    );
+
+    // Composes like any logical type:
+    let column = Column::<Option<ChunkId>>::from_nullable_values([Some(ChunkId([7; 16])), None]);
+    assert_eq!(column.to_vec(), [Some(ChunkId([7; 16])), None]);
+    assert_eq!(Column::<ChunkId>::datatype(), DataType::FixedSizeBinary(16));
+
+    let column = Column::<List<SensorName>>::from_values([vec![SensorName("a".to_owned())]]);
+    assert_eq!(column.to_vec(), [vec![SensorName("a".to_owned())]]);
+}

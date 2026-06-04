@@ -152,6 +152,8 @@ More of the `Column` API:
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata
   wins on key conflicts), included in `schema()`, never validated on parse
+* Domain newtypes: `newtype_datatype!(SensorName, String)` makes `Column<SensorName>` work,
+  with all of the above
 * Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
   into `arrow::error::ArrowError` (as `ExternalError`), so `?` works in
   functions returning arrow results
@@ -251,5 +253,6 @@ From the 2026-06-04 self-review:
 * [x] `LargeUtf8` logical type
 * [x] `Column::slice(offset, len)` — zero-copy, like arrow's
 * [ ] CI: the declared arrow version range (`>=57, <59`) is only tested at the locked version — test all versions on CI
+* [ ] 2. Domain-newtype hooks (i.e. support `struct MyType(String)` for a `MyType` that `impl Into/From<String>`). Something like #[quiver(as = String)] on the field, or a QuiverLogical trait newtypes implement, would  make Column<MyType> possible.
 * [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
-* [ ] Publish to crates.io
+

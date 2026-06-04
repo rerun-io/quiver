@@ -15,6 +15,7 @@ mod error;
 mod fixed_size_binary;
 mod fixed_size_list;
 mod list;
+mod newtype;
 mod option;
 mod primitive;
 mod string;
