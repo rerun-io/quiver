@@ -239,6 +239,23 @@ impl<L: Datatype> Column<L> {
     }
 }
 
+impl<L: Datatype> Column<Option<L>> {
+    /// Builds a nullable column from optional values.
+    ///
+    /// Unlike [`Column::from_values`], the values inside the `Option`s may still
+    /// need converting, e.g. `Option<&str>` for a `Column<Option<String>>`:
+    ///
+    /// ```
+    /// # use arrow_quiver::Column;
+    /// let column = Column::<Option<String>>::from_nullable_values([Some("a"), None]);
+    /// ```
+    pub fn from_nullable_values(
+        values: impl IntoIterator<Item = Option<impl Into<L::Owned>>>,
+    ) -> Self {
+        Self::from_values(values.into_iter().map(|value| value.map(Into::into)))
+    }
+}
+
 impl<L: Datatype, T: Into<L::Owned>> From<Vec<T>> for Column<L> {
     fn from(values: Vec<T>) -> Self {
         Self::from_values(values)

@@ -361,3 +361,18 @@ fn to_vec_and_iter_owned() {
     let total: i64 = Column::<i64>::from_values([1, 2, 3]).iter_owned().sum();
     assert_eq!(total, 6);
 }
+
+#[test]
+fn nullable_construction_ergonomics() {
+    // Owned values work directly:
+    let column: Column<Option<String>> = vec![Some("a".to_owned()), None].into();
+    assert_eq!(column.to_vec(), [Some("a".to_owned()), None]);
+
+    // Borrowed values need `from_nullable_values`
+    // (std has no `From<Option<&str>> for Option<String>`):
+    let column = Column::<Option<String>>::from_nullable_values([Some("a"), None]);
+    assert_eq!(column.to_vec(), [Some("a".to_owned()), None]);
+
+    let column = Column::<Option<List<i64>>>::from_nullable_values([Some(vec![1, 2]), None]);
+    assert_eq!(column.to_vec(), [Some(vec![1, 2]), None]);
+}
