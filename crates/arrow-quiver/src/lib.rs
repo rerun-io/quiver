@@ -1,22 +1,5 @@
-//! Schema specification and validation for [Apache Arrow](https://arrow.apache.org/) record batches.
-//!
-//! A quiver holds arrows; this crate holds typed Arrow arrays.
-//!
-//! Put `#[derive(Quiver)]` (behind the `derive` feature) on a struct of typed Arrow arrays
-//! to generate conversions to/from [`arrow::record_batch::RecordBatch`].
-//!
-//! For strong typing beyond what the raw arrow array types can express
-//! (nested datatypes, nullability), use the [`Column`] wrapper —
-//! either as struct fields, or standalone:
-//!
-//! ```
-//! # use std::sync::Arc;
-//! # use arrow_quiver::arrow::array::{ArrayRef, StringArray};
-//! let dynamic_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar"]));
-//! let column = arrow_quiver::Column::<String>::try_from(dynamic_array).unwrap();
-//! let strings: Vec<&str> = column.iter().collect();
-//! assert_eq!(strings, ["foo", "bar"]);
-//! ```
+#![doc = include_str!("../../../README.md")]
+// NOTE: the code blocks in the README double as doctests for this crate.
 
 pub use arrow;
 

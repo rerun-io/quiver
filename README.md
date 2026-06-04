@@ -10,16 +10,6 @@ with codegen for integrating with [`arrow-rs`](https://github.com/apache/arrow-r
 
 A quiver holds arrows; this crate holds typed Arrow arrays.
 
-## Status
-Work-in-progress
-
-## TODO
-* [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
-* [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
-* [x] `Duration` logical type for `quiver::Column`: `Column<Duration<Millisecond>>`
-* [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
-* [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
-* [ ] Publish to crates.io
 
 ## Example
 For a complete, compiling example, see [`example.rs`](crates/arrow-quiver/examples/example.rs).
@@ -30,8 +20,13 @@ including nested types, and nullability), and raw `arrow` types when you _want_ 
 to be dynamic:
 
 ``` rust
+use std::collections::BTreeMap;
+
+use arrow_quiver::arrow::array::ArrayRef;
+use arrow_quiver::{Column, DynColumn, List, Quiver};
+
 /// Important thing
-#[derive(arrow_quiver::Quiver)]
+#[derive(Quiver)]
 struct Thing {
     /// …of the record-batch
     #[quiver(metadata)]
@@ -62,13 +57,55 @@ struct Thing {
 `quiver::Column` is also usable standalone, without the derive:
 
 ``` rust
-let column = quiver::Column::<List<String>>::try_from(dynamic_arrow_array)?;
+use std::sync::Arc;
+
+use arrow_quiver::arrow::array::{ArrayRef, ListArray};
+use arrow_quiver::arrow::datatypes::Int32Type;
+use arrow_quiver::{Column, List};
+
+let dynamic_arrow_array: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int32Type, _, _>(
+    vec![Some(vec![Some(1), Some(2)]), Some(vec![Some(3)])],
+));
+
+let column = Column::<List<Option<i32>>>::try_from(dynamic_arrow_array).unwrap();
 for list in &column {
-    for string in list {
-        // `string` is a `&str`; validation already happened, up front
+    for number in list {
+        // `number` is an `Option<i32>`; validation already happened, up front
     }
 }
 ```
+
+## Quiver types vs. arrow types
+
+A `#[derive(Quiver)]` field can hold its column either as a raw `arrow` array
+(e.g. `StringArray`, `ListArray`, `ArrayRef`) or as a strongly-typed `quiver::Column<L>`,
+where `L` is a *logical type* like `List<Option<String>>`.
+Use quiver types for compile-time guarantees; use arrow types when you _want_ things to be dynamic.
+
+What is checked when parsing a `RecordBatch`:
+
+|                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
+|----------------|------------------------------------------------------------------------------|------------------------------------------------------------------|
+| Datatype       | Downcast only — parameterized arrays (`ListArray`, …) accept *any* inner types | Exact match, recursively (`List<String>` ≠ `List<i64>`)           |
+| Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
+| Timestamps     | Unit only — the timezone is ignored (`TimestampNanosecondArray`)             | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
+| Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
+| Cost           | None                                                                         | One eager validation pass at the parse boundary                   |
+
+All validation happens once, when the record batch enters: after that, a `Column<L>` cannot
+be invalid (its fields are private and immutable), so element access never returns a `Result`.
+
+The supported logical types:
+
+| Logical type `L`                             | Arrow datatype               | Element value             |
+|----------------------------------------------|------------------------------|---------------------------|
+| `bool`, `i8`–`i64`, `u8`–`u64`, `f32`, `f64` | The same                     | By value                  |
+| `String`                                     | `Utf8`                       | `&str`                    |
+| `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
+| `Timestamp<Nanosecond, Utc>`                 | `Timestamp(Nanosecond, UTC)` | `i64`                     |
+| `Duration<Millisecond>`                      | `Duration(Millisecond)`      | `i64`                     |
+| `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
+| `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
 ## Pros & cons
 
@@ -112,3 +149,15 @@ Cons:
 ## License
 
 Dual-licensed under [MIT](LICENSE-MIT) and [Apache 2.0](LICENSE-APACHE).
+
+
+## Status
+Work-in-progress
+
+## TODO
+* [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
+* [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
+* [x] `Duration` logical type for `quiver::Column`: `Column<Duration<Millisecond>>`
+* [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
+* [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
+* [ ] Publish to crates.io
