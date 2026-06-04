@@ -253,6 +253,6 @@ From the 2026-06-04 self-review:
 * [x] `LargeUtf8` logical type
 * [x] `Column::slice(offset, len)` — zero-copy, like arrow's
 * [ ] CI: the declared arrow version range (`>=57, <59`) is only tested at the locked version — test all versions on CI
-* [ ] 2. Domain-newtype hooks (i.e. support `struct MyType(String)` for a `MyType` that `impl Into/From<String>`). Something like #[quiver(as = String)] on the field, or a QuiverLogical trait newtypes implement, would  make Column<MyType> possible.
+* [x] Domain-newtype hooks: `arrow_quiver::newtype_datatype!(MyType, String)` makes `Column<MyType>` work (requires `From` conversions both ways; reading stays zero-copy via the repr's borrowed value)
 * [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
 
