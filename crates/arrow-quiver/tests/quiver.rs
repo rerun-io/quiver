@@ -921,7 +921,6 @@ fn declared_metadata_in_static_schema() {
 /// (proc-macros have no `$crate` equivalent).
 mod crate_path_override {
     use arrow_quiver as renamed_quiver;
-    use renamed_quiver::arrow::record_batch::RecordBatch;
 
     #[derive(renamed_quiver::Quiver)]
     #[quiver(crate = "renamed_quiver")]
