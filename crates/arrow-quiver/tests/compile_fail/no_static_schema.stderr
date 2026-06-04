@@ -1,0 +1,12 @@
+error[E0599]: no function or associated item named `schema` found for struct `Thing` in the current scope
+  --> tests/compile_fail/no_static_schema.rs:12:20
+   |
+ 7 | struct Thing {
+   | ------------ function or associated item `schema` not found for this struct
+...
+12 |     let _ = Thing::schema();
+   |                    ^^^^^^ function or associated item not found in `Thing`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `schema`, perhaps you need to implement it:
+           candidate #1: `RecordBatchReader`

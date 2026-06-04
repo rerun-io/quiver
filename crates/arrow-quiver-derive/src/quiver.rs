@@ -6,9 +6,11 @@ use syn::{Data, DeriveInput, Fields};
 
 pub fn derive_quiver(input: &DeriveInput) -> syn::Result<TokenStream> {
     let quiver = Quiver::parse(input)?;
+    let schema_fn = quiver.schema_fn();
     let try_from_batch = quiver.try_from_batch();
     let try_into_batch = quiver.try_into_batch();
     Ok(quote! {
+        #schema_fn
         #try_from_batch
         #try_into_batch
     })
@@ -158,6 +160,51 @@ impl Quiver {
         }
 
         Ok(())
+    }
+
+    /// Generates `impl #ident { fn schema() }`, if all columns have a statically-known datatype.
+    fn schema_fn(&self) -> Option<TokenStream> {
+        let Self { ident, columns, .. } = self;
+
+        let fields = columns
+            .iter()
+            .map(|column| {
+                let ColumnField {
+                    column_name, kind, ..
+                } = column;
+                match kind {
+                    ColumnKind::Wrapper { column_type } => Some(quote! {
+                        ::arrow_quiver::arrow::datatypes::Field::new(
+                            #column_name,
+                            <#column_type>::datatype(),
+                            <#column_type>::NULLABLE,
+                        )
+                    }),
+                    ColumnKind::Typed { datatype, .. } => Some(quote! {
+                        // The nullability of raw arrow arrays is not statically known:
+                        ::arrow_quiver::arrow::datatypes::Field::new(#column_name, #datatype, true)
+                    }),
+                    // Not statically known:
+                    ColumnKind::Any | ColumnKind::Downcast { .. } => None,
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+
+        Some(quote! {
+            #[automatically_derived]
+            impl #ident {
+                /// The static schema of the declared columns.
+                ///
+                /// Optional (`Option<…>`) columns are included, even though
+                /// they may be missing from an actual record batch.
+                /// Per-instance metadata is not included.
+                pub fn schema() -> ::arrow_quiver::arrow::datatypes::Schema {
+                    ::arrow_quiver::arrow::datatypes::Schema::new(::std::vec![
+                        #(#fields),*
+                    ])
+                }
+            }
+        })
     }
 
     /// Generates `impl TryFrom<RecordBatch> for #ident`.

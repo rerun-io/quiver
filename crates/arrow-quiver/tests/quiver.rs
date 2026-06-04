@@ -593,3 +593,29 @@ fn error_converts_to_arrow_error() {
     let arrow_err = ArrowError::from(err);
     assert!(matches!(arrow_err, ArrowError::InvalidArgumentError(_)));
 }
+
+#[test]
+fn static_schema() {
+    // All-static struct (quiver columns):
+    let schema = Typed::schema();
+    let name = schema.field_with_name("name").unwrap();
+    assert_eq!(name.data_type(), &DataType::Utf8);
+    assert!(!name.is_nullable());
+
+    let maybe_age = schema.field_with_name("maybe_age").unwrap();
+    assert_eq!(maybe_age.data_type(), &DataType::Int64);
+    assert!(maybe_age.is_nullable());
+
+    // Optional columns are included:
+    assert!(schema.field_with_name("scores").is_ok());
+
+    // Raw arrow arrays with an exact datatype are included, as nullable
+    // (their nullability is not statically known):
+    let schema = Strict::schema();
+    let name = schema.field_with_name("name").unwrap();
+    assert_eq!(name.data_type(), &DataType::Utf8);
+    assert!(name.is_nullable());
+
+    // Structs with dynamically-typed columns (ArrayRef, ListArray, …)
+    // get no `schema()` at all.
+}
