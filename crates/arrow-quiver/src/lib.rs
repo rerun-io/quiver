@@ -4,13 +4,15 @@
 pub use arrow;
 
 mod column;
+mod column_desc;
 mod error;
 
 pub use self::column::{
-    Column, ColumnDesc, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Duration, DynColumnDesc,
-    List, ListValue, Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec,
-    Timestamp, TimezoneSpec, TypedList, Utc,
+    Column, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Duration, List, ListValue,
+    Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,
+    TimezoneSpec, TypedList, Utc,
 };
+pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::error::{Error, ErrorKind};
 
 #[cfg(feature = "derive")]
