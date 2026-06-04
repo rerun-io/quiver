@@ -283,6 +283,18 @@ impl Quiver {
                     ::core::result::Result::Ok(Self { #(#field_idents),* })
                 }
             }
+
+            #[automatically_derived]
+            impl ::core::convert::TryFrom<&::arrow_quiver::arrow::record_batch::RecordBatch> for #ident {
+                type Error = ::arrow_quiver::Error;
+
+                fn try_from(
+                    batch: &::arrow_quiver::arrow::record_batch::RecordBatch,
+                ) -> ::core::result::Result<Self, Self::Error> {
+                    // Cloning a record batch is cheap (the columns are reference-counted):
+                    Self::try_from(::core::clone::Clone::clone(batch))
+                }
+            }
         }
     }
 

@@ -619,3 +619,16 @@ fn static_schema() {
     // Structs with dynamically-typed columns (ArrayRef, ListArray, …)
     // get no `schema()` at all.
 }
+
+#[test]
+fn try_from_record_batch_reference() {
+    let strict = Strict {
+        name: StringArray::from(vec!["Alice"]),
+    };
+    let batch = RecordBatch::try_from(strict).unwrap();
+
+    // By reference — the batch stays usable:
+    let strict = Strict::try_from(&batch).unwrap();
+    assert_eq!(strict.name, StringArray::from(vec!["Alice"]));
+    assert_eq!(batch.num_rows(), 1);
+}
