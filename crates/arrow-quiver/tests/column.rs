@@ -463,7 +463,7 @@ fn dictionary_columns() {
     use arrow_quiver::arrow::array::DictionaryArray;
 
     // Building dictionary-encodes the values:
-    let column = Column::<Dictionary<i32, String>>::from_values(["a", "b", "a", "a"]);
+    let column = Column::<Dictionary<i32, String>>::try_from_values(["a", "b", "a", "a"]).unwrap();
     assert_eq!(
         Column::<Dictionary<i32, String>>::datatype(),
         DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
@@ -495,4 +495,18 @@ fn dictionary_columns() {
     let column = Column::<Option<Dictionary<i32, String>>>::try_from(array).unwrap();
     let values: Vec<Option<&str>> = column.iter().collect();
     assert_eq!(values, [Some("x"), None]);
+}
+
+#[test]
+fn dictionary_key_overflow_is_an_error() {
+    use arrow_quiver::Dictionary;
+
+    // 200 distinct values do not fit in an i8 key:
+    let values: Vec<String> = (0..200).map(|i| i.to_string()).collect();
+    let result = Column::<Dictionary<i8, String>>::try_from_values(values.clone());
+    assert!(matches!(result, Err(ColumnError::Build(_))));
+
+    // …but they fit in an i16 key:
+    let column = Column::<Dictionary<i16, String>>::try_from_values(values).unwrap();
+    assert_eq!(column.len(), 200);
 }

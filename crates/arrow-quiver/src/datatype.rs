@@ -54,12 +54,30 @@ pub trait Datatype {
     /// Builds an arrow array of this datatype from owned values.
     ///
     /// `None` items only ever occur at `Option<…>` levels.
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef;
+    ///
+    /// # Errors
+    /// Building can only fail for fallible encodings —
+    /// today that is dictionary key overflow (see [`crate::Dictionary`]).
+    /// Implementations of [`InfallibleBuild`] never error.
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError>;
 
     /// Converts a borrowed element value into an owned one,
     /// e.g. `&str` → `String`.
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
 }
+
+/// Marker for logical types whose [`Datatype::build`] can never fail,
+/// making the convenient [`Column::from_values`](crate::Column::from_values)
+/// (and `From<Vec<T>>`, `FromIterator`) available.
+///
+/// Implemented by every logical type except [`Dictionary`](crate::Dictionary),
+/// whose encoding can fail (key overflow) — use
+/// [`Column::try_from_values`](crate::Column::try_from_values) there.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` cannot be built infallibly",
+    note = "dictionary encoding can fail (key overflow): use `Column::try_from_values` instead of `from_values`"
+)]
+pub trait InfallibleBuild: Datatype {}
 
 /// What can go wrong when constructing a [`Column`](crate::Column).
 ///
@@ -76,6 +94,9 @@ pub enum ColumnError {
         "Found {null_count} null(s) at a non-nullable level. Use `Option<…>` in the logical type to allow nulls"
     )]
     UnexpectedNulls { null_count: usize },
+
+    #[error("Failed to build the array: {0}")]
+    Build(arrow::error::ArrowError),
 }
 
 impl ColumnError {
@@ -90,6 +111,7 @@ impl ColumnError {
             Self::UnexpectedNulls { null_count } => {
                 ErrorKind::UnexpectedNulls { column, null_count }
             }
+            Self::Build(err) => ErrorKind::BuildRecordBatch(err),
         }
     }
 }
@@ -144,14 +166,18 @@ macro_rules! impl_flat_datatype {
                 typed.value(index)
             }
 
-            fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
-                std::sync::Arc::new(<$array>::from_iter(values))
+            fn build(
+                values: impl Iterator<Item = Option<Self::Owned>>,
+            ) -> Result<ArrayRef, ColumnError> {
+                Ok(std::sync::Arc::new(<$array>::from_iter(values)))
             }
 
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 value.into()
             }
         }
+
+        impl crate::datatype::InfallibleBuild for $rust {}
     };
 }
 

@@ -144,7 +144,9 @@ and an infallible `fn empty_record_batch()`.
 More of the `Column` API:
 
 * Construction is infallible: `from_values`, `From<Vec<T>>`, `FromIterator`,
-  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty)
+  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty).
+  The one exception: building a `Dictionary` column can fail (key overflow),
+  so it uses `try_from_values` instead
 * Reading: `value`/`get`, `iter()` (borrowed), `iter_owned()`/`to_vec()` (owned)
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch

@@ -112,10 +112,11 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
         V::value(&typed.values, key)
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
-        let plain = V::build(values);
-        arrow::compute::cast(&plain, &Self::datatype())
-            .expect("Dictionary-encoding failed (too many unique values for the key type?)")
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
+        let plain = V::build(values)?;
+        // This can fail on key overflow: too many distinct values for `K`
+        // (e.g. more than 127 for `i8`). Hence `Dictionary` is NOT `InfallibleBuild`.
+        arrow::compute::cast(&plain, &Self::datatype()).map_err(ColumnError::Build)
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {

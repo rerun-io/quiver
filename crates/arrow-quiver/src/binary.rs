@@ -10,7 +10,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 
 /// Marker for an arrow `Binary` column: variable-length byte strings.
 ///
@@ -49,14 +49,18 @@ macro_rules! impl_binary_datatype {
                 typed.value(index)
             }
 
-            fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
-                std::sync::Arc::new(<$array>::from_iter(values))
+            fn build(
+                values: impl Iterator<Item = Option<Self::Owned>>,
+            ) -> Result<ArrayRef, ColumnError> {
+                Ok(std::sync::Arc::new(<$array>::from_iter(values)))
             }
 
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 value.to_vec()
             }
         }
+
+        impl InfallibleBuild for $marker {}
     };
 }
 

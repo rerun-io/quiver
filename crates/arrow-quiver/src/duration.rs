@@ -8,7 +8,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 use crate::timestamp::{Microsecond, Millisecond, Nanosecond, Second, TimeUnitSpec};
 use std::marker::PhantomData;
 
@@ -45,9 +45,9 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
         typed.value(index)
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let array: arrow::array::PrimitiveArray<U::DurationType> = values.collect();
-        std::sync::Arc::new(array)
+        Ok(std::sync::Arc::new(array))
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
@@ -59,3 +59,5 @@ pub type DurationSecond = Duration<Second>;
 pub type DurationMillisecond = Duration<Millisecond>;
 pub type DurationMicrosecond = Duration<Microsecond>;
 pub type DurationNanosecond = Duration<Nanosecond>;
+
+impl<U: TimeUnitSpec + 'static> InfallibleBuild for Duration<U> {}

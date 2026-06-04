@@ -8,6 +8,7 @@
 use arrow::array::{Array as _, ArrayRef};
 use arrow::datatypes::DataType;
 
+use crate::datatype::InfallibleBuild;
 use crate::{ColumnError, Datatype};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
@@ -76,11 +77,18 @@ impl<L: Datatype> Column<L> {
         self
     }
 
-    /// Builds a column from owned values,
-    /// e.g. `Column::<String>::from_values(["a", "b"])`.
-    pub fn from_values(values: impl IntoIterator<Item = impl Into<L::Owned>>) -> Self {
-        let array = L::build(values.into_iter().map(|value| Some(value.into())));
-        Self::try_new(array).expect("The built array always matches the datatype")
+    /// Builds a column from owned values; the fallible form of
+    /// [`Column::from_values`], needed only for fallible encodings
+    /// (dictionary key overflow).
+    ///
+    /// # Errors
+    /// Errors if the encoding fails, e.g. too many distinct values
+    /// for the dictionary key type.
+    pub fn try_from_values(
+        values: impl IntoIterator<Item = impl Into<L::Owned>>,
+    ) -> Result<Self, ColumnError> {
+        let array = L::build(values.into_iter().map(|value| Some(value.into())))?;
+        Self::try_new(array)
     }
 
     /// The exact arrow datatype of this column.
@@ -138,7 +146,35 @@ impl<L: Datatype> Column<L> {
     }
 }
 
+impl<L: Datatype> Column<L>
+where
+    L: InfallibleBuild,
+{
+    /// Builds a column from owned values,
+    /// e.g. `Column::<String>::from_values(["a", "b"])`.
+    ///
+    /// Infallible — for the one fallible encoding (dictionaries),
+    /// see [`Column::try_from_values`].
+    pub fn from_values(values: impl IntoIterator<Item = impl Into<L::Owned>>) -> Self {
+        Self::try_from_values(values).expect("Cannot fail: the logical type is InfallibleBuild")
+    }
+}
+
 impl<L: Datatype> Column<Option<L>> {
+    /// Builds a nullable column from optional values; the fallible form of
+    /// [`Column::from_nullable_values`].
+    ///
+    /// # Errors
+    /// Errors if the encoding fails, e.g. too many distinct values
+    /// for the dictionary key type.
+    pub fn try_from_nullable_values(
+        values: impl IntoIterator<Item = Option<impl Into<L::Owned>>>,
+    ) -> Result<Self, ColumnError> {
+        Self::try_from_values(values.into_iter().map(|value| value.map(Into::into)))
+    }
+}
+
+impl<L: InfallibleBuild> Column<Option<L>> {
     /// Builds a nullable column from optional values.
     ///
     /// Unlike [`Column::from_values`], the values inside the `Option`s may still
@@ -155,13 +191,13 @@ impl<L: Datatype> Column<Option<L>> {
     }
 }
 
-impl<L: Datatype, T: Into<L::Owned>> From<Vec<T>> for Column<L> {
+impl<L: InfallibleBuild, T: Into<L::Owned>> From<Vec<T>> for Column<L> {
     fn from(values: Vec<T>) -> Self {
         Self::from_values(values)
     }
 }
 
-impl<L: Datatype, T: Into<L::Owned>> FromIterator<T> for Column<L> {
+impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for Column<L> {
     fn from_iter<I: IntoIterator<Item = T>>(values: I) -> Self {
         Self::from_values(values)
     }

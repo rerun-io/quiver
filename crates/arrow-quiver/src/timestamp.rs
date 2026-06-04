@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 
 /// Marker for an arrow `Timestamp` column, e.g. `Timestamp<Nanosecond, Utc>`.
 ///
@@ -112,9 +112,9 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
         typed.value(index)
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let array: arrow::array::PrimitiveArray<U::TimestampType> = values.collect();
-        std::sync::Arc::new(array.with_timezone_opt(Z::timezone()))
+        Ok(std::sync::Arc::new(array.with_timezone_opt(Z::timezone())))
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
@@ -126,3 +126,5 @@ pub type TimestampSecond<Z = NoTimezone> = Timestamp<Second, Z>;
 pub type TimestampMillisecond<Z = NoTimezone> = Timestamp<Millisecond, Z>;
 pub type TimestampMicrosecond<Z = NoTimezone> = Timestamp<Microsecond, Z>;
 pub type TimestampNanosecond<Z = NoTimezone> = Timestamp<Nanosecond, Z>;
+
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> InfallibleBuild for Timestamp<U, Z> {}

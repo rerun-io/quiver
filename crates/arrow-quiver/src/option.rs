@@ -11,6 +11,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
+use crate::datatype::InfallibleBuild;
 use crate::{ColumnError, Datatype};
 
 /// `Option<L>`: the values at this level may be null.
@@ -44,7 +45,7 @@ impl<L: Datatype> Datatype for Option<L> {
         }
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         L::build(values.map(Option::flatten))
     }
 
@@ -52,3 +53,5 @@ impl<L: Datatype> Datatype for Option<L> {
         value.map(L::to_owned_value)
     }
 }
+
+impl<L: InfallibleBuild> InfallibleBuild for Option<L> {}

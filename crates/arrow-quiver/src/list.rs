@@ -16,7 +16,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 
 /// Marker for an arrow `List` column with items of logical type `L`.
 ///
@@ -82,7 +82,7 @@ impl<L: Datatype + 'static> Datatype for List<L> {
         }
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let mut lengths = Vec::new();
         let mut validity = Vec::new();
         let mut flattened = Vec::new();
@@ -103,17 +103,17 @@ impl<L: Datatype + 'static> Datatype for List<L> {
             L::NULLABLE,
         ));
         let offsets = arrow::buffer::OffsetBuffer::from_lengths(lengths);
-        let values_array = L::build(flattened.into_iter().map(Some));
+        let values_array = L::build(flattened.into_iter().map(Some))?;
         let nulls = validity
             .contains(&false)
             .then(|| arrow::buffer::NullBuffer::from(validity));
 
-        std::sync::Arc::new(arrow::array::ListArray::new(
+        Ok(std::sync::Arc::new(arrow::array::ListArray::new(
             field,
             offsets,
             values_array,
             nulls,
-        ))
+        )))
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
@@ -148,3 +148,5 @@ impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
 }
 
 impl<'a, L: Datatype + 'a> ExactSizeIterator for ListValue<'a, L> {}
+
+impl<L: InfallibleBuild + 'static> InfallibleBuild for List<L> {}

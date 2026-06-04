@@ -9,7 +9,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 
 /// `[u8; N]`: an arrow `FixedSizeBinary(N)` column, e.g. `[u8; 16]` for UUIDs.
 impl<const N: usize> Datatype for [u8; N] {
@@ -40,18 +40,20 @@ impl<const N: usize> Datatype for [u8; N] {
             .expect("The length is guaranteed by the validated datatype")
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         const {
             assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
         }
         #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let array =
             arrow::array::FixedSizeBinaryArray::try_from_sparse_iter_with_size(values, N as i32)
-                .expect("All values have the same size");
-        std::sync::Arc::new(array)
+                .map_err(ColumnError::Build)?; // Cannot happen: `[u8; N]` values all have the same size
+        Ok(std::sync::Arc::new(array))
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         *value
     }
 }
+
+impl<const N: usize> InfallibleBuild for [u8; N] {}
