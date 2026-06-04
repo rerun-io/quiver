@@ -170,6 +170,7 @@ The supported logical types:
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `Dictionary<i32, String>`                    | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
 | `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
+| `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
 Not *yet* supported as logical types:
@@ -180,7 +181,7 @@ Not *yet* supported as logical types:
   arrow leaves the child values undefined, so child null-validation must be masked
   by the parent validity, on both parse and build)
 * The string/binary *view* types
-* `LargeList`/`FixedSizeList`
+* `LargeList`
 
 Most of these can still be used as raw, downcast-only arrow array fields
 (`StructArray`, `DictionaryArray`, `LargeListArray`, …).
@@ -247,7 +248,7 @@ From the 2026-06-04 self-review:
 * [ ] `::schema()` is a foot-gun: it doesn't communicate clearly what happens with optional columns.
     * Maybe a `fn required_fields()` would be a more useful helper?
     * And/or maybe `min_schema` vs `max_schema`?
-* [ ] `FixedSizeList<L, N>` logical type (vec3s, tensors); needs logical-null-masked child validation for `Option<…>` rows
+* [x] `FixedSizeList<L, N>` logical type (vec3s, tensors), with logical-null-masked child validation
 * [x] `Date32`/`Date64` and `Time32`/`Time64` logical types
 * [x] `LargeUtf8` logical type
 * [x] `Column::slice(offset, len)` — zero-copy, like arrow's

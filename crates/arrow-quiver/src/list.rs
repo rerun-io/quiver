@@ -131,6 +131,13 @@ pub struct ListValue<'a, L: Datatype> {
     end: usize,
 }
 
+impl<'a, L: Datatype> ListValue<'a, L> {
+    /// `index..end` into `values`.
+    pub(crate) fn new(values: &'a L::Typed, index: usize, end: usize) -> Self {
+        Self { values, index, end }
+    }
+}
+
 impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 

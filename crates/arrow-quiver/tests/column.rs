@@ -658,3 +658,43 @@ fn column_slice() {
     let sliced = column.slice(1, 2);
     assert_eq!(sliced.to_vec(), [vec![2, 3], vec![4]]);
 }
+
+#[test]
+fn fixed_size_list_columns() {
+    use arrow_quiver::FixedSizeList;
+
+    // 3D positions:
+    let column =
+        Column::<FixedSizeList<f32, 3>>::from_values([[1.0_f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    assert_eq!(
+        Column::<FixedSizeList<f32, 3>>::datatype(),
+        DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, false)), 3)
+    );
+    let positions: Vec<[f32; 3]> = column.to_vec();
+    assert_eq!(positions, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+
+    // Iteration is zero-copy, like List:
+    let first: Vec<f32> = column.value(0).collect();
+    assert_eq!(first, [1.0, 2.0, 3.0]);
+
+    // The size is part of the type:
+    let result = Column::<FixedSizeList<f32, 4>>::try_from(Arc::clone(column.as_arrow()));
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nullable rows: the null row's placeholder items are masked, not errors:
+    let column = Column::<Option<FixedSizeList<f32, 3>>>::from_nullable_values([
+        Some([1.0_f32, 2.0, 3.0]),
+        None,
+    ]);
+    assert_eq!(column.to_vec(), [Some([1.0, 2.0, 3.0]), None]);
+
+    // Roundtrip through arrow:
+    let roundtripped =
+        Column::<Option<FixedSizeList<f32, 3>>>::try_from(column.into_arrow()).unwrap();
+    assert_eq!(roundtripped.to_vec(), [Some([1.0, 2.0, 3.0]), None]);
+
+    // Slicing:
+    let column = Column::<FixedSizeList<i64, 2>>::from_values([[1_i64, 2], [3, 4], [5, 6]]);
+    let sliced = column.slice(1, 2);
+    assert_eq!(sliced.to_vec(), [[3, 4], [5, 6]]);
+}
