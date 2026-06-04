@@ -335,6 +335,44 @@ impl<'a, L: Datatype + 'a> IntoIterator for &'a Column<L> {
     }
 }
 
+/// Iterating a `Column` by value yields owned values, like a `Vec` —
+/// e.g. `String` for a `Column<String>`.
+impl<L: Datatype> IntoIterator for Column<L> {
+    type Item = L::Owned;
+    type IntoIter = ColumnIntoIter<L>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ColumnIntoIter {
+            column: self,
+            index: 0,
+        }
+    }
+}
+
+/// By-value iterator over the owned values of a [`Column`].
+pub struct ColumnIntoIter<L: Datatype> {
+    column: Column<L>,
+    index: usize,
+}
+
+impl<L: Datatype> Iterator for ColumnIntoIter<L> {
+    type Item = L::Owned;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.column.get(self.index)?;
+        let value = L::to_owned_value(value);
+        self.index += 1;
+        Some(value)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.column.len() - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<L: Datatype> ExactSizeIterator for ColumnIntoIter<L> {}
+
 // ----------------------------------------------------------------------------
 // Logical types
 

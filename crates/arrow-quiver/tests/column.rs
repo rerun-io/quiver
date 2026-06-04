@@ -376,3 +376,22 @@ fn nullable_construction_ergonomics() {
     let column = Column::<Option<List<i64>>>::from_nullable_values([Some(vec![1, 2]), None]);
     assert_eq!(column.to_vec(), [Some(vec![1, 2]), None]);
 }
+
+#[test]
+fn into_iterator() {
+    let column = Column::<String>::from_values(["a", "b"]);
+
+    // By reference: borrowed values.
+    let mut borrowed = Vec::new();
+    for value in &column {
+        borrowed.push(value); // `&str`
+    }
+    assert_eq!(borrowed, ["a", "b"]);
+
+    // By value: owned values, like a `Vec`.
+    let mut owned = Vec::new();
+    for value in column {
+        owned.push(value); // `String`
+    }
+    assert_eq!(owned, ["a".to_owned(), "b".to_owned()]);
+}
