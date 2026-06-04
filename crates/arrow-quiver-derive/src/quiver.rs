@@ -1,15 +1,17 @@
 //! Implementation of `#[derive(Quiver)]`.
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields};
 
 pub fn derive_quiver(input: &DeriveInput) -> syn::Result<TokenStream> {
     let quiver = Quiver::parse(input)?;
+    let column_consts = quiver.column_consts();
     let schema_fn = quiver.schema_fn();
     let try_from_batch = quiver.try_from_batch();
     let try_into_batch = quiver.try_into_batch();
     Ok(quote! {
+        #column_consts
         #schema_fn
         #try_from_batch
         #try_into_batch
@@ -160,6 +162,44 @@ impl Quiver {
         }
 
         Ok(())
+    }
+
+    /// Generates `COLUMN_*` descriptor constants for every column.
+    fn column_consts(&self) -> TokenStream {
+        let Self { ident, columns, .. } = self;
+        let record_type = ident.to_string();
+
+        let consts = columns.iter().map(|column| {
+            let ColumnField {
+                ident: field_ident,
+                column_name,
+                kind,
+                ..
+            } = column;
+            let const_ident = format_ident!("COLUMN_{}", field_ident.to_string().to_uppercase());
+            let doc = format!("The {column_name:?} column.");
+            match kind {
+                ColumnKind::Wrapper { column_type } => quote! {
+                    #[doc = #doc]
+                    pub const #const_ident: ::arrow_quiver::ColumnDesc<#column_type> =
+                        ::arrow_quiver::ColumnDesc::new(#record_type, #column_name);
+                },
+                ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
+                    quote! {
+                        #[doc = #doc]
+                        pub const #const_ident: ::arrow_quiver::DynColumnDesc =
+                            ::arrow_quiver::DynColumnDesc::new(#record_type, #column_name);
+                    }
+                }
+            }
+        });
+
+        quote! {
+            #[automatically_derived]
+            impl #ident {
+                #(#consts)*
+            }
+        }
     }
 
     /// Generates `impl #ident { fn schema() }`, if all columns have a statically-known datatype.

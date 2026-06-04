@@ -49,6 +49,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // … write to disk, send over the network, etc …
 
+    // Or extract just a single, strongly-typed column:
+    let temperatures = Measurements::COLUMN_TEMPERATURE.extract(&batch)?;
+    println!(
+        "max: {:?} °C",
+        temperatures.iter().flatten().max_by(f64::total_cmp)
+    );
+
     // Parse it back: validates the schema, then downcasts the columns (zero-copy):
     let measurements = Measurements::from_record_batch(batch)?;
 

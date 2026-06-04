@@ -7,8 +7,9 @@ mod column;
 mod error;
 
 pub use self::column::{
-    Column, ColumnError, ColumnIter, Datatype, Duration, List, ListValue, Microsecond, Millisecond,
-    Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp, TimezoneSpec, TypedList, Utc,
+    Column, ColumnDesc, ColumnError, ColumnIter, Datatype, Duration, DynColumnDesc, List,
+    ListValue, Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,
+    TimezoneSpec, TypedList, Utc,
 };
 pub use self::error::{Error, ErrorKind};
 

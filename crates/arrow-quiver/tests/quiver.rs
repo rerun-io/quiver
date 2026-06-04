@@ -675,3 +675,40 @@ fn from_record_batch() {
     let strict = Strict::from_record_batch(batch).unwrap();
     assert_eq!(strict.name, StringArray::from(vec!["Alice"]));
 }
+
+#[test]
+fn column_descriptors() {
+    // Names without hard-coding, honoring #[quiver(name = …)]:
+    assert_eq!(Typed::COLUMN_NAME.name, "name");
+    assert_eq!(Renamed::COLUMN_KIND.name, "special:name");
+
+    let typed = Typed {
+        name: arrow_quiver::Column::from_values(["Alice", "Bob"]),
+        maybe_age: arrow_quiver::Column::from_values([Some(30_i64), None]),
+        tags: arrow_quiver::Column::try_new(string_list_array()).unwrap(),
+        scores: None,
+    };
+    let batch = typed.into_record_batch().unwrap();
+
+    // Extract a single strongly-typed column:
+    let ages = Typed::COLUMN_MAYBE_AGE.extract(&batch).unwrap();
+    assert_eq!(ages.to_vec(), [Some(30), None]);
+
+    // Missing column:
+    let err = Typed::COLUMN_SCORES.extract(&batch).err().unwrap();
+    assert!(matches!(
+        err,
+        Error {
+            record_type: "Typed",
+            kind: ErrorKind::MissingColumn { .. },
+        }
+    ));
+
+    // Dynamically-typed columns get a DynColumnDesc:
+    let strict = Strict {
+        name: StringArray::from(vec!["Alice"]),
+    };
+    let batch = strict.into_record_batch().unwrap();
+    let column = Strict::COLUMN_NAME.extract(&batch).unwrap();
+    assert_eq!(column.field.name(), "name");
+}

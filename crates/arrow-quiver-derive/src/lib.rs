@@ -14,6 +14,8 @@ use proc_macro::TokenStream;
 ///   (column names, datatypes, nullability), then downcasts the columns (zero-copy)
 /// * `impl TryFrom<Self> for RecordBatch` — fails on column length mismatch
 /// * `fn from_record_batch()` and `fn into_record_batch()` — discoverable aliases for the above
+/// * `COLUMN_*` constants (e.g. `COLUMN_TEMPERATURE`) — per-column descriptors with the column
+///   name and an `extract(&batch)` method for pulling out one column
 /// * `fn schema()` — the static arrow schema of the declared columns; only generated when all
 ///   columns have a statically-known datatype (no `ArrayRef`, `ListArray`, …)
 ///
