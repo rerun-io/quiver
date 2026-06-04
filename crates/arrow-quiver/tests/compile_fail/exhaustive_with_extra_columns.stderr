@@ -1,0 +1,5 @@
+error: A #[quiver(extra_columns)] field cannot be combined with the `exhaustive`/`nonexhaustive` attributes: the field alone already means unknown columns are collected
+ --> tests/compile_fail/exhaustive_with_extra_columns.rs:8:8
+  |
+8 | struct Thing {
+  |        ^^^^^

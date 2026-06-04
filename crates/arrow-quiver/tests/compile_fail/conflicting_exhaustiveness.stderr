@@ -1,0 +1,5 @@
+error: Conflicting `exhaustive`/`nonexhaustive` attributes
+ --> tests/compile_fail/conflicting_exhaustiveness.rs:6:22
+  |
+6 | #[quiver(exhaustive, nonexhaustive)]
+  |                      ^^^^^^^^^^^^^

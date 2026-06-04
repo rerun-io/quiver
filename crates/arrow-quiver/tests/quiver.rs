@@ -754,3 +754,55 @@ fn column_order_is_ignored() {
         .collect();
     assert_eq!(names, ["name", "dob"], "Declaration order on encode");
 }
+
+/// Unknown columns are silently ignored.
+#[derive(Quiver)]
+#[quiver(nonexhaustive)]
+struct Lenient {
+    name: StringArray,
+}
+
+/// Unknown columns are an error (explicit form of the default).
+#[derive(Quiver)]
+#[quiver(exhaustive)]
+struct Exhaustive {
+    name: StringArray,
+}
+
+#[test]
+fn nonexhaustive_ignores_unknown_columns() {
+    let batch = batch_of(&[
+        (
+            "name",
+            Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+        ),
+        ("age", Arc::new(Int64Array::from(vec![30])) as ArrayRef),
+    ]);
+
+    let lenient = Lenient::try_from(&batch).unwrap();
+    assert_eq!(lenient.name, StringArray::from(vec!["Alice"]));
+
+    // The unknown column is dropped on the roundtrip:
+    let batch = lenient.into_record_batch().unwrap();
+    assert_eq!(batch.num_columns(), 1);
+}
+
+#[test]
+fn exhaustive_rejects_unknown_columns() {
+    let batch = batch_of(&[
+        (
+            "name",
+            Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+        ),
+        ("age", Arc::new(Int64Array::from(vec![30])) as ArrayRef),
+    ]);
+
+    let result = Exhaustive::try_from(batch);
+    assert!(matches!(
+        result,
+        Err(Error {
+            record_type: "Exhaustive",
+            kind: ErrorKind::UnexpectedColumn { column },
+        }) if column == "age"
+    ));
+}

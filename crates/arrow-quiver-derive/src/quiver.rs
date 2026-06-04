@@ -22,6 +22,9 @@ pub fn derive_quiver(input: &DeriveInput) -> syn::Result<TokenStream> {
 struct Quiver {
     ident: syn::Ident,
 
+    /// How to treat unknown columns when parsing.
+    exhaustiveness: Exhaustiveness,
+
     /// The field marked `#[quiver(metadata)]`, if any.
     metadata_field: Option<syn::Ident>,
 
@@ -29,6 +32,17 @@ struct Quiver {
     extra_columns_field: Option<syn::Ident>,
 
     columns: Vec<ColumnField>,
+}
+
+/// How to treat unknown columns when parsing.
+#[derive(Clone, Copy, PartialEq)]
+enum Exhaustiveness {
+    /// Unknown columns are an error (unless there is an `extra_columns` field).
+    /// This is also the default.
+    Exhaustive,
+
+    /// Unknown columns are silently ignored.
+    Nonexhaustive,
 }
 
 /// A struct field holding an Arrow array, i.e. a record batch column.
@@ -91,8 +105,31 @@ impl Quiver {
             ));
         };
 
+        let mut exhaustiveness = None;
+        for attr in &input.attrs {
+            if attr.path().is_ident("quiver") {
+                attr.parse_nested_meta(|meta| {
+                    let value = if meta.path.is_ident("exhaustive") {
+                        Exhaustiveness::Exhaustive
+                    } else if meta.path.is_ident("nonexhaustive") {
+                        Exhaustiveness::Nonexhaustive
+                    } else {
+                        return Err(meta.error("Expected `exhaustive` or `nonexhaustive`"));
+                    };
+                    if exhaustiveness.is_some() {
+                        return Err(
+                            meta.error("Conflicting `exhaustive`/`nonexhaustive` attributes")
+                        );
+                    }
+                    exhaustiveness = Some(value);
+                    Ok(())
+                })?;
+            }
+        }
+
         let mut quiver = Self {
             ident: input.ident.clone(),
+            exhaustiveness: exhaustiveness.unwrap_or(Exhaustiveness::Exhaustive),
             metadata_field: None,
             extra_columns_field: None,
             columns: Vec::new(),
@@ -100,6 +137,15 @@ impl Quiver {
 
         for field in &fields.named {
             quiver.parse_field(field)?;
+        }
+
+        if quiver.extra_columns_field.is_some() && exhaustiveness.is_some() {
+            return Err(syn::Error::new_spanned(
+                &input.ident,
+                "A #[quiver(extra_columns)] field cannot be combined with the \
+                 `exhaustive`/`nonexhaustive` attributes: the field alone already \
+                 means unknown columns are collected",
+            ));
         }
 
         Ok(quiver)
@@ -258,6 +304,7 @@ impl Quiver {
     fn try_from_batch(&self) -> TokenStream {
         let Self {
             ident,
+            exhaustiveness,
             metadata_field,
             extra_columns_field,
             columns,
@@ -281,9 +328,10 @@ impl Quiver {
 
         let record_type = ident.to_string();
 
-        // Either collect the unknown columns, or error on them:
+        // Collect the unknown columns, error on them, or ignore them:
         let extra_columns = if let Some(extra_ident) = extra_columns_field {
             quote! {
+                #known_columns
                 let #extra_ident: ::std::vec::Vec<::arrow_quiver::DynColumn> =
                     ::std::iter::zip(batch.schema_ref().fields(), batch.columns())
                         .filter(|(field, _)| !KNOWN_COLUMNS.contains(&field.name().as_str()))
@@ -293,8 +341,9 @@ impl Quiver {
                         })
                         .collect();
             }
-        } else {
+        } else if *exhaustiveness == Exhaustiveness::Exhaustive {
             quote! {
+                #known_columns
                 for field in batch.schema_ref().fields() {
                     if !KNOWN_COLUMNS.contains(&field.name().as_str()) {
                         return ::core::result::Result::Err(::arrow_quiver::Error {
@@ -306,6 +355,9 @@ impl Quiver {
                     }
                 }
             }
+        } else {
+            // Nonexhaustive: unknown columns are silently ignored.
+            quote! {}
         };
 
         let extractors = columns.iter().map(|column| column.extractor(&record_type));
@@ -323,7 +375,6 @@ impl Quiver {
                 fn try_from(
                     batch: ::arrow_quiver::arrow::record_batch::RecordBatch,
                 ) -> ::core::result::Result<Self, Self::Error> {
-                    #known_columns
                     #extract_metadata
                     #extra_columns
                     #(#extractors)*
@@ -365,6 +416,7 @@ impl Quiver {
     fn try_into_batch(&self) -> TokenStream {
         let Self {
             ident,
+            exhaustiveness: _, // only affects parsing
             metadata_field,
             extra_columns_field,
             columns,

@@ -234,8 +234,8 @@ Work-in-progress.
 * [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
 * [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
 * [x] `Duration` logical type for `quiver::Column`: `Column<Duration<Millisecond>>`
-* [ ] Add `exhaustive/nonexhaustive` attributes (whether or not extra columns are allowed).
-* [ ] Forbid `#[quiver(extra_columns)]` if the `exhaustive` attribute is set
+* [x] Add `exhaustive/nonexhaustive` attributes (whether or not extra columns are allowed)
+* [x] Forbid `#[quiver(extra_columns)]` if the `exhaustive`/`nonexhaustive` attributes are set
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
 * [ ] `#[quiver(readonly)]` — invariant-by-construction variant: private fields, read-only accessors, and a validating constructor
 * [ ] Publish to crates.io

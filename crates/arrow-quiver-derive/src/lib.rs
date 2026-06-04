@@ -32,7 +32,14 @@ use proc_macro::TokenStream;
 /// Use `quiver::Column<L>` for strong compile-time guarantees (exact datatypes, nullability),
 /// and raw arrow types when you *want* things to be dynamic.
 ///
-/// ## Attributes
+/// ## Struct attributes
+/// * `#[quiver(exhaustive)]` — unknown columns are an error when parsing (the default, made explicit)
+/// * `#[quiver(nonexhaustive)]` — unknown columns are silently ignored when parsing
+///
+/// Neither can be combined with an `extra_columns` field (which alone already means
+/// unknown columns are collected).
+///
+/// ## Field attributes
 /// * `#[quiver(name = "special:name")]` — the column name, when it isn't a valid Rust identifier
 /// * `#[quiver(metadata)]` — this `BTreeMap<String, String>` field holds the record batch metadata
 /// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.
