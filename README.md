@@ -16,8 +16,11 @@ Work-in-progress
 ## TODO
 * [ ] strong quiver datatypes
 * [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
+* [ ] strong quiver types for Timestamp
+* [ ] Add `Column::metadata` accessor
 * [ ] `Struct` logical type for `quiver::Column` (punted for now)
-* [ ] `Timestamp`/`Duration`/`Dictionary` logical types for `quiver::Column`
+* [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
+* [ ] `Duration`/`Time`/`Date`/`Dictionary` logical types for `quiver::Column`
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
 * [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
 * [ ] Publish to crates.io

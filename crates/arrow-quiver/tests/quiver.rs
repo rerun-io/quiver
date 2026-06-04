@@ -525,3 +525,29 @@ fn roundtrip_fixed_size_binary() {
     let values: Vec<&[u8; 16]> = uuids.uuid.iter().collect();
     assert_eq!(values, [&[7_u8; 16], &[8; 16]]);
 }
+
+#[derive(Quiver)]
+struct Times {
+    at: arrow_quiver::Column<arrow_quiver::Timestamp<arrow_quiver::Nanosecond, arrow_quiver::Utc>>,
+}
+
+#[test]
+fn roundtrip_timestamp() {
+    let array = TimestampNanosecondArray::from(vec![1, 2]).with_timezone("UTC");
+    let times = Times {
+        at: arrow_quiver::Column::try_new(Arc::new(array)).unwrap(),
+    };
+
+    let batch = RecordBatch::try_from(times).unwrap();
+    assert_eq!(
+        batch.schema_ref().field(0).data_type(),
+        &DataType::Timestamp(
+            arrow_quiver::arrow::datatypes::TimeUnit::Nanosecond,
+            Some("UTC".into())
+        )
+    );
+
+    let times = Times::try_from(batch).unwrap();
+    let values: Vec<i64> = times.at.iter().collect();
+    assert_eq!(values, [1, 2]);
+}

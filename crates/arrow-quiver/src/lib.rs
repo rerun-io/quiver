@@ -23,7 +23,10 @@ pub use arrow;
 mod column;
 mod error;
 
-pub use self::column::{Column, ColumnError, ColumnIter, Datatype, List, ListValue, TypedList};
+pub use self::column::{
+    Column, ColumnError, ColumnIter, Datatype, List, ListValue, Microsecond, Millisecond,
+    Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp, TimezoneSpec, TypedList, Utc,
+};
 pub use self::error::{Error, ErrorKind};
 
 #[cfg(feature = "derive")]

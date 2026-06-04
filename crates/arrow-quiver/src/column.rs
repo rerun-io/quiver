@@ -437,3 +437,95 @@ impl<const N: usize> Datatype for [u8; N] {
             .expect("The length is guaranteed by the validated datatype")
     }
 }
+
+// ----------------------------------------------------------------------------
+// Timestamps
+
+/// Marker for an arrow `Timestamp` column, e.g. `Timestamp<Nanosecond, Utc>`.
+///
+/// The values are raw `i64` ticks in the given [`TimeUnitSpec`],
+/// counted from the unix epoch.
+///
+/// The timezone defaults to [`NoTimezone`]. Note that timezones are matched
+/// *exactly*: a column declared `Timestamp<Nanosecond, Utc>` ("UTC") will not
+/// accept an array with the timezone "+00:00".
+///
+/// This type is never instantiated — it only appears as a type parameter.
+pub struct Timestamp<U, Z = NoTimezone> {
+    _marker: PhantomData<fn() -> (U, Z)>,
+}
+
+/// A [`Timestamp`] time unit: [`Second`], [`Millisecond`], [`Microsecond`], or [`Nanosecond`].
+pub trait TimeUnitSpec {
+    /// The corresponding arrow timestamp type, e.g. `TimestampNanosecondType`.
+    type TimestampType: arrow::datatypes::ArrowTimestampType;
+}
+
+pub struct Second;
+pub struct Millisecond;
+pub struct Microsecond;
+pub struct Nanosecond;
+
+impl TimeUnitSpec for Second {
+    type TimestampType = arrow::datatypes::TimestampSecondType;
+}
+impl TimeUnitSpec for Millisecond {
+    type TimestampType = arrow::datatypes::TimestampMillisecondType;
+}
+impl TimeUnitSpec for Microsecond {
+    type TimestampType = arrow::datatypes::TimestampMicrosecondType;
+}
+impl TimeUnitSpec for Nanosecond {
+    type TimestampType = arrow::datatypes::TimestampNanosecondType;
+}
+
+/// The timezone of a [`Timestamp`]: [`NoTimezone`], [`Utc`], or your own marker type.
+pub trait TimezoneSpec {
+    /// E.g. `Some("UTC")`, `Some("+02:00")`, or `None` for timezone-naive timestamps.
+    fn timezone() -> Option<std::sync::Arc<str>>;
+}
+
+/// Timezone-naive timestamps.
+pub struct NoTimezone;
+
+impl TimezoneSpec for NoTimezone {
+    fn timezone() -> Option<std::sync::Arc<str>> {
+        None
+    }
+}
+
+/// The "UTC" timezone.
+pub struct Utc;
+
+impl TimezoneSpec for Utc {
+    fn timezone() -> Option<std::sync::Arc<str>> {
+        Some("UTC".into())
+    }
+}
+
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestamp<U, Z> {
+    type Typed = arrow::array::PrimitiveArray<U::TimestampType>;
+    type Value<'a>
+        = i64
+    where
+        Self: 'a;
+
+    fn datatype() -> DataType {
+        DataType::Timestamp(
+            <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
+            Z::timezone(),
+        )
+    }
+
+    fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        downcast_array::<Self::Typed>(array)
+    }
+
+    fn is_null(typed: &Self::Typed, index: usize) -> bool {
+        typed.is_null(index)
+    }
+
+    fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        typed.value(index)
+    }
+}
