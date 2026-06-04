@@ -16,6 +16,8 @@ use proc_macro::TokenStream;
 ///
 /// ## Field types
 /// * A typed Arrow array (e.g. `StringArray`) — a required column with a specific datatype
+/// * A parameterized Arrow array (e.g. `ListArray`, `StructArray`, `DictionaryArray<…>`) —
+///   a required column, validated by downcast only (the inner types are NOT validated)
 /// * `ArrayRef` — a required column of any datatype
 /// * `Option<…>` of the above — the column is allowed to be missing
 ///

@@ -52,6 +52,17 @@ enum ColumnKind {
         array_type: Box<syn::Type>,
         datatype: TokenStream,
     },
+
+    /// A typed array whose exact datatype depends on runtime parameters
+    /// (e.g. `ListArray`, `StructArray`, `DictionaryArray<…>`).
+    ///
+    /// Validated by downcasting; the inner types are NOT validated.
+    Downcast {
+        array_type: Box<syn::Type>,
+
+        /// Name of the array type, e.g. `ListArray`. Used in error messages.
+        type_name: String,
+    },
 }
 
 impl Quiver {
@@ -298,24 +309,26 @@ impl ColumnField {
             ColumnKind::Typed {
                 array_type,
                 datatype,
-            } => quote! {
-                {
-                    let actual = ::arrow_quiver::arrow::array::Array::data_type(&**array);
-                    if actual != &#datatype {
-                        return ::core::result::Result::Err(::arrow_quiver::Error::WrongDatatype {
-                            column: #column_name.to_owned(),
-                            expected: #datatype,
-                            actual: actual.clone(),
-                        });
+            } => {
+                let downcast = downcast(column_name, array_type, "a matching array");
+                quote! {
+                    {
+                        let actual = ::arrow_quiver::arrow::array::Array::data_type(&**array);
+                        if actual != &#datatype {
+                            return ::core::result::Result::Err(::arrow_quiver::Error::WrongDatatype {
+                                column: #column_name.to_owned(),
+                                expected: #datatype,
+                                actual: actual.clone(),
+                            });
+                        }
+                        #downcast
                     }
-                    ::arrow_quiver::arrow::array::Array::as_any(&**array)
-                        .downcast_ref::<#array_type>()
-                        .ok_or_else(|| ::arrow_quiver::Error::DowncastFailed {
-                            column: #column_name.to_owned(),
-                        })?
-                        .clone()
                 }
-            },
+            }
+            ColumnKind::Downcast {
+                array_type,
+                type_name,
+            } => downcast(column_name, array_type, type_name),
         };
 
         let null_check = non_null.then(|| {
@@ -387,6 +400,14 @@ impl ColumnField {
                 )));
                 columns.push(::std::sync::Arc::new(array));
             },
+            ColumnKind::Downcast { .. } => quote! {
+                fields.push(::std::sync::Arc::new(::arrow_quiver::arrow::datatypes::Field::new(
+                    #column_name,
+                    ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
+                    #nullable,
+                )));
+                columns.push(::std::sync::Arc::new(array));
+            },
         };
 
         if *optional {
@@ -406,6 +427,20 @@ impl ColumnField {
     }
 }
 
+/// Generates an expression downcasting `array` (a `&ArrayRef`) to `array_type`.
+fn downcast(column_name: &str, array_type: &syn::Type, expected: &str) -> TokenStream {
+    quote! {
+        ::arrow_quiver::arrow::array::Array::as_any(&**array)
+            .downcast_ref::<#array_type>()
+            .ok_or_else(|| ::arrow_quiver::Error::WrongArrayType {
+                column: #column_name.to_owned(),
+                expected: #expected.to_owned(),
+                actual: ::arrow_quiver::arrow::array::Array::data_type(&**array).clone(),
+            })?
+            .clone()
+    }
+}
+
 /// Splits an optional `Option` wrapper from the inner array type.
 fn classify_type(ty: &syn::Type) -> syn::Result<(bool, ColumnKind)> {
     if let Some(inner) = option_inner(ty) {
@@ -419,7 +454,7 @@ fn classify_array_type(ty: &syn::Type) -> syn::Result<ColumnKind> {
     let unsupported = |ty: &syn::Type| {
         syn::Error::new_spanned(
             ty,
-            "Unsupported column type. Expected a typed Arrow array (e.g. `StringArray`), \
+            "Unsupported column type. Expected a typed Arrow array (e.g. `StringArray` or `ListArray`), \
              or `ArrayRef` for any datatype",
         )
     };
@@ -441,9 +476,46 @@ fn classify_array_type(ty: &syn::Type) -> syn::Result<ColumnKind> {
             array_type: Box::new(ty.clone()),
             datatype,
         })
+    } else if is_downcast_only_array(&type_name) {
+        Ok(ColumnKind::Downcast {
+            array_type: Box::new(ty.clone()),
+            type_name,
+        })
+    } else if is_punted_array(&type_name) {
+        Err(syn::Error::new_spanned(
+            ty,
+            format!("`{type_name}` is explicitly not supported (yet)"),
+        ))
     } else {
         Err(unsupported(ty))
     }
+}
+
+/// Array types whose exact datatype depends on runtime parameters,
+/// so we can only validate them by downcasting.
+fn is_downcast_only_array(array_type_name: &str) -> bool {
+    matches!(
+        array_type_name,
+        "DictionaryArray" | "FixedSizeListArray" | "LargeListArray" | "ListArray" | "StructArray"
+    )
+}
+
+/// Difficult and exotic array types we explicitly do not support (yet).
+fn is_punted_array(array_type_name: &str) -> bool {
+    matches!(
+        array_type_name,
+        "Decimal32Array"
+            | "Decimal64Array"
+            | "Decimal128Array"
+            | "Decimal256Array"
+            | "FixedSizeBinaryArray"
+            | "IntervalDayTimeArray"
+            | "IntervalMonthDayNanoArray"
+            | "IntervalYearMonthArray"
+            | "MapArray"
+            | "RunArray"
+            | "UnionArray"
+    )
 }
 
 /// Returns the type the array is `Option`-wrapping, if it is.
@@ -479,6 +551,10 @@ fn datatype_of_array(array_type_name: &str) -> Option<TokenStream> {
         }
     };
 
+    let time_unit = |unit: TokenStream| {
+        quote! { ::arrow_quiver::arrow::datatypes::TimeUnit::#unit }
+    };
+
     Some(match array_type_name {
         "BooleanArray" => quote! { #datatype::Boolean },
         "Int8Array" => quote! { #datatype::Int8 },
@@ -489,18 +565,53 @@ fn datatype_of_array(array_type_name: &str) -> Option<TokenStream> {
         "UInt16Array" => quote! { #datatype::UInt16 },
         "UInt32Array" => quote! { #datatype::UInt32 },
         "UInt64Array" => quote! { #datatype::UInt64 },
+        "Float16Array" => quote! { #datatype::Float16 },
         "Float32Array" => quote! { #datatype::Float32 },
         "Float64Array" => quote! { #datatype::Float64 },
         "StringArray" => quote! { #datatype::Utf8 },
         "LargeStringArray" => quote! { #datatype::LargeUtf8 },
+        "StringViewArray" => quote! { #datatype::Utf8View },
         "BinaryArray" => quote! { #datatype::Binary },
         "LargeBinaryArray" => quote! { #datatype::LargeBinary },
+        "BinaryViewArray" => quote! { #datatype::BinaryView },
         "Date32Array" => quote! { #datatype::Date32 },
         "Date64Array" => quote! { #datatype::Date64 },
         "TimestampSecondArray" => timestamp(quote! { Second }),
         "TimestampMillisecondArray" => timestamp(quote! { Millisecond }),
         "TimestampMicrosecondArray" => timestamp(quote! { Microsecond }),
         "TimestampNanosecondArray" => timestamp(quote! { Nanosecond }),
+        "Time32SecondArray" => {
+            let unit = time_unit(quote! { Second });
+            quote! { #datatype::Time32(#unit) }
+        }
+        "Time32MillisecondArray" => {
+            let unit = time_unit(quote! { Millisecond });
+            quote! { #datatype::Time32(#unit) }
+        }
+        "Time64MicrosecondArray" => {
+            let unit = time_unit(quote! { Microsecond });
+            quote! { #datatype::Time64(#unit) }
+        }
+        "Time64NanosecondArray" => {
+            let unit = time_unit(quote! { Nanosecond });
+            quote! { #datatype::Time64(#unit) }
+        }
+        "DurationSecondArray" => {
+            let unit = time_unit(quote! { Second });
+            quote! { #datatype::Duration(#unit) }
+        }
+        "DurationMillisecondArray" => {
+            let unit = time_unit(quote! { Millisecond });
+            quote! { #datatype::Duration(#unit) }
+        }
+        "DurationMicrosecondArray" => {
+            let unit = time_unit(quote! { Microsecond });
+            quote! { #datatype::Duration(#unit) }
+        }
+        "DurationNanosecondArray" => {
+            let unit = time_unit(quote! { Nanosecond });
+            quote! { #datatype::Duration(#unit) }
+        }
         _ => return None,
     })
 }

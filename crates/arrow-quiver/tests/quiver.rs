@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use arrow_quiver::arrow::array::{
-    Array as _, ArrayRef, Int64Array, StringArray, TimestampNanosecondArray,
+    Array as _, ArrayRef, DictionaryArray, DurationNanosecondArray, Int32Array, Int64Array,
+    ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
-use arrow_quiver::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use arrow_quiver::arrow::record_batch::RecordBatch;
 use arrow_quiver::{Column, Error, Quiver};
 
@@ -47,6 +48,15 @@ struct Renamed {
 #[derive(Quiver)]
 struct Anything {
     anything: ArrayRef,
+}
+
+/// Columns whose datatype depends on runtime parameters.
+#[derive(Quiver)]
+struct Nested {
+    list: ListArray,
+    type_struct: StructArray,
+    dictionary: DictionaryArray<Int32Type>,
+    duration: Option<DurationNanosecondArray>,
 }
 
 /// Builds a record batch with the given columns, in order.
@@ -208,6 +218,64 @@ fn any_datatype() {
 
     let anything = Anything::try_from(batch).unwrap();
     assert_eq!(anything.anything.len(), 3);
+}
+
+#[test]
+fn roundtrip_nested_datatypes() {
+    let list = ListArray::from_iter_primitive::<Int32Type, _, _>(vec![
+        Some(vec![Some(1), Some(2)]),
+        Some(vec![Some(3)]),
+    ]);
+    let type_struct = StructArray::from(vec![(
+        Arc::new(Field::new("x", DataType::Int32, false)),
+        Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef,
+    )]);
+    let dictionary: DictionaryArray<Int32Type> = vec!["foo", "bar"]
+        .into_iter()
+        .collect::<DictionaryArray<_>>();
+
+    let nested = Nested {
+        list: list.clone(),
+        type_struct: type_struct.clone(),
+        dictionary: dictionary.clone(),
+        duration: Some(DurationNanosecondArray::from(vec![10, 20])),
+    };
+
+    let batch = RecordBatch::try_from(nested).unwrap();
+    assert_eq!(batch.num_columns(), 4);
+
+    let nested = Nested::try_from(batch).unwrap();
+    assert_eq!(nested.list, list);
+    assert_eq!(nested.type_struct, type_struct);
+    assert_eq!(nested.dictionary, dictionary);
+    assert_eq!(
+        nested.duration,
+        Some(DurationNanosecondArray::from(vec![10, 20]))
+    );
+}
+
+#[test]
+fn wrong_array_type() {
+    let batch = batch_of(&[
+        ("list", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+        (
+            "type_struct",
+            Arc::new(Int64Array::from(vec![1])) as ArrayRef,
+        ),
+        (
+            "dictionary",
+            Arc::new(Int64Array::from(vec![1])) as ArrayRef,
+        ),
+    ]);
+    let result = Nested::try_from(batch);
+    assert!(matches!(
+        result,
+        Err(Error::WrongArrayType {
+            column,
+            expected,
+            actual: DataType::Int64,
+        }) if column == "list" && expected == "ListArray"
+    ));
 }
 
 #[test]

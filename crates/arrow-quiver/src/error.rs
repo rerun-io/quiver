@@ -20,8 +20,15 @@ pub enum Error {
     #[error("Column {column:?} has {null_count} null(s), but was marked as non-null")]
     UnexpectedNulls { column: String, null_count: usize },
 
-    #[error("Column {column:?} failed to downcast to the expected array type")]
-    DowncastFailed { column: String },
+    #[error("Column {column:?}: expected a {expected}, found datatype {actual:?}")]
+    WrongArrayType {
+        column: String,
+
+        /// Name of the expected array type, e.g. `ListArray`.
+        expected: String,
+
+        actual: DataType,
+    },
 
     #[error(transparent)]
     Arrow(#[from] ArrowError),
