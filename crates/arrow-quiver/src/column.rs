@@ -135,6 +135,17 @@ impl<L: Datatype> Column<L> {
         self.iter_owned().collect()
     }
 
+    /// A zero-copy slice of the rows `offset..offset + length`.
+    ///
+    /// Panics if the range is out of bounds (like arrow's `slice`).
+    /// The metadata is preserved.
+    #[must_use]
+    pub fn slice(&self, offset: usize, length: usize) -> Self {
+        Self::try_new(self.array.slice(offset, length))
+            .expect("Cannot fail: slicing preserves datatype and validity")
+            .with_metadata(self.metadata.clone())
+    }
+
     /// The underlying arrow array.
     pub fn as_arrow(&self) -> &ArrayRef {
         &self.array
@@ -208,6 +219,13 @@ impl<L: Datatype> Default for Column<L> {
     fn default() -> Self {
         let array = arrow::array::new_empty_array(&L::datatype());
         Self::try_new(array).expect("An empty array of the right datatype is always valid")
+    }
+}
+
+/// Compares the data (like arrow array equality) and the metadata.
+impl<L: Datatype> PartialEq for Column<L> {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata == other.metadata && self.array.as_ref() == other.array.as_ref()
     }
 }
 

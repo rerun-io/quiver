@@ -161,9 +161,11 @@ The supported logical types:
 | Logical type `L`                             | Arrow datatype               | Element value             |
 |----------------------------------------------|------------------------------|---------------------------|
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
-| `String`                                     | `Utf8`                       | `&str`                    |
+| `String`, `LargeUtf8`                        | `Utf8`, `LargeUtf8`          | `&str`                    |
 | `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
 | `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
+| `Date32`, `Date64`                           | `Date32`, `Date64`           | `i32` days / `i64` ms     |
+| `Time32Second` … `Time64Nanosecond`          | `Time32(…)`, `Time64(…)`     | `i32` / `i64`             |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `Dictionary<i32, String>`                    | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
@@ -177,8 +179,7 @@ Not *yet* supported as logical types:
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
   by the parent validity, on both parse and build)
-* `Date32`/`Date64`, `Time32`/`Time64`
-* `LargeUtf8`, and the string/binary *view* types
+* The string/binary *view* types
 * `LargeList`/`FixedSizeList`
 
 Most of these can still be used as raw, downcast-only arrow array fields
@@ -244,12 +245,12 @@ Work-in-progress.
 From the 2026-06-04 self-review:
 * [x] BUG: validation counts *physical* nulls, not *logical* ones — fixed: list/dictionary validation masks by reachability, and nested datatype matching is structural (inner field names/nullability flags/metadata ignored)
 * [ ] `::schema()` is a foot-gun: it doesn't communicate clearly what happens with optional columns.
-    * Mabe a `fn required_fields()` would be a more useful helper?
+    * Maybe a `fn required_fields()` would be a more useful helper?
     * And/or maybe `min_schema` vs `max_schema`?
 * [ ] `FixedSizeList<L, N>` logical type (vec3s, tensors); needs logical-null-masked child validation for `Option<…>` rows
-* [ ] `Date32`/`Date64` and `Time32`/`Time64` logical types (trivial: flat markers)
-* [ ] `LargeUtf8` logical type (trivial: like `LargeBinary`)
-* [ ] `Column::slice(offset, len)` — zero-copy, like arrow's
+* [x] `Date32`/`Date64` and `Time32`/`Time64` logical types
+* [x] `LargeUtf8` logical type
+* [x] `Column::slice(offset, len)` — zero-copy, like arrow's
 * [ ] CI: the declared arrow version range (`>=57, <59`) is only tested at the locked version — test all versions on CI
 * [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
 * [ ] Publish to crates.io

@@ -8,6 +8,7 @@ mod binary;
 mod column;
 mod column_desc;
 mod datatype;
+mod date;
 mod dictionary;
 mod duration;
 mod error;
@@ -16,18 +17,22 @@ mod list;
 mod option;
 mod primitive;
 mod string;
+mod time;
 mod timestamp;
 
 pub use self::binary::{Binary, LargeBinary};
 pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{ColumnError, Datatype, InfallibleBuild};
+pub use self::date::{Date32, Date64};
 pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};
 pub use self::duration::{
     Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
 };
 pub use self::error::{Error, ErrorKind};
 pub use self::list::{List, ListValue, TypedList};
+pub use self::string::LargeUtf8;
+pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
 pub use self::timestamp::{
     Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,
     TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond, TimestampSecond, TimezoneSpec,

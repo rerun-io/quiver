@@ -593,3 +593,68 @@ fn list_item_field_name_is_ignored() {
     let lists: Vec<Vec<i64>> = column.to_vec();
     assert_eq!(lists, [vec![1, 2], vec![3]]);
 }
+
+#[test]
+fn date_and_time_columns() {
+    use arrow_quiver::{Date32, Date64, Time32Second, Time64Nanosecond};
+
+    let column = Column::<Date32>::from_values([19_000_i32, 19_001]);
+    assert_eq!(Column::<Date32>::datatype(), DataType::Date32);
+    assert_eq!(column.to_vec(), [19_000, 19_001]);
+
+    assert_eq!(Column::<Date64>::datatype(), DataType::Date64);
+
+    let column = Column::<Time32Second>::from_values([3600_i32]);
+    assert_eq!(
+        Column::<Time32Second>::datatype(),
+        DataType::Time32(arrow_quiver::arrow::datatypes::TimeUnit::Second)
+    );
+    assert_eq!(column.value(0), 3600);
+
+    let column = Column::<Option<Time64Nanosecond>>::from_values([Some(1_i64), None]);
+    assert_eq!(column.to_vec(), [Some(1), None]);
+}
+
+#[test]
+fn large_utf8_column() {
+    use arrow_quiver::LargeUtf8;
+
+    let column = Column::<LargeUtf8>::from_values(["a", "b"]);
+    assert_eq!(Column::<LargeUtf8>::datatype(), DataType::LargeUtf8);
+    let values: Vec<&str> = column.iter().collect();
+    assert_eq!(values, ["a", "b"]);
+    assert_eq!(column.to_vec(), ["a".to_owned(), "b".to_owned()]);
+}
+
+#[test]
+fn column_partial_eq() {
+    let a = Column::<String>::from_values(["x", "y"]);
+    let b = Column::<String>::from_values(["x", "y"]);
+    let c = Column::<String>::from_values(["x", "z"]);
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+
+    // Metadata participates:
+    let annotated = b.with_metadata(std::collections::BTreeMap::from([(
+        "k".to_owned(),
+        "v".to_owned(),
+    )]));
+    assert_ne!(a, annotated);
+}
+
+#[test]
+fn column_slice() {
+    let column =
+        Column::<i64>::from_values([1, 2, 3, 4]).with_metadata(std::collections::BTreeMap::from([
+            ("k".to_owned(), "v".to_owned()),
+        ]));
+
+    let sliced = column.slice(1, 2);
+    assert_eq!(sliced.to_vec(), [2, 3]);
+    assert_eq!(sliced.metadata()["k"], "v");
+
+    // Lists slice too (the offsets shift):
+    let column = Column::<List<i64>>::from_values([vec![1], vec![2, 3], vec![4]]);
+    let sliced = column.slice(1, 2);
+    assert_eq!(sliced.to_vec(), [vec![2, 3], vec![4]]);
+}

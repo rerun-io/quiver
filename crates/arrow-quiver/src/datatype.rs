@@ -212,3 +212,45 @@ pub(crate) fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bo
         _ => actual == declared,
     }
 }
+
+/// Implements [`Datatype`] for a marker type whose owned value differs from the
+/// marker itself (e.g. the marker `Date32` has `i32` values).
+macro_rules! impl_marker_datatype {
+    ($marker:ty, $array:ty, $value:ty, $owned:ty, $datatype:expr) => {
+        impl Datatype for $marker {
+            type Typed = $array;
+            type Value<'a> = $value;
+            type Owned = $owned;
+
+            fn datatype() -> DataType {
+                $datatype
+            }
+
+            fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+                crate::datatype::downcast_array::<$array>(array)
+            }
+
+            fn is_null(typed: &Self::Typed, index: usize) -> bool {
+                typed.is_null(index)
+            }
+
+            fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                typed.value(index)
+            }
+
+            fn build(
+                values: impl Iterator<Item = Option<Self::Owned>>,
+            ) -> Result<ArrayRef, ColumnError> {
+                Ok(std::sync::Arc::new(<$array>::from_iter(values)))
+            }
+
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                value.into()
+            }
+        }
+
+        impl crate::datatype::InfallibleBuild for $marker {}
+    };
+}
+
+pub(crate) use impl_marker_datatype;
