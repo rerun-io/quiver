@@ -1,0 +1,43 @@
+error[E0277]: `Option<i32>` cannot be used as a dictionary key type
+ --> tests/compile_fail/dictionary_option_key.rs:7:13
+  |
+7 |     let _ = Column::<Dictionary<Option<i32>, String>>::datatype();
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ dictionary keys must be one of `i8`–`i64`, `u8`–`u64`
+  |
+  = help: the trait `DictionaryKey` is not implemented for `Option<i32>`
+  = note: for nullable dictionary rows, use `Option<Dictionary<K, V>>` instead of `Dictionary<Option<K>, V>` — the keys are storage indices, not readable values
+  = help: the following other types implement trait `DictionaryKey`:
+            i16
+            i32
+            i64
+            i8
+            u16
+            u32
+            u64
+            u8
+  = note: required for `arrow_quiver::Dictionary<Option<i32>, String>` to implement `Datatype`
+note: required by a bound in `Column`
+ --> src/column.rs
+  |
+  | pub struct Column<L: Datatype> {
+  |                      ^^^^^^^^ required by this bound in `Column`
+
+error[E0599]: the function or associated item `datatype` exists for struct `Column<arrow_quiver::Dictionary<Option<i32>, String>>`, but its trait bounds were not satisfied
+ --> tests/compile_fail/dictionary_option_key.rs:7:56
+  |
+7 |     let _ = Column::<Dictionary<Option<i32>, String>>::datatype();
+  |                                                        ^^^^^^^^ function or associated item cannot be called due to unsatisfied trait bounds
+  |
+ ::: $RUST/core/src/option.rs
+  |
+  | pub enum Option<T> {
+  | ------------------ doesn't satisfy `Option<i32>: DictionaryKey`
+  |
+ ::: src/dictionary.rs
+  |
+  | pub struct Dictionary<K, V> {
+  | --------------------------- doesn't satisfy `_: Datatype`
+  |
+  = note: the following trait bounds were not satisfied:
+          `Option<i32>: DictionaryKey`
+          which is required by `arrow_quiver::Dictionary<Option<i32>, String>: Datatype`

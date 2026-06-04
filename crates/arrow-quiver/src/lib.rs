@@ -4,19 +4,35 @@
 pub use arrow;
 pub use half;
 
+mod binary;
 mod column;
 mod column_desc;
+mod datatype;
+mod dictionary;
+mod duration;
 mod error;
+mod fixed_size_binary;
+mod list;
+mod option;
+mod primitive;
+mod string;
+mod timestamp;
 
-pub use self::column::{
-    Binary, Column, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Dictionary, DictionaryKey,
-    Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
-    LargeBinary, List, ListValue, Microsecond, Millisecond, Nanosecond, NoTimezone, Second,
-    TimeUnitSpec, Timestamp, TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond,
-    TimestampSecond, TimezoneSpec, TypedDictionary, TypedList, Utc,
-};
+pub use self::binary::{Binary, LargeBinary};
+pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
+pub use self::datatype::{ColumnError, Datatype};
+pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};
+pub use self::duration::{
+    Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
+};
 pub use self::error::{Error, ErrorKind};
+pub use self::list::{List, ListValue, TypedList};
+pub use self::timestamp::{
+    Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,
+    TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond, TimestampSecond, TimezoneSpec,
+    Utc,
+};
 
 #[cfg(feature = "derive")]
 pub use arrow_quiver_derive::Quiver;
