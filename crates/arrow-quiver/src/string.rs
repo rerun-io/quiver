@@ -1,7 +1,7 @@
 //! `String` and [`LargeUtf8`]: logical types for columns of UTF-8 text.
 //!
 //! A `Column<String>` is a column of strings, stored as an
-//! [`arrow::array::StringArray`] ([`DataType::Utf8`](arrow::datatypes::DataType::Utf8)).
+//! [`arrow::array::StringArray`] ([`DataType::Utf8`]).
 //! [`LargeUtf8`] is the same with 64-bit offsets
 //! (for single columns holding more than 2 `GiB` of text in total),
 //! stored as an [`arrow::array::LargeStringArray`].

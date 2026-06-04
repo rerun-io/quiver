@@ -2,7 +2,7 @@
 //!
 //! Each element is a variable-length sequence of bytes (like a `Vec<u8>`),
 //! stored as an [`arrow::array::BinaryArray`]
-//! ([`DataType::Binary`](arrow::datatypes::DataType::Binary)), or
+//! ([`DataType::Binary`]), or
 //! [`arrow::array::LargeBinaryArray`] for 64-bit offsets (when a single column
 //! may hold more than 2 `GiB` of data in total).
 //! Reading is zero-copy: the element values are `&[u8]`.

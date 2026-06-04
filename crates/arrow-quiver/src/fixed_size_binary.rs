@@ -2,7 +2,7 @@
 //!
 //! A `Column<[u8; 16]>` is a column where every element is exactly 16 bytes
 //! (e.g. UUIDs or hashes), stored as an [`arrow::array::FixedSizeBinaryArray`]
-//! ([`DataType::FixedSizeBinary`](arrow::datatypes::DataType::FixedSizeBinary)).
+//! ([`DataType::FixedSizeBinary`]).
 //! The size is part of the type, checked at the parse boundary;
 //! the element values are `&[u8; N]`.
 

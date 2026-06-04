@@ -2,7 +2,7 @@
 //!
 //! These use the plain Rust types directly: a `Column<i64>` is a column of
 //! 64-bit integers, stored as an [`arrow::array::Int64Array`]
-//! ([`DataType::Int64`](arrow::datatypes::DataType::Int64)), and so on.
+//! ([`DataType::Int64`]), and so on.
 //! `f16` comes from the [`half`] crate (re-exported as [`crate::half`]),
 //! matching its use in [`arrow::array::Float16Array`].
 

@@ -3,7 +3,7 @@
 //! In a `Column<List<String>>`, every element (row) holds a variable number of
 //! strings — like a `Vec<Vec<String>>`, but stored contiguously as one flat
 //! values array plus offsets: an [`arrow::array::ListArray`]
-//! ([`DataType::List`](arrow::datatypes::DataType::List)).
+//! ([`DataType::List`]).
 //! Reading is zero-copy: each element is an iterator ([`ListValue`]) over the items.
 //!
 //! Lists nest: `List<List<i64>>` is a column of lists of lists of integers.

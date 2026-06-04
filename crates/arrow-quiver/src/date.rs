@@ -3,7 +3,7 @@
 //! Each element is a date without a time-of-day or timezone:
 //! [`Date32`] counts *days* since the Unix epoch (1970-01-01) as an `i32`,
 //! stored as an [`arrow::array::Date32Array`]
-//! ([`DataType::Date32`](arrow::datatypes::DataType::Date32));
+//! ([`DataType::Date32`]);
 //! [`Date64`] counts *milliseconds* since the epoch as an `i64`
 //! (expected to be a multiple of a day; not validated),
 //! stored as an [`arrow::array::Date64Array`].

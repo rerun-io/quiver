@@ -3,7 +3,7 @@
 //! Each element is an `i64` counting time units (e.g. milliseconds) — the
 //! *difference* between two points in time, as opposed to a [`crate::Timestamp`].
 //! Stored as the [`arrow::array::DurationMillisecondArray`] family
-//! ([`DataType::Duration`](arrow::datatypes::DataType::Duration)).
+//! ([`DataType::Duration`]).
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;

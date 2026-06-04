@@ -3,7 +3,7 @@
 //! Each element is an `i64` counting time units since the Unix epoch
 //! (1970-01-01 00:00:00), e.g. `TimestampNanosecond<Utc>` for nanoseconds in UTC.
 //! Stored as the [`arrow::array::TimestampNanosecondArray`] family
-//! ([`DataType::Timestamp`](arrow::datatypes::DataType::Timestamp)).
+//! ([`DataType::Timestamp`]).
 //!
 //! The time unit and the (optional) timezone are part of the type,
 //! via the [`TimeUnitSpec`] and [`TimezoneSpec`] marker types.

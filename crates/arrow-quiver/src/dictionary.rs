@@ -4,7 +4,7 @@
 //! and represents the column as integer keys pointing into that table —
 //! a big space win for columns with many repeated values (e.g. enums, tags).
 //! Stored as an [`arrow::array::DictionaryArray`]
-//! ([`DataType::Dictionary`](arrow::datatypes::DataType::Dictionary)).
+//! ([`DataType::Dictionary`]).
 
 use std::marker::PhantomData;
 

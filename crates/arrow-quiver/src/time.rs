@@ -3,8 +3,8 @@
 //! Each element is a time since midnight, without a date or timezone:
 //! e.g. a [`Time64Nanosecond`] element is the number of nanoseconds since
 //! midnight, as an `i64`. Stored as the [`arrow::array::Time32SecondArray`]
-//! family ([`DataType::Time32`](arrow::datatypes::DataType::Time32) /
-//! [`DataType::Time64`](arrow::datatypes::DataType::Time64)).
+//! family ([`DataType::Time32`] /
+//! [`DataType::Time64`]).
 //!
 //! Following arrow, the 32-bit variants cover second/millisecond resolution
 //! and the 64-bit variants microsecond/nanosecond.

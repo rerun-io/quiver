@@ -4,10 +4,10 @@
 //! In a `Column<FixedSizeList<f32, 3>>`, every element (row) holds exactly
 //! three floats — e.g. 3D positions, fixed-width embeddings, or tensor rows.
 //! Stored as an [`arrow::array::FixedSizeListArray`]
-//! ([`DataType::FixedSizeList`](arrow::datatypes::DataType::FixedSizeList)):
+//! ([`DataType::FixedSizeList`]):
 //! one flat child array, no offsets needed.
 //! Reading is zero-copy: each element is an iterator
-//! ([`ListValue`](crate::ListValue)) over the items.
+//! ([`ListValue`]) over the items.
 
 use std::marker::PhantomData;
 
