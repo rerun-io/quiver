@@ -20,21 +20,34 @@ pub struct ColumnDesc<C> {
     /// The name of the column in the record batch.
     pub name: &'static str,
 
+    /// The metadata declared with `#[quiver(metadata("key" = "value", …))]`.
+    pub metadata: &'static [(&'static str, &'static str)],
+
     _marker: PhantomData<fn() -> C>,
 }
 
 impl<L: Datatype> ColumnDesc<Column<L>> {
-    pub const fn new(record_type: &'static str, name: &'static str) -> Self {
+    pub const fn new(
+        record_type: &'static str,
+        name: &'static str,
+        metadata: &'static [(&'static str, &'static str)],
+    ) -> Self {
         Self {
             record_type,
             name,
+            metadata,
             _marker: PhantomData,
         }
     }
 
-    /// The arrow field of this column.
+    /// The arrow field of this column, including the declared metadata.
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE)
+        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
+            self.metadata
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+                .collect(),
+        )
     }
 
     /// Extracts and validates this single column of a record batch.

@@ -149,7 +149,9 @@ More of the `Column` API:
   so it uses `try_from_values` instead
 * Reading: `value`/`get`, `iter()` (borrowed), `iter_owned()`/`to_vec()` (owned)
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
-  when converting to/from a record batch
+  when converting to/from a record batch. Statically known metadata can be *declared*:
+  `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata
+  wins on key conflicts), included in `schema()`, never validated on parse
 * Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
   into `arrow::error::ArrowError` (as `ExternalError`), so `?` works in
   functions returning arrow results

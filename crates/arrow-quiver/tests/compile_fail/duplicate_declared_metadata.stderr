@@ -1,0 +1,5 @@
+error: Duplicate `metadata(…)` attribute
+ --> tests/compile_fail/duplicate_declared_metadata.rs:8:14
+  |
+8 |     #[quiver(metadata("b" = "2"))]
+  |              ^^^^^^^^

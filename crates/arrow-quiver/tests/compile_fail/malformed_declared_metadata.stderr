@@ -1,0 +1,5 @@
+error: expected string literal
+ --> tests/compile_fail/malformed_declared_metadata.rs:7:23
+  |
+7 |     #[quiver(metadata(kind = "control"))]
+  |                       ^^^^

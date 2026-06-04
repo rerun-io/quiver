@@ -806,3 +806,109 @@ fn exhaustive_rejects_unknown_columns() {
         }) if column == "age"
     ));
 }
+
+/// Columns with declared (`#[quiver(metadata(…))]`) field metadata.
+#[derive(Quiver)]
+struct Annotated {
+    #[quiver(metadata("rerun:kind" = "control"))]
+    chunk_id: arrow_quiver::Column<[u8; 16]>,
+
+    #[quiver(
+        metadata("rerun:kind" = "index", "rerun:index_marker" = "start"),
+        name = "frame_nr"
+    )]
+    frame_start: arrow_quiver::Column<Option<i64>>,
+
+    /// Declared metadata also works on raw arrow array fields:
+    #[quiver(metadata("raw" = "yes"))]
+    comment: StringArray,
+}
+
+fn annotated() -> Annotated {
+    Annotated {
+        chunk_id: arrow_quiver::Column::from_values([[1_u8; 16]]),
+        frame_start: arrow_quiver::Column::from_values([Some(7_i64)]),
+        comment: StringArray::from(vec!["hi"]),
+    }
+}
+
+#[test]
+fn declared_metadata_is_encoded() {
+    let batch = annotated().into_record_batch().unwrap();
+    let schema = batch.schema_ref();
+    assert_eq!(
+        schema.field_with_name("chunk_id").unwrap().metadata()["rerun:kind"],
+        "control"
+    );
+    let frame_nr = schema.field_with_name("frame_nr").unwrap().metadata();
+    assert_eq!(frame_nr["rerun:kind"], "index");
+    assert_eq!(frame_nr["rerun:index_marker"], "start");
+    assert_eq!(
+        schema.field_with_name("comment").unwrap().metadata()["raw"],
+        "yes"
+    );
+}
+
+#[test]
+fn declared_metadata_is_not_validated_when_parsing() {
+    // A batch without any field metadata parses fine…
+    let batch = batch_of(&[
+        (
+            "chunk_id",
+            Arc::new(FixedSizeBinaryArray::try_from_iter(vec![[1_u8; 16]].into_iter()).unwrap())
+                as ArrayRef,
+        ),
+        ("frame_nr", Arc::new(Int64Array::from(vec![7])) as ArrayRef),
+        (
+            "comment",
+            Arc::new(StringArray::from(vec!["hi"])) as ArrayRef,
+        ),
+    ]);
+    let annotated = Annotated::try_from(batch).unwrap();
+    assert!(annotated.chunk_id.metadata().is_empty());
+
+    // …and re-encoding re-stamps the declared metadata (normalization):
+    let batch = annotated.into_record_batch().unwrap();
+    assert_eq!(
+        batch
+            .schema_ref()
+            .field_with_name("chunk_id")
+            .unwrap()
+            .metadata()["rerun:kind"],
+        "control"
+    );
+}
+
+#[test]
+fn declared_metadata_merges_with_instance_metadata() {
+    let mut annotated = annotated();
+    annotated.chunk_id.metadata_mut().extend([
+        ("rerun:kind".to_owned(), "override".to_owned()), // conflicts: instance wins
+        ("unit".to_owned(), "ids".to_owned()),            // disjoint: union
+    ]);
+
+    let batch = annotated.into_record_batch().unwrap();
+    let metadata = batch
+        .schema_ref()
+        .field_with_name("chunk_id")
+        .unwrap()
+        .metadata()
+        .clone();
+    assert_eq!(metadata["rerun:kind"], "override");
+    assert_eq!(metadata["unit"], "ids");
+}
+
+#[test]
+fn declared_metadata_in_static_schema() {
+    let schema = Annotated::schema();
+    let expected = Field::new("chunk_id", DataType::FixedSizeBinary(16), false)
+        .with_metadata(std::iter::once(("rerun:kind".to_owned(), "control".to_owned())).collect());
+    assert_eq!(schema.field_with_name("chunk_id").unwrap(), &expected);
+
+    // The COLUMN_* descriptor exposes it too:
+    assert_eq!(
+        Annotated::COLUMN_CHUNK_ID.metadata,
+        [("rerun:kind", "control")]
+    );
+    assert_eq!(Annotated::COLUMN_CHUNK_ID.arrow_field(), expected);
+}

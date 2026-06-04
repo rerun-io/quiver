@@ -41,6 +41,13 @@ use proc_macro::TokenStream;
 ///
 /// ## Field attributes
 /// * `#[quiver(name = "special:name")]` — the column name, when it isn't a valid Rust identifier
+/// * `#[quiver(metadata("key" = "value", …))]` — *declared* field metadata, stamped onto the
+///   emitted arrow `Field` when encoding (merged with the per-instance
+///   [`Column::metadata`](https://docs.rs/arrow-quiver/latest/arrow_quiver/struct.Column.html#method.metadata);
+///   the instance wins on key conflicts), and included in the static `schema()` and the
+///   `COLUMN_*` descriptors. **Not validated when parsing** — metadata is an annotation,
+///   not access semantics, and intermediaries routinely strip it. Side effect: a
+///   parse → encode roundtrip re-stamps declared metadata even if the input lacked it.
 /// * `#[quiver(metadata)]` — this `BTreeMap<String, String>` field holds the record batch metadata
 /// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.
 ///   If absent, unknown columns are an error.

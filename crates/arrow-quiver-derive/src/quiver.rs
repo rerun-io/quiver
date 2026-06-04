@@ -55,6 +55,9 @@ struct ColumnField {
     /// Is the column allowed to be missing? (the field is an `Option`)
     optional: bool,
 
+    /// Field metadata declared with `#[quiver(metadata("key" = "value", …))]`.
+    declared_metadata: Vec<(String, String)>,
+
     kind: ColumnKind,
 }
 
@@ -160,6 +163,7 @@ impl Quiver {
         let mut column_name = ident.to_string();
         let mut is_metadata = false;
         let mut is_extra_columns = false;
+        let mut declared_metadata: Vec<(String, String)> = Vec::new();
 
         for attr in &field.attrs {
             if attr.path().is_ident("quiver") {
@@ -169,7 +173,16 @@ impl Quiver {
                         column_name = name.value();
                         Ok(())
                     } else if meta.path.is_ident("metadata") {
-                        is_metadata = true;
+                        if meta.input.peek(syn::token::Paren) {
+                            // #[quiver(metadata("key" = "value", …))]: declared field metadata.
+                            if !declared_metadata.is_empty() {
+                                return Err(meta.error("Duplicate `metadata(…)` attribute"));
+                            }
+                            declared_metadata = parse_metadata_pairs(&meta)?;
+                        } else {
+                            // #[quiver(metadata)]: this field holds the record batch metadata.
+                            is_metadata = true;
+                        }
                         Ok(())
                     } else if meta.path.is_ident("extra_columns") {
                         is_extra_columns = true;
@@ -179,6 +192,13 @@ impl Quiver {
                     }
                 })?;
             }
+        }
+
+        if (is_metadata || is_extra_columns) && !declared_metadata.is_empty() {
+            return Err(syn::Error::new_spanned(
+                field,
+                "Declared `metadata(…)` only applies to column fields",
+            ));
         }
 
         if is_metadata {
@@ -203,6 +223,7 @@ impl Quiver {
                 ident,
                 column_name,
                 optional,
+                declared_metadata,
                 kind,
             });
         }
@@ -219,16 +240,21 @@ impl Quiver {
             let ColumnField {
                 ident: field_ident,
                 column_name,
+                declared_metadata,
                 kind,
                 ..
             } = column;
             let const_ident = format_ident!("COLUMN_{}", field_ident.to_string().to_uppercase());
             let doc = format!("The {column_name:?} column.");
+            let declared = declared_metadata
+                .iter()
+                .map(|(key, value)| quote! { (#key, #value) });
+            let declared = quote! { &[#(#declared),*] };
             match kind {
                 ColumnKind::Wrapper { column_type } => quote! {
                     #[doc = #doc]
                     pub const #const_ident: ::arrow_quiver::ColumnDesc<#column_type> =
-                        ::arrow_quiver::ColumnDesc::new(#record_type, #column_name);
+                        ::arrow_quiver::ColumnDesc::new(#record_type, #column_name, #declared);
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
                     quote! {
@@ -256,8 +282,17 @@ impl Quiver {
             .iter()
             .map(|column| {
                 let ColumnField {
-                    column_name, kind, ..
+                    column_name,
+                    declared_metadata,
+                    kind,
+                    ..
                 } = column;
+                let declared = declared_metadata.iter().map(|(key, value)| {
+                    quote! { (#key.to_owned(), #value.to_owned()) }
+                });
+                let metadata = quote! {
+                    .with_metadata([#(#declared),*].into_iter().collect())
+                };
                 match kind {
                     ColumnKind::Wrapper { column_type } => Some(quote! {
                         ::arrow_quiver::arrow::datatypes::Field::new(
@@ -265,10 +300,12 @@ impl Quiver {
                             <#column_type>::datatype(),
                             <#column_type>::NULLABLE,
                         )
+                        #metadata
                     }),
                     ColumnKind::Typed { datatype, .. } => Some(quote! {
                         // The nullability of raw arrow arrays is not statically known:
                         ::arrow_quiver::arrow::datatypes::Field::new(#column_name, #datatype, true)
+                            #metadata
                     }),
                     // Not statically known:
                     ColumnKind::Any | ColumnKind::Downcast { .. } => None,
@@ -493,6 +530,7 @@ impl ColumnField {
             ident,
             column_name,
             optional,
+            declared_metadata: _, // encode-side only; parsing does not validate metadata
             kind,
         } = self;
 
@@ -606,8 +644,16 @@ impl ColumnField {
             ident,
             column_name,
             optional,
+            declared_metadata,
             kind,
         } = self;
+
+        let declared = declared_metadata.iter().map(|(key, value)| {
+            quote! { (#key.to_owned(), #value.to_owned()) }
+        });
+        let declared = quote! {
+            [#(#declared),*]
+        };
 
         // Raw arrow arrays are dynamically typed; we don't know if they contain nulls:
         let nullable = true;
@@ -615,35 +661,48 @@ impl ColumnField {
         // `array` is the (typed) array by value:
         let push_one = match kind {
             ColumnKind::Any => quote! {
-                fields.push(::std::sync::Arc::new(::arrow_quiver::arrow::datatypes::Field::new(
-                    #column_name,
-                    ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
-                    #nullable,
-                )));
+                fields.push(::std::sync::Arc::new(
+                    ::arrow_quiver::arrow::datatypes::Field::new(
+                        #column_name,
+                        ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
+                        #nullable,
+                    )
+                    .with_metadata(#declared.into_iter().collect()),
+                ));
                 columns.push(array);
             },
             ColumnKind::Typed { datatype, .. } => quote! {
-                fields.push(::std::sync::Arc::new(::arrow_quiver::arrow::datatypes::Field::new(
-                    #column_name,
-                    #datatype,
-                    #nullable,
-                )));
+                fields.push(::std::sync::Arc::new(
+                    ::arrow_quiver::arrow::datatypes::Field::new(
+                        #column_name,
+                        #datatype,
+                        #nullable,
+                    )
+                    .with_metadata(#declared.into_iter().collect()),
+                ));
                 columns.push(::std::sync::Arc::new(array));
             },
             ColumnKind::Downcast { .. } => quote! {
-                fields.push(::std::sync::Arc::new(::arrow_quiver::arrow::datatypes::Field::new(
-                    #column_name,
-                    ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
-                    #nullable,
-                )));
+                fields.push(::std::sync::Arc::new(
+                    ::arrow_quiver::arrow::datatypes::Field::new(
+                        #column_name,
+                        ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
+                        #nullable,
+                    )
+                    .with_metadata(#declared.into_iter().collect()),
+                ));
                 columns.push(::std::sync::Arc::new(array));
             },
             ColumnKind::Wrapper { column_type } => quote! {
-                let metadata: ::std::collections::HashMap<::std::string::String, ::std::string::String> = array
-                    .metadata()
-                    .iter()
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect();
+                // Declared metadata first; the per-instance metadata wins on key conflicts:
+                let mut metadata: ::std::collections::HashMap<::std::string::String, ::std::string::String> =
+                    #declared.into_iter().collect();
+                metadata.extend(
+                    array
+                        .metadata()
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
                 fields.push(::std::sync::Arc::new(
                     ::arrow_quiver::arrow::datatypes::Field::new(
                         #column_name,
@@ -693,6 +752,25 @@ fn downcast(
             })?
             .clone()
     }
+}
+
+/// Parses the `("key" = "value", …)` pairs of a declared-metadata attribute.
+fn parse_metadata_pairs(
+    meta: &syn::meta::ParseNestedMeta<'_>,
+) -> syn::Result<Vec<(String, String)>> {
+    let mut pairs = Vec::new();
+    let content;
+    syn::parenthesized!(content in meta.input);
+    while !content.is_empty() {
+        let key: syn::LitStr = content.parse()?;
+        content.parse::<syn::Token![=]>()?;
+        let value: syn::LitStr = content.parse()?;
+        pairs.push((key.value(), value.value()));
+        if !content.is_empty() {
+            content.parse::<syn::Token![,]>()?;
+        }
+    }
+    Ok(pairs)
 }
 
 /// Splits an optional `Option` wrapper from the inner array type.
