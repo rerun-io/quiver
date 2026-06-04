@@ -324,3 +324,19 @@ fn convenience_constructors() {
     let column = Column::<Duration<Millisecond>>::from_values([100_i64]);
     assert_eq!(column.value(0), 100);
 }
+
+#[test]
+fn static_datatype() {
+    assert_eq!(Column::<i64>::datatype(), DataType::Int64);
+    assert_eq!(Column::<Option<i64>>::datatype(), DataType::Int64); // Nullability is not part of the datatype
+    assert_eq!(
+        Column::<List<Option<String>>>::datatype(),
+        DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
+    );
+    assert_eq!(
+        Column::<List<String>>::datatype(),
+        DataType::List(Arc::new(Field::new("item", DataType::Utf8, false)))
+    );
+    assert!(Column::<Option<i64>>::NULLABLE);
+    assert!(!Column::<i64>::NULLABLE);
+}
