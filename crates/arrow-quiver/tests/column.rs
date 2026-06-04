@@ -270,3 +270,57 @@ fn errors_convert_to_arrow_error() {
     assert!(matches!(err, ArrowError::ExternalError(_)));
     assert!(err.to_string().contains("Expected datatype"));
 }
+
+#[test]
+fn convenience_constructors() {
+    // From anything that converts into the owned value (e.g. `&str` → `String`):
+    let column = Column::<String>::from_values(["a", "b"]);
+    let values: Vec<&str> = column.iter().collect();
+    assert_eq!(values, ["a", "b"]);
+
+    // `From<Vec<T>>`:
+    let column: Column<i64> = vec![1, 2].into();
+    let values: Vec<i64> = column.iter().collect();
+    assert_eq!(values, [1, 2]);
+
+    // `FromIterator`:
+    let column: Column<f64> = [1.0, 2.5].into_iter().collect();
+    assert_eq!(column.value(1), 2.5);
+
+    // Nullable values:
+    let column = Column::<Option<i64>>::from_values([Some(1), None]);
+    let values: Vec<Option<i64>> = column.iter().collect();
+    assert_eq!(values, [Some(1), None]);
+
+    // Lists:
+    let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
+    let values: Vec<Vec<i64>> = column.iter().map(Iterator::collect).collect();
+    assert_eq!(values, [vec![1, 2], vec![3]]);
+
+    // Nullable lists with nullable items:
+    let column =
+        Column::<Option<List<Option<i64>>>>::from_values([Some(vec![Some(1), None]), None]);
+    let values: Vec<Option<Vec<Option<i64>>>> = column
+        .iter()
+        .map(|list| list.map(Iterator::collect))
+        .collect();
+    assert_eq!(values, [Some(vec![Some(1), None]), None]);
+
+    // Fixed-size binary:
+    let column = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    assert_eq!(column.value(1), &[5, 6, 7, 8]);
+
+    // Timestamps get the declared timezone:
+    let column = Column::<Timestamp<Nanosecond, Utc>>::from_values([1_i64, 2]);
+    assert_eq!(
+        column.as_arrow().data_type(),
+        &DataType::Timestamp(
+            arrow_quiver::arrow::datatypes::TimeUnit::Nanosecond,
+            Some("UTC".into())
+        )
+    );
+
+    // Durations:
+    let column = Column::<Duration<Millisecond>>::from_values([100_i64]);
+    assert_eq!(column.value(0), 100);
+}

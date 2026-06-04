@@ -30,6 +30,10 @@ pub trait Datatype {
     where
         Self: 'a;
 
+    /// The owned value of one element, used by the convenience constructors:
+    /// `String` for `String`, `Option<i64>` for `Option<i64>`, `Vec<…>` for `List<…>`, etc.
+    type Owned;
+
     /// The exact arrow datatype, built recursively
     /// (including the nullability of inner fields).
     fn datatype() -> DataType;
@@ -53,6 +57,11 @@ pub trait Datatype {
     ///
     /// Contract: `index` is in bounds, and the value is non-null unless `Self` is an `Option`.
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_>;
+
+    /// Builds an arrow array of this datatype from owned values.
+    ///
+    /// `None` items only ever occur at `Option<…>` levels.
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef;
 }
 
 /// What can go wrong when constructing a [`Column`].
@@ -164,6 +173,13 @@ impl<L: Datatype> Column<L> {
         self
     }
 
+    /// Builds a column from owned values,
+    /// e.g. `Column::<String>::from_values(["a", "b"])`.
+    pub fn from_values(values: impl IntoIterator<Item = impl Into<L::Owned>>) -> Self {
+        let array = L::build(values.into_iter().map(|value| Some(value.into())));
+        Self::try_new(array).expect("The built array always matches the datatype")
+    }
+
     /// The exact arrow datatype of this column.
     pub fn datatype() -> DataType {
         L::datatype()
@@ -205,6 +221,18 @@ impl<L: Datatype> Column<L> {
     /// Extract the underlying arrow array.
     pub fn into_arrow(self) -> ArrayRef {
         self.array
+    }
+}
+
+impl<L: Datatype, T: Into<L::Owned>> From<Vec<T>> for Column<L> {
+    fn from(values: Vec<T>) -> Self {
+        Self::from_values(values)
+    }
+}
+
+impl<L: Datatype, T: Into<L::Owned>> FromIterator<T> for Column<L> {
+    fn from_iter<I: IntoIterator<Item = T>>(values: I) -> Self {
+        Self::from_values(values)
     }
 }
 
@@ -287,6 +315,7 @@ impl<L: Datatype> Datatype for Option<L> {
         = Option<L::Value<'a>>
     where
         Self: 'a;
+    type Owned = Option<L::Owned>;
 
     fn datatype() -> DataType {
         L::datatype()
@@ -306,6 +335,10 @@ impl<L: Datatype> Datatype for Option<L> {
         } else {
             Some(L::value(typed, index))
         }
+    }
+
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+        L::build(values.map(Option::flatten))
     }
 }
 
@@ -338,6 +371,7 @@ impl<L: Datatype> Datatype for List<L> {
         = ListValue<'a, L>
     where
         Self: 'a;
+    type Owned = Vec<L::Owned>;
 
     fn datatype() -> DataType {
         DataType::List(std::sync::Arc::new(arrow::datatypes::Field::new(
@@ -370,6 +404,43 @@ impl<L: Datatype> Datatype for List<L> {
             index: offsets[index].as_usize(),
             end: offsets[index + 1].as_usize(),
         }
+    }
+
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+        let mut lengths = Vec::new();
+        let mut validity = Vec::new();
+        let mut flattened = Vec::new();
+        for list in values {
+            match list {
+                Some(items) => {
+                    lengths.push(items.len());
+                    validity.push(true);
+                    flattened.extend(items);
+                }
+                None => {
+                    lengths.push(0);
+                    validity.push(false);
+                }
+            }
+        }
+
+        let field = std::sync::Arc::new(arrow::datatypes::Field::new(
+            "item",
+            L::datatype(),
+            L::NULLABLE,
+        ));
+        let offsets = arrow::buffer::OffsetBuffer::from_lengths(lengths);
+        let values_array = L::build(flattened.into_iter().map(Some));
+        let nulls = validity
+            .contains(&false)
+            .then(|| arrow::buffer::NullBuffer::from(validity));
+
+        std::sync::Arc::new(arrow::array::ListArray::new(
+            field,
+            offsets,
+            values_array,
+            nulls,
+        ))
     }
 }
 
@@ -421,6 +492,7 @@ macro_rules! impl_flat_datatype {
         impl Datatype for $rust {
             type Typed = $array;
             type Value<'a> = $value;
+            type Owned = $rust;
 
             fn datatype() -> DataType {
                 $datatype
@@ -436,6 +508,10 @@ macro_rules! impl_flat_datatype {
 
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 typed.value(index)
+            }
+
+            fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+                std::sync::Arc::new(<$array>::from_iter(values))
             }
         }
     };
@@ -458,6 +534,7 @@ impl_flat_datatype!(String, arrow::array::StringArray, &'a str, DataType::Utf8);
 impl<const N: usize> Datatype for [u8; N] {
     type Typed = arrow::array::FixedSizeBinaryArray;
     type Value<'a> = &'a [u8; N];
+    type Owned = [u8; N];
 
     fn datatype() -> DataType {
         const {
@@ -480,6 +557,17 @@ impl<const N: usize> Datatype for [u8; N] {
             .value(index)
             .first_chunk::<N>()
             .expect("The length is guaranteed by the validated datatype")
+    }
+
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+        const {
+            assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
+        }
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let array =
+            arrow::array::FixedSizeBinaryArray::try_from_sparse_iter_with_size(values, N as i32)
+                .expect("All values have the same size");
+        std::sync::Arc::new(array)
     }
 }
 
@@ -562,6 +650,7 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
         = i64
     where
         Self: 'a;
+    type Owned = i64;
 
     fn datatype() -> DataType {
         DataType::Timestamp(
@@ -581,6 +670,11 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         typed.value(index)
     }
+
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+        let array: arrow::array::PrimitiveArray<U::TimestampType> = values.collect();
+        std::sync::Arc::new(array.with_timezone_opt(Z::timezone()))
+    }
 }
 
 /// Marker for an arrow `Duration` column, e.g. `Duration<Nanosecond>`.
@@ -598,6 +692,7 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
         = i64
     where
         Self: 'a;
+    type Owned = i64;
 
     fn datatype() -> DataType {
         DataType::Duration(<U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT)
@@ -613,5 +708,10 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
 
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         typed.value(index)
+    }
+
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> ArrayRef {
+        let array: arrow::array::PrimitiveArray<U::DurationType> = values.collect();
+        std::sync::Arc::new(array)
     }
 }
