@@ -1,4 +1,4 @@
-#![doc = include_str!("../../../README.md")]
+#![cfg_attr(doc, doc = include_str!("../../../README.md"))]
 // NOTE: the code blocks in the README double as doctests for this crate.
 
 pub use arrow;

@@ -127,11 +127,11 @@ Cons:
 ### Prior art (researched 2026-06-04)
 
 #### Rust
-| Crate            | Status            | What it does                                                              | Zero-copy SoA?                            |
+| Crate            | Status            | What it does                                                              | Zero-copy `SoA`?                          |
 |------------------|-------------------|---------------------------------------------------------------------------|-------------------------------------------|
 | `typed-arrow`    | Active (tonbo-io) | `#[derive(Record)]` on *logical* types → builders, schema, lazy row views | **Yes** (`views` feature)                 |
 | `arrow_convert`  | Active            | serde-style derive, Rust types ↔ Arrow arrays                             | No — transposes + copies into `Vec<T>`    |
-| `serde_arrow`    | Very active       | `Vec<Struct>` ↔ RecordBatch via serde                                     | No — serde data model forces owned values |
+| `serde_arrow`    | Very active       | `Vec<Struct>` ↔ `RecordBatch` via serde                                   | No — serde data model forces owned values |
 
 `typed-arrow` is the closest match but misses the mold:
 
