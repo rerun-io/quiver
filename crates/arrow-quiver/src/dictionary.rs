@@ -93,13 +93,24 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let dictionary = downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array)?;
-        let values = dictionary.values();
-        if !V::NULLABLE && 0 < values.null_count() {
-            return Err(ColumnError::UnexpectedNulls {
-                null_count: values.null_count(),
-            });
+        if !V::NULLABLE && 0 < dictionary.values().null_count() {
+            // Only count *logical* nulls: null entries in the value table that
+            // some key actually references. Unreferenced null entries are fine.
+            //
+            // `logical_nulls` combines null keys and referenced null entries;
+            // subtracting the null keys leaves the referenced null entries.
+            let logical = dictionary
+                .logical_nulls()
+                .map_or(0, |nulls| nulls.null_count());
+            let null_keys = dictionary.keys().null_count();
+            let referenced_null_entries = logical.saturating_sub(null_keys);
+            if 0 < referenced_null_entries {
+                return Err(ColumnError::UnexpectedNulls {
+                    null_count: referenced_null_entries,
+                });
+            }
         }
-        let values = V::downcast(&**values)?;
+        let values = V::downcast(&**dictionary.values())?;
         Ok(TypedDictionary { dictionary, values })
     }
 

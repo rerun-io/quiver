@@ -59,13 +59,16 @@ impl<L: Datatype + 'static> Datatype for List<L> {
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let list = downcast_array::<arrow::array::ListArray>(array)?;
-        let values = list.values();
-        if !L::NULLABLE && 0 < values.null_count() {
-            return Err(ColumnError::UnexpectedNulls {
-                null_count: values.null_count(),
-            });
+        if !L::NULLABLE {
+            // Only count *logical* nulls: items that can actually be reached
+            // through some valid row. Sliced arrays may have nulls outside the
+            // referenced range, and null rows may cover garbage item ranges.
+            let null_count = logical_item_null_count(&list);
+            if 0 < null_count {
+                return Err(ColumnError::UnexpectedNulls { null_count });
+            }
         }
-        let values = L::downcast(&**values)?;
+        let values = L::downcast(&**list.values())?;
         Ok(TypedList { list, values })
     }
 
@@ -150,3 +153,46 @@ impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
 impl<'a, L: Datatype + 'a> ExactSizeIterator for ListValue<'a, L> {}
 
 impl<L: InfallibleBuild + 'static> InfallibleBuild for List<L> {}
+
+/// Counts the nulls among the *reachable* items of a list array:
+/// items inside the ranges of valid (non-null) rows.
+///
+/// This is the logical count: physical nulls outside the slice window,
+/// or inside the ranges of null rows, don't count.
+fn logical_item_null_count(list: &arrow::array::ListArray) -> usize {
+    let Some(item_nulls) = list.values().nulls() else {
+        return 0;
+    };
+
+    let offsets = list.value_offsets();
+    let window_start = offsets[0].as_usize();
+    let window_end = offsets[list.len()].as_usize();
+    if item_nulls
+        .slice(window_start, window_end - window_start)
+        .null_count()
+        == 0
+    {
+        return 0; // Fast path: no nulls anywhere in the referenced window.
+    }
+
+    match list.nulls() {
+        // All rows valid: every item in the window is reachable.
+        None => item_nulls
+            .slice(window_start, window_end - window_start)
+            .null_count(),
+
+        // Only count items of valid rows:
+        Some(row_validity) => (0..list.len())
+            .filter(|&row| row_validity.is_valid(row))
+            .map(|row| {
+                let start = offsets[row].as_usize();
+                let end = offsets[row + 1].as_usize();
+                if start == end {
+                    0
+                } else {
+                    item_nulls.slice(start, end - start).null_count()
+                }
+            })
+            .sum(),
+    }
+}

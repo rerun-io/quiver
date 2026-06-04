@@ -243,6 +243,9 @@ Work-in-progress.
 ## TODO
 From the 2026-06-04 self-review:
 * [ ] BUG: validation counts *physical* nulls, not *logical* ones — a sliced `ListArray` with an unreachable null item, or a `Dictionary` with an unreferenced null entry in its value table, is falsely rejected
+* [ ] `::schema()` is a foot-gun: it doesn't communicate clearly what happens with optional columns.
+    *  Mabe a `fn required_fields()` would be a more useful helper?
+    *  And/or maybe `min_schema` vs `max_schema`?
 * [ ] `FixedSizeList<L, N>` logical type (vec3s, tensors); needs logical-null-masked child validation for `Option<…>` rows
 * [ ] `Date32`/`Date64` and `Time32`/`Time64` logical types (trivial: flat markers)
 * [ ] `LargeUtf8` logical type (trivial: like `LargeBinary`)

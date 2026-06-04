@@ -523,3 +523,57 @@ fn dictionary_try_into() {
     let result: Result<Column<Dictionary<i8, String>>, _> = values.try_into();
     assert!(matches!(result, Err(ColumnError::Build(_))));
 }
+
+/// Validation must count *logical* nulls, not physical ones (self-review bug fix).
+#[test]
+fn logical_null_validation() {
+    use arrow_quiver::Dictionary;
+    use arrow_quiver::arrow::array::{DictionaryArray, ListArray};
+
+    // A null item that is unreachable after slicing is fine…
+    let list = ListArray::from_iter_primitive::<Int64Type, _, _>(vec![
+        Some(vec![None]), // null item, only in row 0
+        Some(vec![Some(2)]),
+    ]);
+    let sliced = list.slice(1, 1);
+    let column = Column::<List<i64>>::try_from(Arc::new(sliced) as ArrayRef).unwrap();
+    let values: Vec<Vec<i64>> = column.to_vec();
+    assert_eq!(values, [vec![2]]);
+
+    // …but a reachable one is still rejected:
+    let list = ListArray::from_iter_primitive::<Int64Type, _, _>(vec![
+        Some(vec![None]),
+        Some(vec![Some(2)]),
+    ]);
+    let result = Column::<List<i64>>::try_from(Arc::new(list) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Null items inside the range of a NULL row don't count:
+    let list = ListArray::from_iter_primitive::<Int64Type, _, _>(vec![
+        None, // null row — arrow's builder gives it an empty range
+        Some(vec![Some(2)]),
+    ]);
+    let column = Column::<Option<List<i64>>>::try_from(Arc::new(list) as ArrayRef).unwrap();
+    assert_eq!(column.len(), 2);
+
+    // An unreferenced null entry in a dictionary's value table is fine…
+    let values = StringArray::from(vec![Some("a"), None]); // entry 1 is null, unreferenced
+    let keys = arrow_quiver::arrow::array::Int32Array::from(vec![0, 0]);
+    let dictionary = DictionaryArray::new(keys, Arc::new(values));
+    let column =
+        Column::<Dictionary<i32, String>>::try_from(Arc::new(dictionary) as ArrayRef).unwrap();
+    assert_eq!(column.to_vec(), ["a", "a"]);
+
+    // …but a referenced one is still rejected:
+    let values = StringArray::from(vec![Some("a"), None]);
+    let keys = arrow_quiver::arrow::array::Int32Array::from(vec![0, 1]); // references the null
+    let dictionary = DictionaryArray::new(keys, Arc::new(values));
+    let result = Column::<Dictionary<i32, String>>::try_from(Arc::new(dictionary) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+}
