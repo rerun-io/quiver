@@ -39,7 +39,7 @@ impl<L: Datatype> Column<L> {
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
         let expected = L::datatype();
         let actual = array.data_type();
-        if actual != &expected {
+        if !crate::datatype::datatypes_compatible(actual, &expected) {
             return Err(ColumnError::WrongDatatype {
                 expected,
                 actual: actual.clone(),

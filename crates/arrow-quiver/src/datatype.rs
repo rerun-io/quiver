@@ -182,3 +182,33 @@ macro_rules! impl_flat_datatype {
 }
 
 pub(crate) use impl_flat_datatype;
+
+/// Are arrow arrays of datatype `actual` acceptable where `declared` is expected?
+///
+/// Like equality, except that the inner [`arrow::datatypes::Field`]s of nested
+/// datatypes are compared *structurally*: their names (`"item"` vs `"element"`),
+/// nullability flags, and metadata are ignored.
+/// Actual nullability is enforced separately, by counting logical nulls.
+pub(crate) fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
+    match (actual, declared) {
+        (DataType::List(actual), DataType::List(declared))
+        | (DataType::LargeList(actual), DataType::LargeList(declared)) => {
+            datatypes_compatible(actual.data_type(), declared.data_type())
+        }
+        (
+            DataType::FixedSizeList(actual, actual_size),
+            DataType::FixedSizeList(declared, declared_size),
+        ) => {
+            actual_size == declared_size
+                && datatypes_compatible(actual.data_type(), declared.data_type())
+        }
+        (
+            DataType::Dictionary(actual_key, actual_value),
+            DataType::Dictionary(declared_key, declared_value),
+        ) => {
+            datatypes_compatible(actual_key, declared_key)
+                && datatypes_compatible(actual_value, declared_value)
+        }
+        _ => actual == declared,
+    }
+}

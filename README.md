@@ -128,7 +128,7 @@ What is checked when parsing a `RecordBatch`:
 
 |                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
 |----------------|------------------------------------------------------------------------------|------------------------------------------------------------------|
-| Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Exact match, recursively (`List<String>` ≠ `List<i64>`)           |
+| Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Structural match, recursively (`List<String>` ≠ `List<i64>`; inner field names/nullability flags/metadata are not compared — actual nulls are what matters) |
 | Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
 | Timestamps     | Unit checked; the timezone must be `None` (`TimestampNanosecondArray`)       | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
 | Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
@@ -242,23 +242,14 @@ Work-in-progress.
 
 ## TODO
 From the 2026-06-04 self-review:
-* [ ] BUG: validation counts *physical* nulls, not *logical* ones — a sliced `ListArray` with an unreachable null item, or a `Dictionary` with an unreferenced null entry in its value table, is falsely rejected
+* [x] BUG: validation counts *physical* nulls, not *logical* ones — fixed: list/dictionary validation masks by reachability, and nested datatype matching is structural (inner field names/nullability flags/metadata ignored)
 * [ ] `::schema()` is a foot-gun: it doesn't communicate clearly what happens with optional columns.
-    *  Mabe a `fn required_fields()` would be a more useful helper?
-    *  And/or maybe `min_schema` vs `max_schema`?
+    * Mabe a `fn required_fields()` would be a more useful helper?
+    * And/or maybe `min_schema` vs `max_schema`?
 * [ ] `FixedSizeList<L, N>` logical type (vec3s, tensors); needs logical-null-masked child validation for `Option<…>` rows
 * [ ] `Date32`/`Date64` and `Time32`/`Time64` logical types (trivial: flat markers)
 * [ ] `LargeUtf8` logical type (trivial: like `LargeBinary`)
-* [ ] `PartialEq` for `Column` (arrow has `PartialEq for dyn Array`)
 * [ ] `Column::slice(offset, len)` — zero-copy, like arrow's
-* [ ] CI: the declared arrow version range (`>=57, <59`) is only tested at the locked version — add a matrix or narrow the range
+* [ ] CI: the declared arrow version range (`>=57, <59`) is only tested at the locked version — test all versions on CI
 * [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
-
-* [x] Const-generics-based support for `DataType::FixedSizeBinary(16)` etc: `Column<[u8; 16]>`
-* [x] `Timestamp` logical type for `quiver::Column`: `Column<Timestamp<Nanosecond, Utc>>` — unit and timezone are part of the type, matched exactly
-* [x] `Duration` logical type for `quiver::Column`: `Column<Duration<Millisecond>>`
-* [x] Add `exhaustive/nonexhaustive` attributes (whether or not extra columns are allowed)
-* [x] Forbid `#[quiver(extra_columns)]` if the `exhaustive`/`nonexhaustive` attributes are set
-* [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
-* [ ] `#[quiver(readonly)]` — invariant-by-construction variant: private fields, read-only accessors, and a validating constructor
 * [ ] Publish to crates.io

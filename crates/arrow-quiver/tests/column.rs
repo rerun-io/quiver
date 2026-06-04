@@ -51,11 +51,13 @@ fn standalone_list_column() {
             Some(vec![Some(3)]),
         ]));
 
-    // `from_iter_primitive` produces a nullable item field, so `List<i64>` is rejected…
-    let result = Column::<List<i64>>::try_from(Arc::clone(&dynamic_array));
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    // The item field is declared nullable but contains no nulls,
+    // so both `List<i64>` and `List<Option<i64>>` accept it
+    // (inner field nullability flags are not compared — actual nulls are what matters):
+    let column = Column::<List<i64>>::try_from(Arc::clone(&dynamic_array)).unwrap();
+    let lists: Vec<Vec<i64>> = column.iter().map(Iterator::collect).collect();
+    assert_eq!(lists, [vec![1, 2], vec![3]]);
 
-    // …but `List<Option<i64>>` matches:
     let column = Column::<List<Option<i64>>>::try_from(dynamic_array).unwrap();
     let lists: Vec<Vec<Option<i64>>> = column.iter().map(Iterator::collect).collect();
     assert_eq!(lists, [vec![Some(1), Some(2)], vec![Some(3)]]);
@@ -576,4 +578,18 @@ fn logical_null_validation() {
         result,
         Err(ColumnError::UnexpectedNulls { null_count: 1 })
     ));
+}
+
+/// Inner field names are not compared: parquet names list items "element",
+/// arrow names them "item" — both must parse.
+#[test]
+fn list_item_field_name_is_ignored() {
+    let values = Int64Array::from(vec![1, 2, 3]);
+    let field = Arc::new(Field::new("element", DataType::Int64, false)); // parquet-style
+    let offsets = arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
+    let list = ListArray::new(field, offsets, Arc::new(values), None);
+
+    let column = Column::<List<i64>>::try_from(Arc::new(list) as ArrayRef).unwrap();
+    let lists: Vec<Vec<i64>> = column.to_vec();
+    assert_eq!(lists, [vec![1, 2], vec![3]]);
 }
