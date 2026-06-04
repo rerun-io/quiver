@@ -7,6 +7,12 @@ error[E0599]: no function or associated item named `schema` found for struct `Th
 12 |     let _ = Thing::schema();
    |                    ^^^^^^ function or associated item not found in `Thing`
    |
+note: if you're trying to build a new `Thing`, consider using `Thing::from_record_batch` which returns `Result<Thing, arrow_quiver::Error>`
+  --> tests/compile_fail/no_static_schema.rs:6:10
+   |
+ 6 | #[derive(arrow_quiver::Quiver)]
+   |          ^^^^^^^^^^^^^^^^^^^^
    = help: items from traits can only be used if the trait is implemented and in scope
    = note: the following trait defines an item `schema`, perhaps you need to implement it:
            candidate #1: `RecordBatchReader`
+   = note: this error originates in the derive macro `arrow_quiver::Quiver` (in Nightly builds, run with -Z macro-backtrace for more info)
