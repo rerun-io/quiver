@@ -379,6 +379,10 @@ impl Quiver {
 
                 /// An empty (zero-row) record batch with [`Self::max_schema`]:
                 /// all declared columns present, with zero rows.
+                ///
+                /// Optional (`Option<…>`) columns are *included* — present and
+                /// empty, like all the others. Parsing the result back therefore
+                /// yields `Some(empty column)` for them, not `None`.
                 pub fn empty_record_batch() -> #krate::arrow::record_batch::RecordBatch {
                     #krate::arrow::record_batch::RecordBatch::new_empty(
                         ::std::sync::Arc::new(Self::max_schema()),

@@ -139,7 +139,9 @@ be invalid (its fields are private and immutable), so element access never retur
 
 Structs whose columns all have a statically-known datatype also get generated
 `fn min_schema()` (the required columns) and `fn max_schema()` (all declared columns,
-including optional ones), plus an infallible `fn empty_record_batch()`.
+including optional ones), plus an infallible `fn empty_record_batch()` —
+zero rows, every declared column present (optional ones too: parsing the result back
+yields `Some(empty column)`, not `None`).
 
 More of the `Column` API:
 
@@ -254,6 +256,5 @@ From the 2026-06-04 self-review:
 * [x] `Column::slice(offset, len)` — zero-copy, like arrow's
 * [x] CI: all supported arrow versions are tested, via `scripts/test_arrow_versions.sh` (also runnable locally)
 * [x] Domain-newtype hooks: `arrow_quiver::newtype_datatype!(MyType, String)` makes `Column<MyType>` work (requires `From` conversions both ways; reading stays zero-copy via the repr's borrowed value)
-* [ ] Document what empty_record_batch does for optional columns
 * [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
 
