@@ -243,6 +243,13 @@ impl Quiver {
                         #(#fields),*
                     ])
                 }
+
+                /// An empty (zero-row) record batch with [`Self::schema`].
+                pub fn empty_record_batch() -> ::arrow_quiver::arrow::record_batch::RecordBatch {
+                    ::arrow_quiver::arrow::record_batch::RecordBatch::new_empty(
+                        ::std::sync::Arc::new(Self::schema()),
+                    )
+                }
             }
         })
     }

@@ -712,3 +712,16 @@ fn column_descriptors() {
     let column = Strict::COLUMN_NAME.extract(&batch).unwrap();
     assert_eq!(column.field.name(), "name");
 }
+
+#[test]
+fn empty_record_batch() {
+    let batch = Typed::empty_record_batch();
+    assert_eq!(batch.num_rows(), 0);
+    assert_eq!(batch.num_columns(), 4);
+
+    // The empty batch parses back, including the optional column
+    // (present, but empty):
+    let typed = Typed::try_from(batch).unwrap();
+    assert!(typed.name.is_empty());
+    assert!(typed.scores.unwrap().is_empty());
+}

@@ -18,6 +18,7 @@ use proc_macro::TokenStream;
 ///   name and an `extract(&batch)` method for pulling out one column
 /// * `fn schema()` — the static arrow schema of the declared columns; only generated when all
 ///   columns have a statically-known datatype (no `ArrayRef`, `ListArray`, …)
+/// * `fn empty_record_batch()` — an infallible, zero-row record batch with that schema
 ///
 /// ## Field types
 /// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact datatype
