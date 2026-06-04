@@ -50,6 +50,16 @@ struct Thing {
 // * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
 ```
 
+Building columns from values is infallible:
+
+``` rust
+use arrow_quiver::{Column, List};
+
+let names: Column<String> = vec!["Alice", "Bob"].into();
+let scores = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
+let maybe: Column<Option<f64>> = [Some(1.5), None].into_iter().collect();
+```
+
 `quiver::Column` is also usable standalone, without the derive:
 
 ``` rust
