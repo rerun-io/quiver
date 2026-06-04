@@ -123,3 +123,18 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
         V::to_owned_value(value)
     }
 }
+
+/// `vec.try_into()` support for dictionary columns,
+/// whose building is fallible (key overflow) — see [`crate::Column::try_from_values`].
+impl<K, V, T> TryFrom<Vec<T>> for crate::Column<Dictionary<K, V>>
+where
+    K: DictionaryKey + 'static,
+    V: Datatype + 'static,
+    T: Into<V::Owned>,
+{
+    type Error = ColumnError;
+
+    fn try_from(values: Vec<T>) -> Result<Self, Self::Error> {
+        Self::try_from_values(values)
+    }
+}

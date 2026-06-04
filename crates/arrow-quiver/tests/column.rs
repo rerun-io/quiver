@@ -510,3 +510,16 @@ fn dictionary_key_overflow_is_an_error() {
     let column = Column::<Dictionary<i16, String>>::try_from_values(values).unwrap();
     assert_eq!(column.len(), 200);
 }
+
+#[test]
+fn dictionary_try_into() {
+    use arrow_quiver::Dictionary;
+
+    let column: Column<Dictionary<i32, String>> = vec!["a", "b", "a"].try_into().unwrap();
+    assert_eq!(column.to_vec(), ["a", "b", "a"]);
+
+    // Key overflow propagates as an error:
+    let values: Vec<String> = (0..200).map(|i| i.to_string()).collect();
+    let result: Result<Column<Dictionary<i8, String>>, _> = values.try_into();
+    assert!(matches!(result, Err(ColumnError::Build(_))));
+}
