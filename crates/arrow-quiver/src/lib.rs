@@ -9,11 +9,11 @@ mod column_desc;
 mod error;
 
 pub use self::column::{
-    Binary, Column, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Duration,
-    DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond, LargeBinary,
-    List, ListValue, Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec,
-    Timestamp, TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond, TimestampSecond,
-    TimezoneSpec, TypedList, Utc,
+    Binary, Column, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Dictionary, DictionaryKey,
+    Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
+    LargeBinary, List, ListValue, Microsecond, Millisecond, Nanosecond, NoTimezone, Second,
+    TimeUnitSpec, Timestamp, TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond,
+    TimestampSecond, TimezoneSpec, TypedDictionary, TypedList, Utc,
 };
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::error::{Error, ErrorKind};

@@ -162,12 +162,13 @@ The supported logical types:
 | `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
+| `Dictionary<i32, String>`                    | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
 | `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
 Not *yet* supported as logical types:
 
-* `Struct` (punted for now), `Dictionary`
+* `Struct` (punted for now)
 * `Date32`/`Date64`, `Time32`/`Time64`
 * `LargeUtf8`, and the string/binary *view* types
 * `LargeList`/`FixedSizeList`

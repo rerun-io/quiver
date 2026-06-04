@@ -7,7 +7,7 @@ use arrow_quiver::arrow::array::{
     ArrayRef, DurationMillisecondArray, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
     TimestampNanosecondArray, TimestampSecondArray,
 };
-use arrow_quiver::arrow::datatypes::{DataType, Field, Int64Type};
+use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
 use arrow_quiver::arrow::error::ArrowError;
 use arrow_quiver::{
     Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc,
@@ -455,4 +455,44 @@ fn f16_column() {
 
     let column = Column::<Option<f16>>::from_values([Some(f16::from_f32(1.5)), None]);
     assert_eq!(column.to_vec(), [Some(f16::from_f32(1.5)), None]);
+}
+
+#[test]
+fn dictionary_columns() {
+    use arrow_quiver::Dictionary;
+    use arrow_quiver::arrow::array::DictionaryArray;
+
+    // Building dictionary-encodes the values:
+    let column = Column::<Dictionary<i32, String>>::from_values(["a", "b", "a", "a"]);
+    assert_eq!(
+        Column::<Dictionary<i32, String>>::datatype(),
+        DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
+    );
+
+    // The dictionary is transparent: values read as if it were a plain column:
+    let values: Vec<&str> = column.iter().collect();
+    assert_eq!(values, ["a", "b", "a", "a"]);
+    assert_eq!(column.to_vec(), ["a", "b", "a", "a"]);
+
+    // Parsing an externally built dictionary array:
+    let array: DictionaryArray<Int64Type> = vec!["x", "y", "x"].into_iter().collect();
+    let column = Column::<Dictionary<i64, String>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.value(2), "x");
+
+    // The key type must match:
+    let result = Column::<Dictionary<i32, String>>::try_from(column.into_arrow());
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Null keys via the column-level Option:
+    let array: DictionaryArray<Int32Type> = vec![Some("x"), None]
+        .into_iter()
+        .collect::<DictionaryArray<_>>();
+    let array = Arc::new(array) as ArrayRef;
+    assert!(matches!(
+        Column::<Dictionary<i32, String>>::try_from(Arc::clone(&array)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    let column = Column::<Option<Dictionary<i32, String>>>::try_from(array).unwrap();
+    let values: Vec<Option<&str>> = column.iter().collect();
+    assert_eq!(values, [Some("x"), None]);
 }
