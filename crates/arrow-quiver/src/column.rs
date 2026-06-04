@@ -870,7 +870,7 @@ impl DynColumnDesc {
         let index = batch
             .schema_ref()
             .index_of(name)
-            .map_err(|_| crate::Error {
+            .map_err(|_not_found| crate::Error {
                 record_type,
                 kind: ErrorKind::MissingColumn {
                     column: name.to_owned(),
