@@ -88,6 +88,16 @@ impl ColumnError {
     }
 }
 
+/// Lets `?` convert column errors in functions returning arrow results.
+///
+/// The error is preserved (including its source chain),
+/// wrapped as an [`arrow::error::ArrowError::ExternalError`].
+impl From<ColumnError> for arrow::error::ArrowError {
+    fn from(err: ColumnError) -> Self {
+        Self::ExternalError(Box::new(err))
+    }
+}
+
 /// A strongly-typed, validated, zero-copy view of one record batch column.
 ///
 /// The logical type `L` describes the exact datatype and nullability,

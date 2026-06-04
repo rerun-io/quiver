@@ -567,3 +567,29 @@ fn column_metadata_roundtrip() {
     let times = Times::try_from(batch).unwrap();
     assert_eq!(times.at.metadata()["unit"], "ns");
 }
+
+#[test]
+fn error_converts_to_arrow_error() {
+    use arrow_quiver::arrow::error::ArrowError;
+
+    // Most errors wrap as ExternalError, preserving the source chain:
+    let err = Strict::try_from(batch_of(&[(
+        "age",
+        Arc::new(Int64Array::from(vec![1])) as ArrayRef,
+    )]))
+    .err()
+    .unwrap();
+    let arrow_err = ArrowError::from(err);
+    assert!(matches!(arrow_err, ArrowError::ExternalError(_)));
+
+    // …except BuildRecordBatch, which returns the original ArrowError:
+    let thing = Thing {
+        metadata: BTreeMap::default(),
+        name: StringArray::from(vec!["Alice", "Bob"]),
+        dob: Some(TimestampNanosecondArray::from(vec![1, 2, 3])),
+        other_columns: vec![],
+    };
+    let err = RecordBatch::try_from(thing).err().unwrap();
+    let arrow_err = ArrowError::from(err);
+    assert!(matches!(arrow_err, ArrowError::InvalidArgumentError(_)));
+}

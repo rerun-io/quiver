@@ -8,6 +8,7 @@ use arrow_quiver::arrow::array::{
     TimestampNanosecondArray, TimestampSecondArray,
 };
 use arrow_quiver::arrow::datatypes::{DataType, Field, Int64Type};
+use arrow_quiver::arrow::error::ArrowError;
 use arrow_quiver::{
     Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc,
 };
@@ -254,4 +255,18 @@ fn default_column_is_empty() {
         column.as_arrow().data_type(),
         &DataType::FixedSizeBinary(16)
     );
+}
+
+#[test]
+fn errors_convert_to_arrow_error() {
+    // So that `?` works in functions returning arrow results:
+    fn parse(array: ArrayRef) -> Result<Column<i64>, ArrowError> {
+        Ok(Column::try_new(array)?)
+    }
+
+    let err = parse(Arc::new(StringArray::from(vec!["nope"])) as ArrayRef)
+        .err()
+        .unwrap();
+    assert!(matches!(err, ArrowError::ExternalError(_)));
+    assert!(err.to_string().contains("Expected datatype"));
 }

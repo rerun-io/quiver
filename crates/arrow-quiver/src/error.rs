@@ -49,3 +49,18 @@ pub enum ErrorKind {
     #[error("Failed to build the record batch: {0}")]
     BuildRecordBatch(ArrowError),
 }
+
+/// Lets `?` convert quiver errors in functions returning arrow results.
+///
+/// The error is preserved (including its source chain),
+/// wrapped as an [`ArrowError::ExternalError`] —
+/// except [`ErrorKind::BuildRecordBatch`], which returns the original [`ArrowError`].
+impl From<Error> for ArrowError {
+    fn from(err: Error) -> Self {
+        if let ErrorKind::BuildRecordBatch(arrow_err) = err.kind {
+            arrow_err
+        } else {
+            Self::ExternalError(Box::new(err))
+        }
+    }
+}
