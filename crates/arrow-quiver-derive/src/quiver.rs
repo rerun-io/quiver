@@ -22,6 +22,9 @@ pub fn derive_quiver(input: &DeriveInput) -> syn::Result<TokenStream> {
 struct Quiver {
     ident: syn::Ident,
 
+    /// The path to the `arrow_quiver` crate (overridable with `#[quiver(crate = "…")]`).
+    krate: syn::Path,
+
     /// How to treat unknown columns when parsing.
     exhaustiveness: Exhaustiveness,
 
@@ -109,15 +112,23 @@ impl Quiver {
         };
 
         let mut exhaustiveness = None;
+        let mut krate: syn::Path = syn::parse_quote!(::arrow_quiver);
         for attr in &input.attrs {
             if attr.path().is_ident("quiver") {
                 attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("crate") {
+                        let path: syn::LitStr = meta.value()?.parse()?;
+                        krate = path.parse()?;
+                        return Ok(());
+                    }
                     let value = if meta.path.is_ident("exhaustive") {
                         Exhaustiveness::Exhaustive
                     } else if meta.path.is_ident("nonexhaustive") {
                         Exhaustiveness::Nonexhaustive
                     } else {
-                        return Err(meta.error("Expected `exhaustive` or `nonexhaustive`"));
+                        return Err(
+                            meta.error("Expected `crate`, `exhaustive`, or `nonexhaustive`")
+                        );
                     };
                     if exhaustiveness.is_some() {
                         return Err(
@@ -132,6 +143,7 @@ impl Quiver {
 
         let mut quiver = Self {
             ident: input.ident.clone(),
+            krate,
             exhaustiveness: exhaustiveness.unwrap_or(Exhaustiveness::Exhaustive),
             metadata_field: None,
             extra_columns_field: None,
@@ -218,7 +230,7 @@ impl Quiver {
             }
             self.extra_columns_field = Some(ident);
         } else {
-            let (optional, kind) = classify_type(&field.ty)?;
+            let (optional, kind) = classify_type(&self.krate.clone(), &field.ty)?;
             self.columns.push(ColumnField {
                 ident,
                 column_name,
@@ -234,6 +246,7 @@ impl Quiver {
     /// Generates `COLUMN_*` descriptor constants for every column.
     fn column_consts(&self) -> TokenStream {
         let Self { ident, columns, .. } = self;
+        let krate = &self.krate;
         let record_type = ident.to_string();
 
         let consts = columns.iter().map(|column| {
@@ -253,14 +266,14 @@ impl Quiver {
             match kind {
                 ColumnKind::Wrapper { column_type } => quote! {
                     #[doc = #doc]
-                    pub const #const_ident: ::arrow_quiver::ColumnDesc<#column_type> =
-                        ::arrow_quiver::ColumnDesc::new(#record_type, #column_name, #declared);
+                    pub const #const_ident: #krate::ColumnDesc<#column_type> =
+                        #krate::ColumnDesc::new(#record_type, #column_name, #declared);
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
                     quote! {
                         #[doc = #doc]
-                        pub const #const_ident: ::arrow_quiver::DynColumnDesc =
-                            ::arrow_quiver::DynColumnDesc::new(#record_type, #column_name);
+                        pub const #const_ident: #krate::DynColumnDesc =
+                            #krate::DynColumnDesc::new(#record_type, #column_name);
                     }
                 }
             }
@@ -278,6 +291,7 @@ impl Quiver {
     /// if all columns have a statically-known datatype.
     fn schema_fn(&self) -> Option<TokenStream> {
         let Self { ident, columns, .. } = self;
+        let krate = &self.krate;
 
         let fields = columns
             .iter()
@@ -297,7 +311,7 @@ impl Quiver {
                 };
                 let field = match kind {
                     ColumnKind::Wrapper { column_type } => quote! {
-                        ::arrow_quiver::arrow::datatypes::Field::new(
+                        #krate::arrow::datatypes::Field::new(
                             #column_name,
                             <#column_type>::datatype(),
                             <#column_type>::NULLABLE,
@@ -306,7 +320,7 @@ impl Quiver {
                     },
                     ColumnKind::Typed { datatype, .. } => quote! {
                         // The nullability of raw arrow arrays is not statically known:
-                        ::arrow_quiver::arrow::datatypes::Field::new(#column_name, #datatype, true)
+                        #krate::arrow::datatypes::Field::new(#column_name, #datatype, true)
                             #metadata
                     },
                     // Not statically known:
@@ -331,8 +345,8 @@ impl Quiver {
                 /// Optional (`Option<…>`) columns are excluded; see [`Self::max_schema`].
                 ///
                 /// Per-instance metadata is not included.
-                pub fn min_schema() -> ::arrow_quiver::arrow::datatypes::Schema {
-                    ::arrow_quiver::arrow::datatypes::Schema::new(::std::vec![
+                pub fn min_schema() -> #krate::arrow::datatypes::Schema {
+                    #krate::arrow::datatypes::Schema::new(::std::vec![
                         #(#min_fields),*
                     ])
                 }
@@ -343,16 +357,16 @@ impl Quiver {
                 /// see [`Self::min_schema`].
                 ///
                 /// Per-instance metadata is not included.
-                pub fn max_schema() -> ::arrow_quiver::arrow::datatypes::Schema {
-                    ::arrow_quiver::arrow::datatypes::Schema::new(::std::vec![
+                pub fn max_schema() -> #krate::arrow::datatypes::Schema {
+                    #krate::arrow::datatypes::Schema::new(::std::vec![
                         #(#max_fields),*
                     ])
                 }
 
                 /// An empty (zero-row) record batch with [`Self::max_schema`]:
                 /// all declared columns present, with zero rows.
-                pub fn empty_record_batch() -> ::arrow_quiver::arrow::record_batch::RecordBatch {
-                    ::arrow_quiver::arrow::record_batch::RecordBatch::new_empty(
+                pub fn empty_record_batch() -> #krate::arrow::record_batch::RecordBatch {
+                    #krate::arrow::record_batch::RecordBatch::new_empty(
                         ::std::sync::Arc::new(Self::max_schema()),
                     )
                 }
@@ -364,6 +378,7 @@ impl Quiver {
     fn try_from_batch(&self) -> TokenStream {
         let Self {
             ident,
+            krate,
             exhaustiveness,
             metadata_field,
             extra_columns_field,
@@ -392,10 +407,10 @@ impl Quiver {
         let extra_columns = if let Some(extra_ident) = extra_columns_field {
             quote! {
                 #known_columns
-                let #extra_ident: ::std::vec::Vec<::arrow_quiver::DynColumn> =
+                let #extra_ident: ::std::vec::Vec<#krate::DynColumn> =
                     ::std::iter::zip(batch.schema_ref().fields(), batch.columns())
                         .filter(|(field, _)| !KNOWN_COLUMNS.contains(&field.name().as_str()))
-                        .map(|(field, array)| ::arrow_quiver::DynColumn {
+                        .map(|(field, array)| #krate::DynColumn {
                             field: ::std::sync::Arc::clone(field),
                             array: ::std::sync::Arc::clone(array),
                         })
@@ -406,9 +421,9 @@ impl Quiver {
                 #known_columns
                 for field in batch.schema_ref().fields() {
                     if !KNOWN_COLUMNS.contains(&field.name().as_str()) {
-                        return ::core::result::Result::Err(::arrow_quiver::Error {
+                        return ::core::result::Result::Err(#krate::Error {
                             record_type: #record_type,
-                            kind: ::arrow_quiver::ErrorKind::UnexpectedColumn {
+                            kind: #krate::ErrorKind::UnexpectedColumn {
                                 column: field.name().clone(),
                             },
                         });
@@ -420,7 +435,9 @@ impl Quiver {
             quote! {}
         };
 
-        let extractors = columns.iter().map(|column| column.extractor(&record_type));
+        let extractors = columns
+            .iter()
+            .map(|column| column.extractor(krate, &record_type));
 
         let field_idents = metadata_field
             .iter()
@@ -429,11 +446,11 @@ impl Quiver {
 
         quote! {
             #[automatically_derived]
-            impl ::core::convert::TryFrom<::arrow_quiver::arrow::record_batch::RecordBatch> for #ident {
-                type Error = ::arrow_quiver::Error;
+            impl ::core::convert::TryFrom<#krate::arrow::record_batch::RecordBatch> for #ident {
+                type Error = #krate::Error;
 
                 fn try_from(
-                    batch: ::arrow_quiver::arrow::record_batch::RecordBatch,
+                    batch: #krate::arrow::record_batch::RecordBatch,
                 ) -> ::core::result::Result<Self, Self::Error> {
                     #extract_metadata
                     #extra_columns
@@ -443,11 +460,11 @@ impl Quiver {
             }
 
             #[automatically_derived]
-            impl ::core::convert::TryFrom<&::arrow_quiver::arrow::record_batch::RecordBatch> for #ident {
-                type Error = ::arrow_quiver::Error;
+            impl ::core::convert::TryFrom<&#krate::arrow::record_batch::RecordBatch> for #ident {
+                type Error = #krate::Error;
 
                 fn try_from(
-                    batch: &::arrow_quiver::arrow::record_batch::RecordBatch,
+                    batch: &#krate::arrow::record_batch::RecordBatch,
                 ) -> ::core::result::Result<Self, Self::Error> {
                     // Cloning a record batch is cheap (the columns are reference-counted):
                     Self::try_from(::core::clone::Clone::clone(batch))
@@ -463,8 +480,8 @@ impl Quiver {
                 /// Errors on missing or unexpected columns, datatype mismatches,
                 /// or unexpected nulls.
                 pub fn from_record_batch(
-                    batch: ::arrow_quiver::arrow::record_batch::RecordBatch,
-                ) -> ::core::result::Result<Self, ::arrow_quiver::Error> {
+                    batch: #krate::arrow::record_batch::RecordBatch,
+                ) -> ::core::result::Result<Self, #krate::Error> {
                     Self::try_from(batch)
                 }
             }
@@ -476,6 +493,7 @@ impl Quiver {
     fn try_into_batch(&self) -> TokenStream {
         let Self {
             ident,
+            krate,
             exhaustiveness: _, // only affects parsing
             metadata_field,
             extra_columns_field,
@@ -483,7 +501,7 @@ impl Quiver {
         } = self;
 
         let record_type = ident.to_string();
-        let pushes = columns.iter().map(ColumnField::push);
+        let pushes = columns.iter().map(|column| column.push(krate));
 
         let push_extra = extra_columns_field.as_ref().map(|extra_ident| {
             quote! {
@@ -496,33 +514,33 @@ impl Quiver {
 
         let schema = if let Some(metadata_ident) = metadata_field {
             quote! {
-                ::arrow_quiver::arrow::datatypes::Schema::new(fields)
+                #krate::arrow::datatypes::Schema::new(fields)
                     .with_metadata(value.#metadata_ident.into_iter().collect())
             }
         } else {
-            quote! { ::arrow_quiver::arrow::datatypes::Schema::new(fields) }
+            quote! { #krate::arrow::datatypes::Schema::new(fields) }
         };
 
         quote! {
             #[automatically_derived]
-            impl ::core::convert::TryFrom<#ident> for ::arrow_quiver::arrow::record_batch::RecordBatch {
-                type Error = ::arrow_quiver::Error;
+            impl ::core::convert::TryFrom<#ident> for #krate::arrow::record_batch::RecordBatch {
+                type Error = #krate::Error;
 
                 fn try_from(value: #ident) -> ::core::result::Result<Self, Self::Error> {
-                    let mut fields: ::std::vec::Vec<::arrow_quiver::arrow::datatypes::FieldRef> =
+                    let mut fields: ::std::vec::Vec<#krate::arrow::datatypes::FieldRef> =
                         ::std::vec::Vec::new();
-                    let mut columns: ::std::vec::Vec<::arrow_quiver::arrow::array::ArrayRef> =
+                    let mut columns: ::std::vec::Vec<#krate::arrow::array::ArrayRef> =
                         ::std::vec::Vec::new();
                     #(#pushes)*
                     #push_extra
                     let schema = #schema;
-                    ::arrow_quiver::arrow::record_batch::RecordBatch::try_new(
+                    #krate::arrow::record_batch::RecordBatch::try_new(
                         ::std::sync::Arc::new(schema),
                         columns,
                     )
-                    .map_err(|err| ::arrow_quiver::Error {
+                    .map_err(|err| #krate::Error {
                         record_type: #record_type,
-                        kind: ::arrow_quiver::ErrorKind::BuildRecordBatch(err),
+                        kind: #krate::ErrorKind::BuildRecordBatch(err),
                     })
                 }
             }
@@ -536,10 +554,10 @@ impl Quiver {
                 pub fn into_record_batch(
                     self,
                 ) -> ::core::result::Result<
-                    ::arrow_quiver::arrow::record_batch::RecordBatch,
-                    ::arrow_quiver::Error,
+                    #krate::arrow::record_batch::RecordBatch,
+                    #krate::Error,
                 > {
-                    ::arrow_quiver::arrow::record_batch::RecordBatch::try_from(self)
+                    #krate::arrow::record_batch::RecordBatch::try_from(self)
                 }
             }
         }
@@ -548,7 +566,7 @@ impl Quiver {
 
 impl ColumnField {
     /// Generates `let #ident = …;`, extracting the column from `batch`.
-    fn extractor(&self, record_type: &str) -> TokenStream {
+    fn extractor(&self, krate: &syn::Path, record_type: &str) -> TokenStream {
         let Self {
             ident,
             column_name,
@@ -562,7 +580,7 @@ impl ColumnField {
             // `array` is a `&ArrayRef`, `field` is a `&Field`:
             let convert = quote! {
                 <#column_type>::try_new(::std::sync::Arc::clone(array))
-                    .map_err(|err| ::arrow_quiver::Error {
+                    .map_err(|err| #krate::Error {
                         record_type: #record_type,
                         kind: err.for_column(#column_name.to_owned()),
                     })?
@@ -590,9 +608,9 @@ impl ColumnField {
                         let (index, field) = batch
                             .schema_ref()
                             .column_with_name(#column_name)
-                            .ok_or_else(|| ::arrow_quiver::Error {
+                            .ok_or_else(|| #krate::Error {
                                 record_type: #record_type,
-                                kind: ::arrow_quiver::ErrorKind::MissingColumn {
+                                kind: #krate::ErrorKind::MissingColumn {
                                     column: #column_name.to_owned(),
                                 },
                             })?;
@@ -610,14 +628,20 @@ impl ColumnField {
                 array_type,
                 datatype,
             } => {
-                let downcast = downcast(record_type, column_name, array_type, "a matching array");
+                let downcast = downcast(
+                    krate,
+                    record_type,
+                    column_name,
+                    array_type,
+                    "a matching array",
+                );
                 quote! {
                     {
-                        let actual = ::arrow_quiver::arrow::array::Array::data_type(&**array);
+                        let actual = #krate::arrow::array::Array::data_type(&**array);
                         if actual != &#datatype {
-                            return ::core::result::Result::Err(::arrow_quiver::Error {
+                            return ::core::result::Result::Err(#krate::Error {
                                 record_type: #record_type,
-                                kind: ::arrow_quiver::ErrorKind::WrongDatatype {
+                                kind: #krate::ErrorKind::WrongDatatype {
                                     column: #column_name.to_owned(),
                                     expected: #datatype,
                                     actual: actual.clone(),
@@ -631,7 +655,7 @@ impl ColumnField {
             ColumnKind::Downcast {
                 array_type,
                 type_name,
-            } => downcast(record_type, column_name, array_type, type_name),
+            } => downcast(krate, record_type, column_name, array_type, type_name),
             ColumnKind::Wrapper { .. } => unreachable!("Handled above"),
         };
 
@@ -649,9 +673,9 @@ impl ColumnField {
                 let #ident = {
                     let array = batch
                         .column_by_name(#column_name)
-                        .ok_or_else(|| ::arrow_quiver::Error {
+                        .ok_or_else(|| #krate::Error {
                             record_type: #record_type,
-                            kind: ::arrow_quiver::ErrorKind::MissingColumn {
+                            kind: #krate::ErrorKind::MissingColumn {
                                 column: #column_name.to_owned(),
                             },
                         })?;
@@ -662,7 +686,7 @@ impl ColumnField {
     }
 
     /// Generates code pushing this column of `value` onto `fields` and `columns`.
-    fn push(&self) -> TokenStream {
+    fn push(&self, krate: &syn::Path) -> TokenStream {
         let Self {
             ident,
             column_name,
@@ -685,9 +709,9 @@ impl ColumnField {
         let push_one = match kind {
             ColumnKind::Any => quote! {
                 fields.push(::std::sync::Arc::new(
-                    ::arrow_quiver::arrow::datatypes::Field::new(
+                    #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
+                        #krate::arrow::array::Array::data_type(&array).clone(),
                         #nullable,
                     )
                     .with_metadata(#declared.into_iter().collect()),
@@ -696,7 +720,7 @@ impl ColumnField {
             },
             ColumnKind::Typed { datatype, .. } => quote! {
                 fields.push(::std::sync::Arc::new(
-                    ::arrow_quiver::arrow::datatypes::Field::new(
+                    #krate::arrow::datatypes::Field::new(
                         #column_name,
                         #datatype,
                         #nullable,
@@ -707,9 +731,9 @@ impl ColumnField {
             },
             ColumnKind::Downcast { .. } => quote! {
                 fields.push(::std::sync::Arc::new(
-                    ::arrow_quiver::arrow::datatypes::Field::new(
+                    #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        ::arrow_quiver::arrow::array::Array::data_type(&array).clone(),
+                        #krate::arrow::array::Array::data_type(&array).clone(),
                         #nullable,
                     )
                     .with_metadata(#declared.into_iter().collect()),
@@ -727,7 +751,7 @@ impl ColumnField {
                         .map(|(key, value)| (key.clone(), value.clone())),
                 );
                 fields.push(::std::sync::Arc::new(
-                    ::arrow_quiver::arrow::datatypes::Field::new(
+                    #krate::arrow::datatypes::Field::new(
                         #column_name,
                         <#column_type>::datatype(),
                         <#column_type>::NULLABLE,
@@ -757,20 +781,21 @@ impl ColumnField {
 
 /// Generates an expression downcasting `array` (a `&ArrayRef`) to `array_type`.
 fn downcast(
+    krate: &syn::Path,
     record_type: &str,
     column_name: &str,
     array_type: &syn::Type,
     expected: &str,
 ) -> TokenStream {
     quote! {
-        ::arrow_quiver::arrow::array::Array::as_any(&**array)
+        #krate::arrow::array::Array::as_any(&**array)
             .downcast_ref::<#array_type>()
-            .ok_or_else(|| ::arrow_quiver::Error {
+            .ok_or_else(|| #krate::Error {
                 record_type: #record_type,
-                kind: ::arrow_quiver::ErrorKind::WrongArrayType {
+                kind: #krate::ErrorKind::WrongArrayType {
                     column: #column_name.to_owned(),
                     expected: #expected.to_owned(),
-                    actual: ::arrow_quiver::arrow::array::Array::data_type(&**array).clone(),
+                    actual: #krate::arrow::array::Array::data_type(&**array).clone(),
                 },
             })?
             .clone()
@@ -797,15 +822,15 @@ fn parse_metadata_pairs(
 }
 
 /// Splits an optional `Option` wrapper from the inner array type.
-fn classify_type(ty: &syn::Type) -> syn::Result<(bool, ColumnKind)> {
+fn classify_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<(bool, ColumnKind)> {
     if let Some(inner) = option_inner(ty) {
-        Ok((true, classify_array_type(inner)?))
+        Ok((true, classify_array_type(krate, inner)?))
     } else {
-        Ok((false, classify_array_type(ty)?))
+        Ok((false, classify_array_type(krate, ty)?))
     }
 }
 
-fn classify_array_type(ty: &syn::Type) -> syn::Result<ColumnKind> {
+fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnKind> {
     let unsupported = |ty: &syn::Type| {
         syn::Error::new_spanned(
             ty,
@@ -830,7 +855,7 @@ fn classify_array_type(ty: &syn::Type) -> syn::Result<ColumnKind> {
         Ok(ColumnKind::Wrapper {
             column_type: Box::new(ty.clone()),
         })
-    } else if let Some(datatype) = datatype_of_array(&type_name) {
+    } else if let Some(datatype) = datatype_of_array(krate, &type_name) {
         Ok(ColumnKind::Typed {
             array_type: Box::new(ty.clone()),
             datatype,
@@ -903,19 +928,19 @@ fn option_inner(ty: &syn::Type) -> Option<&syn::Type> {
 }
 
 /// The Arrow datatype of the given array type, e.g. `StringArray` → `DataType::Utf8`.
-fn datatype_of_array(array_type_name: &str) -> Option<TokenStream> {
-    let datatype = quote! { ::arrow_quiver::arrow::datatypes::DataType };
+fn datatype_of_array(krate: &syn::Path, array_type_name: &str) -> Option<TokenStream> {
+    let datatype = quote! { #krate::arrow::datatypes::DataType };
     let timestamp = |unit: TokenStream| {
         quote! {
             #datatype::Timestamp(
-                ::arrow_quiver::arrow::datatypes::TimeUnit::#unit,
+                #krate::arrow::datatypes::TimeUnit::#unit,
                 ::core::option::Option::None,
             )
         }
     };
 
     let time_unit = |unit: TokenStream| {
-        quote! { ::arrow_quiver::arrow::datatypes::TimeUnit::#unit }
+        quote! { #krate::arrow::datatypes::TimeUnit::#unit }
     };
 
     Some(match array_type_name {

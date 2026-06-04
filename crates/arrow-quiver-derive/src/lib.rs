@@ -34,6 +34,9 @@ use proc_macro::TokenStream;
 /// and raw arrow types when you *want* things to be dynamic.
 ///
 /// ## Struct attributes
+/// * `#[quiver(crate = "path::to::arrow_quiver")]` — the path the generated code uses to refer
+///   to the `arrow_quiver` crate (default `::arrow_quiver`), for renamed dependencies and
+///   re-exports (proc-macros have no `$crate` equivalent)
 /// * `#[quiver(exhaustive)]` — unknown columns are an error when parsing (the default, made explicit)
 /// * `#[quiver(nonexhaustive)]` — unknown columns are silently ignored when parsing
 ///

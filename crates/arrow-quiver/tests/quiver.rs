@@ -915,3 +915,28 @@ fn declared_metadata_in_static_schema() {
     );
     assert_eq!(Annotated::COLUMN_CHUNK_ID.arrow_field(), expected);
 }
+
+/// The generated code refers to the crate via `#[quiver(crate = "…")]`,
+/// for renamed dependencies and re-exports
+/// (proc-macros have no `$crate` equivalent).
+mod crate_path_override {
+    use arrow_quiver as renamed_quiver;
+    use renamed_quiver::arrow::record_batch::RecordBatch;
+
+    #[derive(renamed_quiver::Quiver)]
+    #[quiver(crate = "renamed_quiver")]
+    struct Thing {
+        x: renamed_quiver::Column<i64>,
+    }
+
+    #[test]
+    fn crate_path_override() {
+        let thing = Thing {
+            x: renamed_quiver::Column::from_values([1, 2]),
+        };
+        let batch = thing.into_record_batch().unwrap();
+        let thing = Thing::try_from(batch).unwrap();
+        assert_eq!(thing.x.to_vec(), [1, 2]);
+        assert_eq!(Thing::COLUMN_X.name, "x");
+    }
+}
