@@ -38,10 +38,11 @@ use proc_macro::TokenStream;
 /// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.
 ///   If absent, unknown columns are an error.
 ///
-/// ## Roundtrip caveat
-/// Column *order* is not always preserved: encoding emits the declared columns first
-/// (in declaration order) and appends the `#[quiver(extra_columns)]` at the end —
-/// even if they appeared between the declared columns in the original record batch.
+/// ## Column order
+/// All column matching is done by *name*; column order never matters when parsing.
+/// Encoding emits the columns in struct declaration order, with the
+/// `#[quiver(extra_columns)]` appended at the end — the input column order
+/// is not preserved on a parse → encode roundtrip.
 #[proc_macro_derive(Quiver, attributes(quiver))]
 pub fn derive_quiver(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);

@@ -119,6 +119,11 @@ A `#[derive(Quiver)]` field can hold its column either as a raw `arrow` array
 where `L` is a *logical type* like `List<Option<String>>`.
 Use quiver types for compile-time guarantees; use arrow types when you _want_ things to be dynamic.
 
+All column matching is done **by name** — column order never matters:
+parsing accepts any input column order, and encoding emits the columns
+in struct declaration order (with any `extra_columns` appended at the end),
+regardless of the order they had when parsed.
+
 What is checked when parsing a `RecordBatch`:
 
 |                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
@@ -173,7 +178,7 @@ Cons:
 * **Invalid states are representable**: a column length mismatch is only caught when converting *to* a `RecordBatch`, possibly far from the mistake site
 * **Fields stay mutable**: a parsed struct can be modified into invalidity after validation (`quiver::Column` itself stays valid — it is immutable after construction)
 * **Raw arrow fields are unchecked by design**: nullability and the inner types of nested arrays are only validated for `quiver::Column<L>` fields
-* **Extra-column order is not preserved**: re-encoding emits the declared columns first and appends the `extra_columns` at the end, even if they originally appeared in between
+* **Column order is not preserved**: matching is by name; re-encoding emits struct declaration order, with `extra_columns` appended at the end — not the input order
 * **No per-row view**: data is accessed column-wise (that's the point), but there is no generated row iterator
 * **Rust only**: no IDL, no cross-language codegen (so far)
 

@@ -725,3 +725,32 @@ fn empty_record_batch() {
     assert!(typed.name.is_empty());
     assert!(typed.scores.unwrap().is_empty());
 }
+
+/// Column matching is by name: the input column order never matters,
+/// and encoding always emits struct declaration order.
+#[test]
+fn column_order_is_ignored() {
+    let batch = batch_of(&[
+        // Reverse of the declaration order:
+        (
+            "dob",
+            Arc::new(TimestampNanosecondArray::from(vec![1])) as ArrayRef,
+        ),
+        (
+            "name",
+            Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+        ),
+    ]);
+
+    let thing = Thing::try_from(batch).unwrap();
+    assert_eq!(thing.name, StringArray::from(vec!["Alice"]));
+
+    let batch = thing.into_record_batch().unwrap();
+    let names: Vec<&String> = batch
+        .schema_ref()
+        .fields()
+        .iter()
+        .map(|field| field.name())
+        .collect();
+    assert_eq!(names, ["name", "dob"], "Declaration order on encode");
+}
