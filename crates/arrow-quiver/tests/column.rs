@@ -190,3 +190,20 @@ fn standalone_nullable_timestamp_column() {
     let values: Vec<Option<i64>> = column.iter().collect();
     assert_eq!(values, [Some(1), None]);
 }
+
+#[test]
+fn column_metadata() {
+    let column = Column::<i64>::try_from(Arc::new(Int64Array::from(vec![1])) as ArrayRef)
+        .unwrap()
+        .with_metadata(std::collections::BTreeMap::from([(
+            "unit".to_owned(),
+            "seconds".to_owned(),
+        )]));
+    assert_eq!(column.metadata()["unit"], "seconds");
+
+    let mut column = column;
+    column
+        .metadata_mut()
+        .insert("source".to_owned(), "sensor".to_owned());
+    assert_eq!(column.metadata().len(), 2);
+}

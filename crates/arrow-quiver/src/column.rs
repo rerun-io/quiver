@@ -98,6 +98,10 @@ pub struct Column<L: Datatype> {
 
     /// The fully-downcast representation.
     typed: L::Typed,
+
+    /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]
+    /// when converting to/from a record batch.
+    metadata: std::collections::BTreeMap<String, String>,
 }
 
 impl<L: Datatype> Column<L> {
@@ -126,7 +130,28 @@ impl<L: Datatype> Column<L> {
         }
 
         let typed = L::downcast(&*array)?;
-        Ok(Self { array, typed })
+        Ok(Self {
+            array,
+            typed,
+            metadata: std::collections::BTreeMap::new(),
+        })
+    }
+
+    /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]
+    /// when converting to/from a record batch.
+    pub fn metadata(&self) -> &std::collections::BTreeMap<String, String> {
+        &self.metadata
+    }
+
+    pub fn metadata_mut(&mut self) -> &mut std::collections::BTreeMap<String, String> {
+        &mut self.metadata
+    }
+
+    /// Replace the per-column metadata.
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: std::collections::BTreeMap<String, String>) -> Self {
+        self.metadata = metadata;
+        self
     }
 
     /// The exact arrow datatype of this column.
@@ -178,6 +203,7 @@ impl<L: Datatype> Clone for Column<L> {
         Self {
             array: ArrayRef::clone(&self.array),
             typed: self.typed.clone(),
+            metadata: self.metadata.clone(),
         }
     }
 }
@@ -186,6 +212,7 @@ impl<L: Datatype> std::fmt::Debug for Column<L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Column")
             .field("array", &self.array)
+            .field("metadata", &self.metadata)
             .finish_non_exhaustive()
     }
 }

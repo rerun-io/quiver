@@ -551,3 +551,19 @@ fn roundtrip_timestamp() {
     let values: Vec<i64> = times.at.iter().collect();
     assert_eq!(values, [1, 2]);
 }
+
+#[test]
+fn column_metadata_roundtrip() {
+    let array = TimestampNanosecondArray::from(vec![1]).with_timezone("UTC");
+    let times = Times {
+        at: arrow_quiver::Column::try_new(Arc::new(array))
+            .unwrap()
+            .with_metadata(BTreeMap::from([("unit".to_owned(), "ns".to_owned())])),
+    };
+
+    let batch = RecordBatch::try_from(times).unwrap();
+    assert_eq!(batch.schema_ref().field(0).metadata()["unit"], "ns");
+
+    let times = Times::try_from(batch).unwrap();
+    assert_eq!(times.at.metadata()["unit"], "ns");
+}

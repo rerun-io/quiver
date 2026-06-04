@@ -306,6 +306,52 @@ impl ColumnField {
             kind,
         } = self;
 
+        // Wrappers also need the arrow `Field` (for the metadata), so they bind differently:
+        if let ColumnKind::Wrapper { column_type } = kind {
+            // `array` is a `&ArrayRef`, `field` is a `&Field`:
+            let convert = quote! {
+                <#column_type>::try_new(::std::sync::Arc::clone(array))
+                    .map_err(|err| ::arrow_quiver::Error {
+                        record_type: #record_type,
+                        kind: err.for_column(#column_name.to_owned()),
+                    })?
+                    .with_metadata(
+                        field
+                            .metadata()
+                            .iter()
+                            .map(|(key, value)| (key.clone(), value.clone()))
+                            .collect(),
+                    )
+            };
+            return if *optional {
+                quote! {
+                    let #ident = match batch.schema_ref().column_with_name(#column_name) {
+                        ::core::option::Option::Some((index, field)) => {
+                            let array = batch.column(index);
+                            ::core::option::Option::Some(#convert)
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    };
+                }
+            } else {
+                quote! {
+                    let #ident = {
+                        let (index, field) = batch
+                            .schema_ref()
+                            .column_with_name(#column_name)
+                            .ok_or_else(|| ::arrow_quiver::Error {
+                                record_type: #record_type,
+                                kind: ::arrow_quiver::ErrorKind::MissingColumn {
+                                    column: #column_name.to_owned(),
+                                },
+                            })?;
+                        let array = batch.column(index);
+                        #convert
+                    };
+                }
+            };
+        }
+
         // `array` is a `&ArrayRef`:
         let convert = match kind {
             ColumnKind::Any => quote! { ::std::sync::Arc::clone(array) },
@@ -335,14 +381,7 @@ impl ColumnField {
                 array_type,
                 type_name,
             } => downcast(record_type, column_name, array_type, type_name),
-            ColumnKind::Wrapper { column_type } => quote! {
-                <#column_type>::try_new(::std::sync::Arc::clone(array)).map_err(|err| {
-                    ::arrow_quiver::Error {
-                        record_type: #record_type,
-                        kind: err.for_column(#column_name.to_owned()),
-                    }
-                })?
-            },
+            ColumnKind::Wrapper { .. } => unreachable!("Handled above"),
         };
 
         if *optional {
@@ -410,11 +449,19 @@ impl ColumnField {
                 columns.push(::std::sync::Arc::new(array));
             },
             ColumnKind::Wrapper { column_type } => quote! {
-                fields.push(::std::sync::Arc::new(::arrow_quiver::arrow::datatypes::Field::new(
-                    #column_name,
-                    <#column_type>::datatype(),
-                    <#column_type>::NULLABLE,
-                )));
+                let metadata: ::std::collections::HashMap<::std::string::String, ::std::string::String> = array
+                    .metadata()
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect();
+                fields.push(::std::sync::Arc::new(
+                    ::arrow_quiver::arrow::datatypes::Field::new(
+                        #column_name,
+                        <#column_type>::datatype(),
+                        <#column_type>::NULLABLE,
+                    )
+                    .with_metadata(metadata),
+                ));
                 columns.push(array.into_arrow());
             },
         };
