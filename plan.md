@@ -204,3 +204,95 @@ impl Thing {
 
 impl Into<RecordBatch> for Thing { … }
 ```
+
+### Strongly-typed array wrappers (DRAFT, 2026-06-04)
+
+Problem: raw `arrow` array types stop at the first nesting level. A `ListArray` field is
+validated by downcast only — the *inner* type is unchecked, and reading values means untyped
+`ArrayRef` + manual downcasts. Same for nullability: `#[quiver(non_null)]` is an attribute,
+invisible to the type system, and doesn't exist at all for inner values (`List` items etc.).
+
+Idea: our own generic wrapper, parameterized by a *logical type* `L`:
+
+``` rust
+#[derive(Quiver)]
+struct Thing {
+    /// Required non-null column of `List<Utf8>`, with non-null items:
+    many_strings: quiver::Array<List<String>>,
+
+    /// Same datatype, but the items may be null:
+    sparse_strings: quiver::Array<List<Option<String>>>,
+
+    /// The *values* may be null:
+    maybe_name: quiver::Array<Option<String>>,
+
+    /// The *column* may be missing (column presence stays on the struct axis):
+    dob: Option<quiver::Array<Timestamp<Nanosecond>>>,
+}
+```
+
+``` rust
+/// Validated-once typed view of one column. Zero-copy (wraps the downcast arrow array).
+pub struct Array<L: Datatype> {
+    array: L::ArrowArray,           // e.g. arrow::array::ListArray for List<T>
+    _marker: PhantomData<fn() -> L>,
+}
+
+pub trait Datatype {
+    /// The arrow array this logical type is stored in.
+    type ArrowArray: arrow::array::Array + Clone + 'static;
+
+    /// Zero-copy element view: `&'a str` for `String`, `i64` for `i64`,
+    /// `ListValues<'a, T>` (an iterator) for `List<T>`, `Option<…>` for `Option<T>`.
+    type Value<'a>;
+
+    /// The exact arrow datatype, built recursively (incl. inner field nullability).
+    fn datatype() -> arrow::datatypes::DataType;
+
+    /// # Safety/contract: only called after validation; index < len.
+    fn value(array: &Self::ArrowArray, index: usize) -> Self::Value<'_>;
+}
+```
+
+* `Array::<L>::try_from(&ArrayRef)` validates **exactly once, eagerly**:
+  datatype equality against the recursive `L::datatype()` (this finally validates inner types
+  of `List`/`Struct`/…), plus `null_count == 0` at every non-`Option` nesting level.
+  After that, `array.get(i)` / `array.iter()` are infallible and fully typed.
+* Nullability moves from attribute into the type: non-`Option` ⇒ non-null, enforced at parse.
+  `#[quiver(non_null)]` becomes redundant for wrapper columns.
+  The two axes stay distinct: `Option<Array<T>>` = column may be missing (struct axis);
+  `Array<Option<T>>` = values may be null (data axis).
+* Timezones fall out for free: `Timestamp<Nanosecond, Utc>` marker types (like typed-arrow's
+  `TimestampTz<U, Z>`), where the timezone is part of `L::datatype()`.
+* Write path: `Array<L>` implements `FromIterator<L::Owned>` (builder under the hood) and
+  validated `TryFrom<the arrow array>` for zero-copy wrapping of existing arrays.
+* Interop escape hatch: `.as_arrow() -> &L::ArrowArray` and `.into_arrow()`.
+
+Inspiration from `typed-arrow` (researched their source):
+* `ArrowBinding` trait = Rust logical type → `{Builder, Array, DataType}`; recursive
+  `data_type()` with item nullability from `Option`. We want the same recursion.
+* `ArrowBindingView` (their `views` feature) = `type View<'a>` GAT + `get_view(array, i)`;
+  `Option<T>`'s view is `Option<T::View>`. This is exactly our `Datatype::Value<'a>` —
+  except typed-arrow's unit of reading is the *row* (generated `FooView<'a>` per record);
+  ours is the *column*, which preserves the SoA/zero-copy goal (their row-first `List<T>`
+  is an owned `Vec<T>` — copying, which we reject).
+* Their `get_view` returns `Result` per element (null/type errors at access time).
+  We validate at the parse boundary instead, so element access is infallible — cheaper
+  inner loops, and errors surface where the data enters.
+
+Alternatives considered:
+1. `quiver::ListArray<String>` per-shape wrappers — less uniform; doesn't nest
+   (`ListArray<ListArray<…>>`?), no single validation entry point. The generic
+   `Array<List<String>>` subsumes it; per-shape aliases can be added for ergonomics.
+2. Keep raw arrow arrays + declare inner types in attributes
+   (`#[quiver(item = "Utf8")]`) — validates, but reading stays untyped; strings in
+   attributes instead of types defeats the point.
+
+Open questions:
+* `Struct<T>` columns: needs a per-struct derive for typed field access (typed-arrow
+  generates `{Name}View`). Phase 2; `Array<Struct>` could start as downcast-only.
+* Do raw arrow array fields (`StringArray`) stay supported alongside wrappers? Probably
+  yes — zero-friction interop — but wrappers become the documented default.
+* Naming: `quiver::Array<L>` vs `Col<L>` vs `Column<L>` (clashes with existing
+  `quiver::Column` extra-columns type).
+* `Dictionary<K, V>`: typed keys matter less than typed values; start with values only?
