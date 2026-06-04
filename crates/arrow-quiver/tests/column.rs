@@ -762,3 +762,36 @@ fn newtype_columns() {
     let column = Column::<List<SensorName>>::from_values([vec![SensorName("a".to_owned())]]);
     assert_eq!(column.to_vec(), [vec![SensorName("a".to_owned())]]);
 }
+
+#[test]
+fn as_adapter_for_foreign_types() {
+    use std::net::Ipv4Addr;
+
+    use arrow_quiver::As;
+
+    // `Ipv4Addr` is a foreign type: no `newtype_datatype!` possible (orphan rule).
+    let column = Column::<As<Ipv4Addr, u32>>::from_values([
+        Ipv4Addr::LOCALHOST,
+        Ipv4Addr::new(192, 168, 0, 1),
+    ]);
+    assert_eq!(Column::<As<Ipv4Addr, u32>>::datatype(), DataType::UInt32);
+
+    // Reading is zero-copy, yielding the repr's value:
+    assert_eq!(column.value(0), u32::from(Ipv4Addr::LOCALHOST));
+
+    // Owned values are the foreign type:
+    assert_eq!(
+        column.to_vec(),
+        [Ipv4Addr::LOCALHOST, Ipv4Addr::new(192, 168, 0, 1)]
+    );
+
+    // Composes like any logical type:
+    let column = Column::<Option<As<Ipv4Addr, u32>>>::from_nullable_values([
+        Some(Ipv4Addr::LOCALHOST),
+        None,
+    ]);
+    assert_eq!(column.to_vec(), [Some(Ipv4Addr::LOCALHOST), None]);
+
+    let column = Column::<List<As<Ipv4Addr, u32>>>::from_values([vec![Ipv4Addr::LOCALHOST]]);
+    assert_eq!(column.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
+}

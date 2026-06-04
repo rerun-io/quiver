@@ -1,5 +1,8 @@
-//! Support for domain newtypes: making `Column<MyType>` work for
-//! `struct MyType(String)` and friends, via [`newtype_datatype!`](crate::newtype_datatype).
+//! Support for domain types: making `Column<MyType>` work.
+//!
+//! * For types you own: [`newtype_datatype!`](crate::newtype_datatype)
+//!   (must be invoked in the crate declaring the type, per the orphan rule).
+//! * For foreign types: the [`As`] adapter, e.g. `Column<As<Ipv4Addr, u32>>`.
 
 /// Implements [`Datatype`](crate::Datatype) for a domain newtype,
 /// making `Column<MyType>` work — including nesting (`List<MyType>`),
@@ -80,4 +83,85 @@ macro_rules! newtype_datatype {
 
         impl $crate::InfallibleBuild for $newtype where $repr: $crate::InfallibleBuild {}
     };
+}
+
+use std::marker::PhantomData;
+
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild};
+
+/// Adapter for using a *foreign* type (one you don't own, so
+/// [`newtype_datatype!`](crate::newtype_datatype) is off-limits by the orphan rule)
+/// as a logical column type, stored as `Repr`:
+///
+/// ```
+/// use std::net::Ipv4Addr;
+///
+/// use arrow_quiver::{As, Column};
+///
+/// type IpColumn = Column<As<Ipv4Addr, u32>>; // u32: the arrow representation
+///
+/// let column = IpColumn::from_values([Ipv4Addr::LOCALHOST]);
+/// assert_eq!(column.value(0), u32::from(Ipv4Addr::LOCALHOST)); // borrowed: the repr's value
+/// assert_eq!(column.to_vec(), [Ipv4Addr::LOCALHOST]); // owned: the foreign type
+/// ```
+///
+/// Requires `From` conversions between the foreign type and the representation's
+/// owned value, in both directions.
+/// Like [`newtype_datatype!`](crate::newtype_datatype), reading stays zero-copy and
+/// yields the *representation's* borrowed value; owned values are the foreign type.
+///
+/// This type is never instantiated — it only appears as a type parameter.
+pub struct As<T, Repr> {
+    _marker: PhantomData<fn() -> (T, Repr)>,
+}
+
+impl<T, Repr> Datatype for As<T, Repr>
+where
+    T: 'static,
+    Repr: Datatype + 'static,
+    T: From<Repr::Owned>,
+    Repr::Owned: From<T>,
+{
+    const NULLABLE: bool = Repr::NULLABLE;
+    type Typed = Repr::Typed;
+    type Value<'a>
+        = Repr::Value<'a>
+    where
+        Self: 'a;
+    type Owned = T;
+
+    fn datatype() -> arrow::datatypes::DataType {
+        Repr::datatype()
+    }
+
+    fn downcast(array: &dyn arrow::array::Array) -> Result<Self::Typed, ColumnError> {
+        Repr::downcast(array)
+    }
+
+    fn is_null(typed: &Self::Typed, index: usize) -> bool {
+        Repr::is_null(typed, index)
+    }
+
+    fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        Repr::value(typed, index)
+    }
+
+    fn build(
+        values: impl Iterator<Item = Option<Self::Owned>>,
+    ) -> Result<arrow::array::ArrayRef, ColumnError> {
+        Repr::build(values.map(|value| value.map(Repr::Owned::from)))
+    }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        T::from(Repr::to_owned_value(value))
+    }
+}
+
+impl<T, Repr> InfallibleBuild for As<T, Repr>
+where
+    T: 'static,
+    Repr: Datatype + InfallibleBuild + 'static,
+    T: From<Repr::Owned>,
+    Repr::Owned: From<T>,
+{
 }

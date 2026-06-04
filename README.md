@@ -155,7 +155,8 @@ More of the `Column` API:
   `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata
   wins on key conflicts), included in `schema()`, never validated on parse
 * Domain newtypes: `newtype_datatype!(SensorName, String)` makes `Column<SensorName>` work,
-  with all of the above
+  with all of the above; for *foreign* types (orphan rule), use the `As` adapter:
+  `Column<As<Ipv4Addr, u32>>`
 * Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
   into `arrow::error::ArrowError` (as `ExternalError`), so `?` works in
   functions returning arrow results
