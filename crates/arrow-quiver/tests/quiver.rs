@@ -665,3 +665,13 @@ fn extra_columns_are_reordered_on_roundtrip() {
         .collect();
     assert_eq!(names, ["name", "age"], "Declared columns come first");
 }
+
+#[test]
+fn from_record_batch() {
+    let batch = batch_of(&[(
+        "name",
+        Arc::new(StringArray::from(vec!["Alice"])) as ArrayRef,
+    )]);
+    let strict = Strict::from_record_batch(batch).unwrap();
+    assert_eq!(strict.name, StringArray::from(vec!["Alice"]));
+}

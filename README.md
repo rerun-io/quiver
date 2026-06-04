@@ -48,7 +48,7 @@ struct Thing {
 // Proc-macro generates:
 // * `impl TryFrom<RecordBatch> for Thing` - validates the schema, then downcasts (zero-copy)
 // * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
-// * `fn into_record_batch()` - discoverable alias for the above
+// * `fn from_record_batch()` and `fn into_record_batch()` - discoverable aliases for the above
 ```
 
 Building columns from values is infallible:

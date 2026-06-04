@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // … write to disk, send over the network, etc …
 
     // Parse it back: validates the schema, then downcasts the columns (zero-copy):
-    let measurements = Measurements::try_from(batch)?;
+    let measurements = Measurements::from_record_batch(batch)?;
 
     println!("origin: {:?}", measurements.metadata.get("origin"));
 

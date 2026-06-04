@@ -295,6 +295,21 @@ impl Quiver {
                     Self::try_from(::core::clone::Clone::clone(batch))
                 }
             }
+
+            #[automatically_derived]
+            impl #ident {
+                /// Parses an arrow record batch:
+                /// validates the schema, then downcasts the columns (zero-copy).
+                ///
+                /// # Errors
+                /// Errors on missing or unexpected columns, datatype mismatches,
+                /// or unexpected nulls.
+                pub fn from_record_batch(
+                    batch: ::arrow_quiver::arrow::record_batch::RecordBatch,
+                ) -> ::core::result::Result<Self, ::arrow_quiver::Error> {
+                    Self::try_from(batch)
+                }
+            }
         }
     }
 
