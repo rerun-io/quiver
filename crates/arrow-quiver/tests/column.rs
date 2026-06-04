@@ -416,3 +416,30 @@ fn timestamp_and_duration_aliases() {
         Column::<Duration<Millisecond>>::datatype()
     );
 }
+
+#[test]
+fn binary_columns() {
+    use arrow_quiver::{Binary, LargeBinary};
+
+    let column = Column::<Binary>::from_values([b"abc".to_vec(), vec![0_u8, 1]]);
+    assert_eq!(column.value(0), b"abc");
+    assert_eq!(column.to_vec(), [b"abc".to_vec(), vec![0_u8, 1]]);
+    assert_eq!(Column::<Binary>::datatype(), DataType::Binary);
+
+    let column = Column::<LargeBinary>::from_values([b"abc".to_vec()]);
+    assert_eq!(Column::<LargeBinary>::datatype(), DataType::LargeBinary);
+    assert_eq!(column.value(0), b"abc");
+
+    // Binary ≠ LargeBinary:
+    let result = Column::<Binary>::try_from(column.into_arrow());
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nullable:
+    let column = Column::<Option<Binary>>::from_nullable_values([Some(b"abc".to_vec()), None]);
+    assert_eq!(column.to_vec(), [Some(b"abc".to_vec()), None]);
+
+    // Lists of binary:
+    let column = Column::<List<Binary>>::from_values([vec![b"a".to_vec(), b"b".to_vec()]]);
+    let lists: Vec<Vec<Vec<u8>>> = column.to_vec();
+    assert_eq!(lists, [vec![b"a".to_vec(), b"b".to_vec()]]);
+}

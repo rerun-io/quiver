@@ -159,6 +159,7 @@ The supported logical types:
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f32`, `f64` | The same                     | By value                  |
 | `String`                                     | `Utf8`                       | `&str`                    |
 | `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
+| `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
@@ -168,7 +169,7 @@ Not *yet* supported as logical types:
 
 * `Struct` (punted for now), `Dictionary`
 * `Date32`/`Date64`, `Time32`/`Time64`
-* `Binary` (`Vec<u8>`), `LargeUtf8`/`LargeBinary`, and the string/binary *view* types
+* `LargeUtf8`, and the string/binary *view* types
 * `LargeList`/`FixedSizeList`, `f16`
 
 Most of these can still be used as raw, downcast-only arrow array fields
