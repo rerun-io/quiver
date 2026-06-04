@@ -159,8 +159,8 @@ The supported logical types:
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f32`, `f64` | The same                     | By value                  |
 | `String`                                     | `Utf8`                       | `&str`                    |
 | `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
-| `Timestamp<Nanosecond, Utc>`                 | `Timestamp(Nanosecond, UTC)` | `i64`                     |
-| `Duration<Millisecond>`                      | `Duration(Millisecond)`      | `i64`                     |
+| `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
+| `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 

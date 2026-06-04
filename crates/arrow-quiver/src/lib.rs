@@ -8,9 +8,10 @@ mod column_desc;
 mod error;
 
 pub use self::column::{
-    Column, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Duration, List, ListValue,
-    Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,
-    TimezoneSpec, TypedList, Utc,
+    Column, ColumnError, ColumnIntoIter, ColumnIter, Datatype, Duration, DurationMicrosecond,
+    DurationMillisecond, DurationNanosecond, DurationSecond, List, ListValue, Microsecond,
+    Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp, TimestampMicrosecond,
+    TimestampMillisecond, TimestampNanosecond, TimestampSecond, TimezoneSpec, TypedList, Utc,
 };
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::error::{Error, ErrorKind};

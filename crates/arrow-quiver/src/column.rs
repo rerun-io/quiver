@@ -806,3 +806,16 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
         value
     }
 }
+
+// Type aliases following arrow's naming convention
+// (`TimestampNanosecondArray`, `DurationMillisecondType`, …):
+
+pub type TimestampSecond<Z = NoTimezone> = Timestamp<Second, Z>;
+pub type TimestampMillisecond<Z = NoTimezone> = Timestamp<Millisecond, Z>;
+pub type TimestampMicrosecond<Z = NoTimezone> = Timestamp<Microsecond, Z>;
+pub type TimestampNanosecond<Z = NoTimezone> = Timestamp<Nanosecond, Z>;
+
+pub type DurationSecond = Duration<Second>;
+pub type DurationMillisecond = Duration<Millisecond>;
+pub type DurationMicrosecond = Duration<Microsecond>;
+pub type DurationNanosecond = Duration<Nanosecond>;

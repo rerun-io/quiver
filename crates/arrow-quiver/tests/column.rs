@@ -395,3 +395,24 @@ fn into_iterator() {
     }
     assert_eq!(owned, ["a".to_owned(), "b".to_owned()]);
 }
+
+#[test]
+fn timestamp_and_duration_aliases() {
+    use arrow_quiver::{
+        Duration, DurationMillisecond, Millisecond, Nanosecond, Timestamp, TimestampNanosecond, Utc,
+    };
+
+    // The aliases are the same types:
+    assert_eq!(
+        Column::<TimestampNanosecond<Utc>>::datatype(),
+        Column::<Timestamp<Nanosecond, Utc>>::datatype()
+    );
+    assert_eq!(
+        Column::<TimestampNanosecond>::datatype(), // timezone-naive default
+        Column::<Timestamp<Nanosecond>>::datatype()
+    );
+    assert_eq!(
+        Column::<DurationMillisecond>::datatype(),
+        Column::<Duration<Millisecond>>::datatype()
+    );
+}
