@@ -10,7 +10,6 @@ authors = ["rerun.io <opensource@rerun.io>"]
 edition = "2024"
 homepage = "https://github.com/rerun-io/arrow-quiver"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
-keywords = []                                                        # TODO: fill in if you plan on publishing the crate
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rerun-io/arrow-quiver"
 rust-version = "1.92.0"

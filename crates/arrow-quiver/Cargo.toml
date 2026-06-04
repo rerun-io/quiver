@@ -1,11 +1,11 @@
 [package]
 authors.workspace = true
-categories = []                                                      # TODO: fill in if you plan on publishing the crate
+categories = ["encoding", "data-structures"]
 description = "A schema specification and validator for Arrow record batches"
 edition.workspace = true
 homepage.workspace = true
-include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
-keywords = []                                                        # TODO: fill in if you plan on publishing the crate
+include = ["LICENSE-APACHE", "LICENSE-MIT", "README.md", "**/*.rs", "Cargo.toml"]
+keywords = ["arrow", "columnar", "schema", "validation", "derive"]
 license.workspace = true
 name = "arrow-quiver"
 publish = false                                                      # TODO: set to `true` if you plan on publishing the crate

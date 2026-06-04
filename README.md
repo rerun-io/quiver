@@ -256,5 +256,5 @@ From the 2026-06-04 self-review:
 * [x] `Column::slice(offset, len)` — zero-copy, like arrow's
 * [x] CI: all supported arrow versions are tested, via `scripts/test_arrow_versions.sh` (also runnable locally)
 * [x] Domain-newtype hooks: `arrow_quiver::newtype_datatype!(MyType, String)` makes `Column<MyType>` work (requires `From` conversions both ways; reading stays zero-copy via the repr's borrowed value)
-* [ ] Publishing prep: `include_str!` README path breaks packaging, LICENSE files missing from the crate dirs, empty `keywords`/`categories`
+* [x] Publishing prep: README/LICENSE symlinked into the crate dirs (packaged by content), `include_str!` path fixed, `keywords`/`categories` filled. Verified with `cargo package`. Remaining before an actual release: set `publish = true`, decide the crates.io name (`quiver` transfer?), and publish `arrow-quiver-derive` first (the path dependency resolves via crates.io when packaging)
 
