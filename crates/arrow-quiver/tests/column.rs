@@ -337,6 +337,8 @@ fn static_datatype() {
         Column::<List<String>>::datatype(),
         DataType::List(Arc::new(Field::new("item", DataType::Utf8, false)))
     );
-    assert!(Column::<Option<i64>>::NULLABLE);
-    assert!(!Column::<i64>::NULLABLE);
+    const {
+        assert!(Column::<Option<i64>>::NULLABLE);
+        assert!(!Column::<i64>::NULLABLE);
+    }
 }
