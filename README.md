@@ -172,7 +172,11 @@ The supported logical types:
 
 Not *yet* supported as logical types:
 
-* `Struct` (punted for now)
+* `Struct` (parked; investigated 2026-06-04 — moderate effort: a new derive generating
+  per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
+  The one subtle part is hierarchical null masking: when a struct *row* is null,
+  arrow leaves the child values undefined, so child null-validation must be masked
+  by the parent validity, on both parse and build)
 * `Date32`/`Date64`, `Time32`/`Time64`
 * `LargeUtf8`, and the string/binary *view* types
 * `LargeList`/`FixedSizeList`
