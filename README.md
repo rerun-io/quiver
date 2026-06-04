@@ -46,9 +46,12 @@ struct Thing {
 }
 
 // Proc-macro generates:
-// * `impl TryFrom<RecordBatch> for Thing` - validates the schema, then downcasts (zero-copy)
+// * `impl TryFrom<RecordBatch> for Thing` (and `&RecordBatch`) - validates the schema,
+//   then downcasts (zero-copy)
 // * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
 // * `fn from_record_batch()` and `fn into_record_batch()` - discoverable aliases for the above
+// * `COLUMN_*` descriptor constants - single-column access without hard-coding names
+// * `fn schema()` and `fn empty_record_batch()` - when all columns are statically typed
 ```
 
 Building columns from values is infallible:
@@ -59,6 +62,33 @@ use arrow_quiver::{Column, List};
 let names: Column<String> = vec!["Alice", "Bob"].into();
 let scores = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
 let maybe: Column<Option<f64>> = [Some(1.5), None].into_iter().collect();
+```
+
+Single columns can be extracted without parsing the whole batch — the derive generates
+a `COLUMN_*` descriptor per column, so no names are hard-coded:
+
+``` rust
+use arrow_quiver::{Column, Quiver};
+
+#[derive(Quiver)]
+struct Reading {
+    sensor: Column<String>,
+}
+
+let batch = Reading {
+    sensor: vec!["kitchen".to_owned()].into(),
+}
+.into_record_batch()
+.unwrap();
+
+// Single-column extraction, fully typed:
+let sensors = Reading::COLUMN_SENSOR.extract(&batch).unwrap();
+assert_eq!(sensors.to_vec(), ["kitchen"]); // `to_vec()` returns owned values
+assert_eq!(Reading::COLUMN_SENSOR.name, "sensor");
+
+// Static schema + infallible empty batches (when all columns are statically typed):
+let empty = Reading::empty_record_batch();
+assert_eq!(empty.num_rows(), 0);
 ```
 
 `quiver::Column` is also usable standalone, without the derive:
@@ -103,7 +133,19 @@ All validation happens once, when the record batch enters: after that, a `Column
 be invalid (its fields are private and immutable), so element access never returns a `Result`.
 
 Structs whose columns all have a statically-known datatype also get a generated
-`fn schema()` with the exact arrow schema, including optional columns.
+`fn schema()` with the exact arrow schema (including optional columns),
+and an infallible `fn empty_record_batch()`.
+
+More of the `Column` API:
+
+* Construction is infallible: `from_values`, `From<Vec<T>>`, `FromIterator`,
+  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty)
+* Reading: `value`/`get`, `iter()` (borrowed), `iter_owned()`/`to_vec()` (owned)
+* Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
+  when converting to/from a record batch
+* Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
+  into `arrow::error::ArrowError` (as `ExternalError`), so `?` works in
+  functions returning arrow results
 
 The supported logical types:
 
