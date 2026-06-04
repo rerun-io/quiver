@@ -537,7 +537,12 @@ fn classify_array_type(ty: &syn::Type) -> syn::Result<ColumnKind> {
 fn is_downcast_only_array(array_type_name: &str) -> bool {
     matches!(
         array_type_name,
-        "DictionaryArray" | "FixedSizeListArray" | "LargeListArray" | "ListArray" | "StructArray"
+        "DictionaryArray"
+            | "FixedSizeBinaryArray"
+            | "FixedSizeListArray"
+            | "LargeListArray"
+            | "ListArray"
+            | "StructArray"
     )
 }
 
@@ -549,7 +554,6 @@ fn is_punted_array(array_type_name: &str) -> bool {
             | "Decimal64Array"
             | "Decimal128Array"
             | "Decimal256Array"
-            | "FixedSizeBinaryArray"
             | "IntervalDayTimeArray"
             | "IntervalMonthDayNanoArray"
             | "IntervalYearMonthArray"

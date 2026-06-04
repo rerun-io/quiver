@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use arrow_quiver::arrow::array::{
-    Array as _, ArrayRef, DictionaryArray, DurationNanosecondArray, Int32Array, Int64Array,
-    ListArray, StringArray, StructArray, TimestampNanosecondArray,
+    Array as _, ArrayRef, DictionaryArray, DurationNanosecondArray, FixedSizeBinaryArray,
+    Int32Array, Int64Array, ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
 use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use arrow_quiver::arrow::record_batch::RecordBatch;
@@ -56,6 +56,7 @@ struct Nested {
     list: ListArray,
     type_struct: StructArray,
     dictionary: DictionaryArray<Int32Type>,
+    fixed_size_binary: FixedSizeBinaryArray,
     duration: Option<DurationNanosecondArray>,
 }
 
@@ -252,20 +253,25 @@ fn roundtrip_nested_datatypes() {
         .into_iter()
         .collect::<DictionaryArray<_>>();
 
+    let fixed_size_binary =
+        FixedSizeBinaryArray::try_from_iter(vec![vec![1_u8, 2], vec![3, 4]].into_iter()).unwrap();
+
     let nested = Nested {
         list: list.clone(),
         type_struct: type_struct.clone(),
         dictionary: dictionary.clone(),
+        fixed_size_binary: fixed_size_binary.clone(),
         duration: Some(DurationNanosecondArray::from(vec![10, 20])),
     };
 
     let batch = RecordBatch::try_from(nested).unwrap();
-    assert_eq!(batch.num_columns(), 4);
+    assert_eq!(batch.num_columns(), 5);
 
     let nested = Nested::try_from(batch).unwrap();
     assert_eq!(nested.list, list);
     assert_eq!(nested.type_struct, type_struct);
     assert_eq!(nested.dictionary, dictionary);
+    assert_eq!(nested.fixed_size_binary, fixed_size_binary);
     assert_eq!(
         nested.duration,
         Some(DurationNanosecondArray::from(vec![10, 20]))
@@ -282,6 +288,10 @@ fn wrong_array_type() {
         ),
         (
             "dictionary",
+            Arc::new(Int64Array::from(vec![1])) as ArrayRef,
+        ),
+        (
+            "fixed_size_binary",
             Arc::new(Int64Array::from(vec![1])) as ArrayRef,
         ),
     ]);

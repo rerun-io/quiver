@@ -22,7 +22,7 @@ Work-in-progress
 * [x] `ArrayRef` columns accepting any datatype
 * [x] `#[quiver(name = "special:name")]` for column names that aren't Rust identifiers
 * [x] `#[quiver(metadata)]` and `#[quiver(extra_columns)]` (absence ⇒ unknown columns are an error)
-* [x] More datatypes: `Duration`, `Time`, `Float16`, string/binary views (exact match), plus `List`, `FixedSizeList`, `Struct`, `Dictionary` (downcast-only — inner types not validated)
+* [x] More datatypes: `Duration`, `Time`, `Float16`, string/binary views (exact match), plus `List`, `FixedSizeList`, `Struct`, `Dictionary`, `FixedSizeBinary` (downcast-only — inner types not validated)
 * [x] Explicitly punt on difficult and exotic datatypes: `Decimal`, `Map`, `Union`, `Interval`, run-ends, … (clear compile error)
 * [x] Compile-fail tests of the derive macro (`trybuild`)
 * [x] Test error messages (should be helpful and actionable, and mention the struct type by name)
