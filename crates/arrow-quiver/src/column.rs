@@ -411,16 +411,13 @@ impl<L: Datatype> Datatype for List<L> {
         let mut validity = Vec::new();
         let mut flattened = Vec::new();
         for list in values {
-            match list {
-                Some(items) => {
-                    lengths.push(items.len());
-                    validity.push(true);
-                    flattened.extend(items);
-                }
-                None => {
-                    lengths.push(0);
-                    validity.push(false);
-                }
+            if let Some(items) = list {
+                lengths.push(items.len());
+                validity.push(true);
+                flattened.extend(items);
+            } else {
+                lengths.push(0);
+                validity.push(false);
             }
         }
 
