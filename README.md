@@ -24,11 +24,11 @@ Work-in-progress
 * [x] `#[quiver(metadata)]` and `#[quiver(extra_columns)]` (absence ⇒ unknown columns are an error)
 * [x] More datatypes: `Duration`, `Time`, `Float16`, string/binary views (exact match), plus `List`, `FixedSizeList`, `Struct`, `Dictionary` (downcast-only — inner types not validated)
 * [x] Explicitly punt on difficult and exotic datatypes: `Decimal`, `Map`, `Union`, `Interval`, run-ends, … (clear compile error)
+* [x] Compile-fail tests of the derive macro (`trybuild`)
+* [x] Test error messages (should be helpful and actionable, and mention the struct type by name)
 * [ ] Validate inner types of nested arrays (`List`, `Struct`, …)
 * [ ] Field-level metadata requirements, e.g. `#[quiver(required_metadata("unit"))]`
-* [x] Compile-fail tests of the derive macro (`trybuild`)
 * [ ] `#[quiver(readonly)]` — invariant-by-construction variant (see `plan.md`)
-* [x] Test error messages (should be helpful and actionable, and mention the struct type by name)
 * [ ] Publish to crates.io
 
 ## Example
@@ -81,10 +81,9 @@ Cons:
 #### Rust
 | Crate            | Status            | What it does                                                              | Zero-copy SoA?                            |
 |------------------|-------------------|---------------------------------------------------------------------------|-------------------------------------------|
-| `typed-arrow`    | Active (tonbo-io) | `#[derive(Record)]` on *logical* types → builders, schema, lazy row views | **Yes** (`views` feature)                  |
-| `arrow_convert`  | Active            | serde-style derive, Rust types ↔ Arrow arrays                             | No — transposes + copies into `Vec<T>`     |
-| `serde_arrow`    | Very active       | `Vec<Struct>` ↔ RecordBatch via serde                                     | No — serde data model forces owned values  |
-| `arrow2-convert` | Dead (2023)       | Predecessor of `arrow_convert`, targets legacy arrow2                     | No                                         |
+| `typed-arrow`    | Active (tonbo-io) | `#[derive(Record)]` on *logical* types → builders, schema, lazy row views | **Yes** (`views` feature)                 |
+| `arrow_convert`  | Active            | serde-style derive, Rust types ↔ Arrow arrays                             | No — transposes + copies into `Vec<T>`    |
+| `serde_arrow`    | Very active       | `Vec<Struct>` ↔ RecordBatch via serde                                     | No — serde data model forces owned values |
 
 `typed-arrow` is the closest match but misses the mold:
 
