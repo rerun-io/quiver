@@ -156,7 +156,7 @@ The supported logical types:
 
 | Logical type `L`                             | Arrow datatype               | Element value             |
 |----------------------------------------------|------------------------------|---------------------------|
-| `bool`, `i8`–`i64`, `u8`–`u64`, `f32`, `f64` | The same                     | By value                  |
+| `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
 | `String`                                     | `Utf8`                       | `&str`                    |
 | `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
 | `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
@@ -170,7 +170,7 @@ Not *yet* supported as logical types:
 * `Struct` (punted for now), `Dictionary`
 * `Date32`/`Date64`, `Time32`/`Time64`
 * `LargeUtf8`, and the string/binary *view* types
-* `LargeList`/`FixedSizeList`, `f16`
+* `LargeList`/`FixedSizeList`
 
 Most of these can still be used as raw, downcast-only arrow array fields
 (`StructArray`, `DictionaryArray`, `LargeListArray`, …).

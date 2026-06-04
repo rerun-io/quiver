@@ -443,3 +443,16 @@ fn binary_columns() {
     let lists: Vec<Vec<Vec<u8>>> = column.to_vec();
     assert_eq!(lists, [vec![b"a".to_vec(), b"b".to_vec()]]);
 }
+
+#[test]
+fn f16_column() {
+    use arrow_quiver::half::f16;
+
+    let column = Column::<f16>::from_values([f16::from_f32(1.5), f16::from_f32(2.5)]);
+    assert_eq!(Column::<f16>::datatype(), DataType::Float16);
+    assert_eq!(column.value(0), f16::from_f32(1.5));
+    assert_eq!(column.iter().map(f16::to_f32).sum::<f32>(), 4.0);
+
+    let column = Column::<Option<f16>>::from_values([Some(f16::from_f32(1.5)), None]);
+    assert_eq!(column.to_vec(), [Some(f16::from_f32(1.5)), None]);
+}

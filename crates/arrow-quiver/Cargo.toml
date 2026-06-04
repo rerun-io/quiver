@@ -35,6 +35,7 @@ derive = ["dep:arrow-quiver-derive"]
 
 [dependencies]
 arrow.workspace = true
+half.workspace = true
 thiserror.workspace = true
 
 arrow-quiver-derive = { workspace = true, optional = true }

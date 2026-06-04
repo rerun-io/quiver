@@ -605,6 +605,12 @@ impl_flat_datatype!(u8, arrow::array::UInt8Array, u8, DataType::UInt8);
 impl_flat_datatype!(u16, arrow::array::UInt16Array, u16, DataType::UInt16);
 impl_flat_datatype!(u32, arrow::array::UInt32Array, u32, DataType::UInt32);
 impl_flat_datatype!(u64, arrow::array::UInt64Array, u64, DataType::UInt64);
+impl_flat_datatype!(
+    half::f16,
+    arrow::array::Float16Array,
+    half::f16,
+    DataType::Float16
+);
 impl_flat_datatype!(f32, arrow::array::Float32Array, f32, DataType::Float32);
 impl_flat_datatype!(f64, arrow::array::Float64Array, f64, DataType::Float64);
 impl_flat_datatype!(String, arrow::array::StringArray, &'a str, DataType::Utf8);

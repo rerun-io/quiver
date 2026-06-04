@@ -2,6 +2,7 @@
 // NOTE: the code blocks in the README double as doctests for this crate.
 
 pub use arrow;
+pub use half;
 
 mod column;
 mod column_desc;
