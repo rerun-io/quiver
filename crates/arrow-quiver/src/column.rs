@@ -889,11 +889,22 @@ impl_binary_datatype!(
 
 /// Marker for an arrow `Dictionary` column, e.g. `Dictionary<i32, String>`.
 ///
-/// The dictionary encoding is treated as a storage detail: the element values
-/// are those of `V` (e.g. `&str`), looked up through the dictionary keys.
+/// Think of `Dictionary<K, V>` as *a column of `V`, dictionary-compressed*:
+/// the encoding is a storage detail, and the element values are those of `V`
+/// (e.g. `&str`), looked up through the dictionary keys.
+/// `K` is the integer key type (`i8`–`i64`, `u8`–`u64`) — a space/size trade-off,
+/// never user-visible.
 ///
-/// Nullability axes: `Option<Dictionary<K, V>>` = the *keys* may be null;
-/// `Dictionary<K, Option<V>>` = the dictionary *values* may be null.
+/// # Nullability
+/// Since `Dictionary<K, V>` is logically a column of `V`, *row* nullability works
+/// like for any other column: `Option<Dictionary<K, V>>` means the rows may be null
+/// (arrow encodes this in the validity bitmap of the keys).
+/// `Dictionary<Option<K>, V>` would be meaningless: the keys are storage indices,
+/// not values anyone reads — `Option<…>` always marks nullability of *readable* values.
+///
+/// Additionally, arrow allows null entries in the dictionary's *value table* itself,
+/// so a valid key can point at a null. That (rare) case is `Dictionary<K, Option<V>>`.
+/// `Column<Dictionary<K, V>>` (no `Option` anywhere) guarantees the absence of both.
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Dictionary<K, V> {
