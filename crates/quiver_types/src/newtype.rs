@@ -20,7 +20,7 @@
 /// [`RefDatatype`] — most do, but not e.g. `bool` or
 /// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
 ///
-/// For representations that implement [`PrimitiveDatatype`](crate::PrimitiveDatatype)
+/// For representations that implement [`PrimitiveDatatype`]
 /// (primitives, `[u8; N]`), add a trailing `primitive` to also enable the bulk
 /// zero-copy [`Column::as_slice`](crate::Column::as_slice) — which, like
 /// reading, yields the *representation's* values
