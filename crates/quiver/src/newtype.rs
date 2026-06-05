@@ -4,7 +4,7 @@
 //!   (must be invoked in the crate declaring the type, per the orphan rule).
 //! * For foreign types: the [`As`] adapter, e.g. `Column<As<Ipv4Addr, u32>>`.
 
-/// Implements [`Datatype`](crate::Datatype) for a domain newtype,
+/// Implements [`Datatype`] for a domain newtype,
 /// making `Column<MyType>` work — including nesting (`List<MyType>`),
 /// the convenience constructors, and the derive.
 ///
