@@ -9,7 +9,9 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array, impl_flat_datatype};
+use crate::datatype::{
+    ColumnError, Datatype, downcast_array, impl_flat_datatype, impl_primitive_datatype,
+};
 
 impl_flat_datatype!(bool, arrow::array::BooleanArray, bool, DataType::Boolean);
 impl_flat_datatype!(i8, arrow::array::Int8Array, i8, DataType::Int8);
@@ -28,3 +30,16 @@ impl_flat_datatype!(
 );
 impl_flat_datatype!(f32, arrow::array::Float32Array, f32, DataType::Float32);
 impl_flat_datatype!(f64, arrow::array::Float64Array, f64, DataType::Float64);
+
+// `bool` is excluded: arrow bit-packs booleans, so there is no `&[bool]` to expose.
+impl_primitive_datatype!(i8, i8);
+impl_primitive_datatype!(i16, i16);
+impl_primitive_datatype!(i32, i32);
+impl_primitive_datatype!(i64, i64);
+impl_primitive_datatype!(u8, u8);
+impl_primitive_datatype!(u16, u16);
+impl_primitive_datatype!(u32, u32);
+impl_primitive_datatype!(u64, u64);
+impl_primitive_datatype!(half::f16, half::f16);
+impl_primitive_datatype!(f32, f32);
+impl_primitive_datatype!(f64, f64);

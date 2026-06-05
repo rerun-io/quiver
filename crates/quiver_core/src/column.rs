@@ -8,7 +8,7 @@
 use arrow::array::{Array as _, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::InfallibleBuild;
+use crate::datatype::{InfallibleBuild, PrimitiveDatatype};
 use crate::{ColumnError, Datatype};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
@@ -154,6 +154,23 @@ impl<L: Datatype> Column<L> {
     /// Extract the underlying arrow array.
     pub fn into_arrow(self) -> ArrayRef {
         self.array
+    }
+}
+
+impl<L: PrimitiveDatatype> Column<L> {
+    /// The values as a contiguous zero-copy slice,
+    /// e.g. `&[f32]` for a `Column<f32>`.
+    ///
+    /// Only available for primitive, non-nullable columns
+    /// (`bool` is excluded: arrow bit-packs it).
+    ///
+    /// ```
+    /// # use quiver::Column;
+    /// let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);
+    /// assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);
+    /// ```
+    pub fn as_slice(&self) -> &[L::Native] {
+        L::values(&self.typed)
     }
 }
 

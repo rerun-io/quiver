@@ -66,6 +66,21 @@ pub trait Datatype {
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
 }
 
+/// Logical types whose values are stored in one contiguous buffer of
+/// primitive values, enabling the zero-copy
+/// [`Column::as_slice`](crate::Column::as_slice).
+///
+/// Implemented by the primitive types except `bool` (arrow bit-packs it),
+/// and by the primitive-backed marker types
+/// ([`Date32`](crate::Date32), [`Timestamp`](crate::Timestamp), …).
+pub trait PrimitiveDatatype: Datatype {
+    /// The in-memory element type: `f32` for `f32`, `i64` for `Timestamp<…>`, etc.
+    type Native;
+
+    /// All values as one contiguous slice.
+    fn values(typed: &Self::Typed) -> &[Self::Native];
+}
+
 /// Marker for logical types whose [`Datatype::build`] can never fail,
 /// making the convenient [`Column::from_values`](crate::Column::from_values)
 /// (and `From<Vec<T>>`, `FromIterator`) available.
@@ -182,6 +197,22 @@ macro_rules! impl_flat_datatype {
 }
 
 pub(crate) use impl_flat_datatype;
+
+/// Implements [`PrimitiveDatatype`] for a logical type whose `Typed` array
+/// is an [`arrow::array::PrimitiveArray`].
+macro_rules! impl_primitive_datatype {
+    ($logical:ty, $native:ty) => {
+        impl crate::datatype::PrimitiveDatatype for $logical {
+            type Native = $native;
+
+            fn values(typed: &Self::Typed) -> &[$native] {
+                typed.values()
+            }
+        }
+    };
+}
+
+pub(crate) use impl_primitive_datatype;
 
 /// Are arrow arrays of datatype `actual` acceptable where `declared` is expected?
 ///

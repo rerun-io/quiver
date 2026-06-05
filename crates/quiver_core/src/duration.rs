@@ -8,7 +8,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, downcast_array};
 use crate::timestamp::{Microsecond, Millisecond, Nanosecond, Second, TimeUnitSpec};
 use std::marker::PhantomData;
 
@@ -61,3 +61,11 @@ pub type DurationMicrosecond = Duration<Microsecond>;
 pub type DurationNanosecond = Duration<Nanosecond>;
 
 impl<U: TimeUnitSpec + 'static> InfallibleBuild for Duration<U> {}
+
+impl<U: TimeUnitSpec + 'static> PrimitiveDatatype for Duration<U> {
+    type Native = i64;
+
+    fn values(typed: &Self::Typed) -> &[i64] {
+        typed.values()
+    }
+}

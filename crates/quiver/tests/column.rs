@@ -365,6 +365,37 @@ fn to_vec_and_iter_owned() {
 }
 
 #[test]
+fn as_slice() {
+    let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);
+    assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);
+
+    let column = Column::<u8>::from_values([1_u8, 2, 3]);
+    assert_eq!(column.as_slice(), &[1, 2, 3]);
+
+    // Markers expose their native values:
+    let column = Column::<Timestamp<Nanosecond, Utc>>::from_values([10_i64, 20]);
+    assert_eq!(column.as_slice(), &[10_i64, 20]);
+
+    let column = Column::<Duration<Millisecond>>::from_values([10_i64, 20]);
+    assert_eq!(column.as_slice(), &[10_i64, 20]);
+
+    // The `As` adapter exposes the representation's values:
+    let column =
+        Column::<quiver::As<std::net::Ipv4Addr, u32>>::from_values([std::net::Ipv4Addr::LOCALHOST]);
+    assert_eq!(
+        column.as_slice(),
+        &[u32::from(std::net::Ipv4Addr::LOCALHOST)]
+    );
+}
+
+#[test]
+fn as_slice_respects_offset() {
+    let column = Column::<i64>::from_values([1, 2, 3, 4, 5]);
+    let sliced = column.slice(1, 3);
+    assert_eq!(sliced.as_slice(), &[2, 3, 4]);
+}
+
+#[test]
 fn nullable_construction_ergonomics() {
     // Owned values work directly:
     let column: Column<Option<String>> = vec![Some("a".to_owned()), None].into();

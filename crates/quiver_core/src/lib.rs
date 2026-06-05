@@ -28,7 +28,7 @@ mod timestamp;
 pub use self::binary::{Binary, LargeBinary};
 pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
-pub use self::datatype::{ColumnError, Datatype, InfallibleBuild};
+pub use self::datatype::{ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype};
 pub use self::date::{Date32, Date64};
 pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};
 pub use self::duration::{

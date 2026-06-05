@@ -87,7 +87,7 @@ macro_rules! newtype_datatype {
 
 use std::marker::PhantomData;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype};
 
 /// Adapter for using a *foreign* type (one you don't own, so
 /// [`newtype_datatype!`](crate::newtype_datatype) is off-limits by the orphan rule)
@@ -164,4 +164,20 @@ where
     T: From<Repr::Owned>,
     Repr::Owned: From<T>,
 {
+}
+
+/// Like reading, [`Column::as_slice`](crate::Column::as_slice) yields
+/// the *representation's* values.
+impl<T, Repr> PrimitiveDatatype for As<T, Repr>
+where
+    T: 'static,
+    Repr: PrimitiveDatatype + 'static,
+    T: From<Repr::Owned>,
+    Repr::Owned: From<T>,
+{
+    type Native = Repr::Native;
+
+    fn values(typed: &Self::Typed) -> &[Self::Native] {
+        Repr::values(typed)
+    }
 }

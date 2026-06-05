@@ -12,7 +12,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
 
-use crate::datatype::{ColumnError, Datatype, impl_marker_datatype};
+use crate::datatype::{ColumnError, Datatype, impl_marker_datatype, impl_primitive_datatype};
 
 /// Seconds since midnight, as an `i32`.
 ///
@@ -62,3 +62,8 @@ impl_marker_datatype!(
     i64,
     DataType::Time64(TimeUnit::Nanosecond)
 );
+
+impl_primitive_datatype!(Time32Second, i32);
+impl_primitive_datatype!(Time32Millisecond, i32);
+impl_primitive_datatype!(Time64Microsecond, i64);
+impl_primitive_datatype!(Time64Nanosecond, i64);
