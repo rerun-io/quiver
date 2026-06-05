@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/quiver",
-    "crates/quiver_core",
+    "crates/quiver_types",
     "crates/quiver_derive",
 ]
 
@@ -19,8 +19,10 @@ version = "0.1.0"
 
 [workspace.dependencies]
 # Internal crates:
-quiver = { path = "crates/quiver", version = "0.1.0", default-features = false }
-quiver_core = { path = "crates/quiver_core", version = "0.1.0" }
+# NOTE: no `version`, so that the `quiver_types` → `quiver` dev-dependency (for doctests)
+# is stripped on `cargo publish` (it cannot resolve before `quiver` itself is published):
+quiver = { path = "crates/quiver", default-features = false }
+quiver_types = { path = "crates/quiver_types", version = "0.1.0" }
 quiver_derive = { path = "crates/quiver_derive", version = "0.1.0" }
 
 # External crates:

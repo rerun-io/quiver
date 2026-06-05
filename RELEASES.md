@@ -3,7 +3,7 @@
 * [ ] Update `CHANGELOG.md` using `./scripts/generate_changelog.py --version 0.NEW.VERSION`
 * [ ] Bump version numbers in `Cargo.toml` and run `cargo check`.
 * [ ] `git commit -m 'Release 0.x.0 - summary'`
-* [ ] `cargo publish --quiet -p quiver_core`
+* [ ] `cargo publish --quiet -p quiver_types`
 * [ ] `cargo publish --quiet -p quiver_derive`
 * [ ] `cargo publish --quiet -p quiver`
 * [ ] `git tag -a 0.x.0 -m 'Release 0.x.0 - summary'`

@@ -13,7 +13,7 @@ include = [
 ]
 keywords = ["arrow", "columnar", "schema", "validation"]
 license.workspace = true
-name = "quiver_core"
+name = "quiver_types"
 publish = true
 readme = "README.md"
 repository.workspace = true

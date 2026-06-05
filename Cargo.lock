@@ -580,19 +580,9 @@ name = "quiver"
 version = "0.1.0"
 dependencies = [
  "document-features",
- "quiver_core",
  "quiver_derive",
+ "quiver_types",
  "trybuild",
-]
-
-[[package]]
-name = "quiver_core"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "half",
- "quiver",
- "thiserror",
 ]
 
 [[package]]
@@ -602,6 +592,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "quiver_types"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "half",
+ "quiver",
+ "thiserror",
 ]
 
 [[package]]
