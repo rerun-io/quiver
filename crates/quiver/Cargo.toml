@@ -7,7 +7,7 @@ homepage.workspace = true
 include = ["LICENSE-APACHE", "LICENSE-MIT", "README.md", "**/*.rs", "Cargo.toml"]
 keywords = ["arrow", "columnar", "schema", "validation", "derive"]
 license.workspace = true
-name = "arrow-quiver"
+name = "quiver"
 publish = false                                                      # TODO: set to `true` if you plan on publishing the crate
 readme = "README.md"
 repository.workspace = true
@@ -30,7 +30,7 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 default = ["derive"]
 
 ## Enable the `#[derive(Record)]` proc-macro.
-derive = ["dep:arrow-quiver-derive"]
+derive = ["dep:quiver-derive"]
 
 
 [dependencies]
@@ -38,7 +38,7 @@ arrow.workspace = true
 half.workspace = true
 thiserror.workspace = true
 
-arrow-quiver-derive = { workspace = true, optional = true }
+quiver-derive = { workspace = true, optional = true }
 
 
 [dev-dependencies]

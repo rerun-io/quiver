@@ -1,8 +1,8 @@
 //! Unknown `#[quiver(…)]` arguments are an error.
 
-use arrow_quiver::arrow::array::StringArray;
+use quiver::arrow::array::StringArray;
 
-#[derive(arrow_quiver::Quiver)]
+#[derive(quiver::Quiver)]
 struct Thing {
     #[quiver(nullable)]
     name: StringArray,

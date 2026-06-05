@@ -5,13 +5,13 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use arrow_quiver::arrow::array::{
+use quiver::arrow::array::{
     Array as _, ArrayRef, DictionaryArray, DurationNanosecondArray, FixedSizeBinaryArray,
     Int32Array, Int64Array, ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
-use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
-use arrow_quiver::arrow::record_batch::RecordBatch;
-use arrow_quiver::{DynColumn, Error, ErrorKind, List, Quiver};
+use quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
+use quiver::arrow::record_batch::RecordBatch;
+use quiver::{DynColumn, Error, ErrorKind, List, Quiver};
 
 /// Important thing
 #[derive(Quiver)]
@@ -147,7 +147,7 @@ fn wrong_datatype() {
 #[test]
 fn raw_arrow_columns_are_dynamic_about_nulls() {
     // Raw arrow array fields make no nullability guarantees;
-    // use `arrow_quiver::Column<…>` for compile-time guarantees.
+    // use `quiver::Column<…>` for compile-time guarantees.
     let batch = batch_of(&[(
         "name",
         Arc::new(StringArray::from(vec![Some("Alice"), None])) as ArrayRef,
@@ -311,9 +311,9 @@ fn column_length_mismatch() {
 #[test]
 fn typed_column_nullability_is_emitted() {
     let typed = Typed {
-        name: arrow_quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice"]))).unwrap(),
-        maybe_age: arrow_quiver::Column::try_new(Arc::new(Int64Array::from(vec![30]))).unwrap(),
-        tags: arrow_quiver::Column::try_new(string_list_array_of_one()).unwrap(),
+        name: quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice"]))).unwrap(),
+        maybe_age: quiver::Column::try_new(Arc::new(Int64Array::from(vec![30]))).unwrap(),
+        tags: quiver::Column::try_new(string_list_array_of_one()).unwrap(),
         scores: None,
     };
     let batch = RecordBatch::try_from(typed).unwrap();
@@ -325,7 +325,7 @@ fn typed_column_nullability_is_emitted() {
 /// A `List<Utf8>` array with non-nullable items: `[["a"]]`
 fn string_list_array_of_one() -> ArrayRef {
     let values = StringArray::from(vec!["a"]);
-    let offsets = arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 1].into());
+    let offsets = quiver::arrow::buffer::OffsetBuffer::new(vec![0, 1].into());
     let field = Arc::new(Field::new("item", DataType::Utf8, false));
     Arc::new(ListArray::new(field, offsets, Arc::new(values), None))
 }
@@ -393,28 +393,26 @@ fn error_messages() {
 /// Strongly-typed wrapper columns.
 #[derive(Quiver)]
 struct Typed {
-    name: arrow_quiver::Column<String>,
-    maybe_age: arrow_quiver::Column<Option<i64>>,
-    tags: arrow_quiver::Column<List<String>>,
-    scores: Option<arrow_quiver::Column<List<Option<f64>>>>,
+    name: quiver::Column<String>,
+    maybe_age: quiver::Column<Option<i64>>,
+    tags: quiver::Column<List<String>>,
+    scores: Option<quiver::Column<List<Option<f64>>>>,
 }
 
 #[test]
 fn roundtrip_typed_columns() {
-    let list =
-        ListArray::from_iter_primitive::<arrow_quiver::arrow::datatypes::Float64Type, _, _>(vec![
-            Some(vec![Some(1.0), None]),
-            Some(vec![Some(3.0)]),
-        ]);
+    let list = ListArray::from_iter_primitive::<quiver::arrow::datatypes::Float64Type, _, _>(vec![
+        Some(vec![Some(1.0), None]),
+        Some(vec![Some(3.0)]),
+    ]);
     // `from_iter_primitive` marks the item field nullable, matching `List<Option<f64>>`.
 
     let typed = Typed {
-        name: arrow_quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice", "Bob"])))
+        name: quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice", "Bob"]))).unwrap(),
+        maybe_age: quiver::Column::try_new(Arc::new(Int64Array::from(vec![Some(30), None])))
             .unwrap(),
-        maybe_age: arrow_quiver::Column::try_new(Arc::new(Int64Array::from(vec![Some(30), None])))
-            .unwrap(),
-        tags: arrow_quiver::Column::try_new(string_list_array()).unwrap(),
-        scores: Some(arrow_quiver::Column::try_new(Arc::new(list)).unwrap()),
+        tags: quiver::Column::try_new(string_list_array()).unwrap(),
+        scores: Some(quiver::Column::try_new(Arc::new(list)).unwrap()),
     };
 
     let batch = RecordBatch::try_from(typed).unwrap();
@@ -443,7 +441,7 @@ fn roundtrip_typed_columns() {
 /// A `List<Utf8>` array with non-nullable items: `[["a", "b"], ["c"]]`
 fn string_list_array() -> ArrayRef {
     let values = StringArray::from(vec!["a", "b", "c"]);
-    let offsets = arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
+    let offsets = quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
     let field = Arc::new(Field::new("item", DataType::Utf8, false));
     Arc::new(ListArray::new(field, offsets, Arc::new(values), None))
 }
@@ -478,9 +476,9 @@ fn typed_column_rejects_nulls() {
 fn typed_column_validates_inner_list_type() {
     // A List<Int64> where List<Utf8> is expected:
     let list =
-        ListArray::from_iter_primitive::<arrow_quiver::arrow::datatypes::Int64Type, _, _>(vec![
-            Some(vec![Some(1)]),
-        ]);
+        ListArray::from_iter_primitive::<quiver::arrow::datatypes::Int64Type, _, _>(vec![Some(
+            vec![Some(1)],
+        )]);
     let batch = batch_of(&[
         (
             "name",
@@ -501,18 +499,18 @@ fn typed_column_validates_inner_list_type() {
 
 #[derive(Quiver)]
 struct Uuids {
-    uuid: arrow_quiver::Column<[u8; 16]>,
+    uuid: quiver::Column<[u8; 16]>,
 }
 
 #[test]
 fn roundtrip_fixed_size_binary() {
-    let array = arrow_quiver::arrow::array::FixedSizeBinaryArray::try_from_iter(
+    let array = quiver::arrow::array::FixedSizeBinaryArray::try_from_iter(
         vec![[7_u8; 16], [8; 16]].into_iter(),
     )
     .unwrap();
 
     let uuids = Uuids {
-        uuid: arrow_quiver::Column::try_new(Arc::new(array)).unwrap(),
+        uuid: quiver::Column::try_new(Arc::new(array)).unwrap(),
     };
 
     let batch = RecordBatch::try_from(uuids).unwrap();
@@ -528,21 +526,21 @@ fn roundtrip_fixed_size_binary() {
 
 #[derive(Quiver)]
 struct Times {
-    at: arrow_quiver::Column<arrow_quiver::Timestamp<arrow_quiver::Nanosecond, arrow_quiver::Utc>>,
+    at: quiver::Column<quiver::Timestamp<quiver::Nanosecond, quiver::Utc>>,
 }
 
 #[test]
 fn roundtrip_timestamp() {
     let array = TimestampNanosecondArray::from(vec![1, 2]).with_timezone("UTC");
     let times = Times {
-        at: arrow_quiver::Column::try_new(Arc::new(array)).unwrap(),
+        at: quiver::Column::try_new(Arc::new(array)).unwrap(),
     };
 
     let batch = RecordBatch::try_from(times).unwrap();
     assert_eq!(
         batch.schema_ref().field(0).data_type(),
         &DataType::Timestamp(
-            arrow_quiver::arrow::datatypes::TimeUnit::Nanosecond,
+            quiver::arrow::datatypes::TimeUnit::Nanosecond,
             Some("UTC".into())
         )
     );
@@ -556,7 +554,7 @@ fn roundtrip_timestamp() {
 fn column_metadata_roundtrip() {
     let array = TimestampNanosecondArray::from(vec![1]).with_timezone("UTC");
     let times = Times {
-        at: arrow_quiver::Column::try_new(Arc::new(array))
+        at: quiver::Column::try_new(Arc::new(array))
             .unwrap()
             .with_metadata(BTreeMap::from([("unit".to_owned(), "ns".to_owned())])),
     };
@@ -570,7 +568,7 @@ fn column_metadata_roundtrip() {
 
 #[test]
 fn error_converts_to_arrow_error() {
-    use arrow_quiver::arrow::error::ArrowError;
+    use quiver::arrow::error::ArrowError;
 
     // Most errors wrap as ExternalError, preserving the source chain:
     let err = Strict::try_from(batch_of(&[(
@@ -686,9 +684,9 @@ fn column_descriptors() {
     assert_eq!(Renamed::COLUMN_KIND.name, "special:name");
 
     let typed = Typed {
-        name: arrow_quiver::Column::from_values(["Alice", "Bob"]),
-        maybe_age: arrow_quiver::Column::from_values([Some(30_i64), None]),
-        tags: arrow_quiver::Column::try_new(string_list_array()).unwrap(),
+        name: quiver::Column::from_values(["Alice", "Bob"]),
+        maybe_age: quiver::Column::from_values([Some(30_i64), None]),
+        tags: quiver::Column::try_new(string_list_array()).unwrap(),
         scores: None,
     };
     let batch = typed.into_record_batch().unwrap();
@@ -814,13 +812,13 @@ fn exhaustive_rejects_unknown_columns() {
 #[derive(Quiver)]
 struct Annotated {
     #[quiver(metadata("rerun:kind" = "control"))]
-    chunk_id: arrow_quiver::Column<[u8; 16]>,
+    chunk_id: quiver::Column<[u8; 16]>,
 
     #[quiver(
         metadata("rerun:kind" = "index", "rerun:index_marker" = "start"),
         name = "frame_nr"
     )]
-    frame_start: arrow_quiver::Column<Option<i64>>,
+    frame_start: quiver::Column<Option<i64>>,
 
     /// Declared metadata also works on raw arrow array fields:
     #[quiver(metadata("raw" = "yes"))]
@@ -829,8 +827,8 @@ struct Annotated {
 
 fn annotated() -> Annotated {
     Annotated {
-        chunk_id: arrow_quiver::Column::from_values([[1_u8; 16]]),
-        frame_start: arrow_quiver::Column::from_values([Some(7_i64)]),
+        chunk_id: quiver::Column::from_values([[1_u8; 16]]),
+        frame_start: quiver::Column::from_values([Some(7_i64)]),
         comment: StringArray::from(vec!["hi"]),
     }
 }
@@ -920,7 +918,7 @@ fn declared_metadata_in_static_schema() {
 /// for renamed dependencies and re-exports
 /// (proc-macros have no `$crate` equivalent).
 mod crate_path_override {
-    use arrow_quiver as renamed_quiver;
+    use quiver as renamed_quiver;
 
     #[derive(renamed_quiver::Quiver)]
     #[quiver(crate = "renamed_quiver")]

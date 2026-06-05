@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-#[derive(arrow_quiver::Quiver)]
+#[derive(quiver::Quiver)]
 struct Thing {
     #[quiver(metadata)]
     metadata: BTreeMap<String, String>,

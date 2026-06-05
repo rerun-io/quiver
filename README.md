@@ -1,14 +1,14 @@
-# arrow-quiver
+# quiver
 
-[![Latest version](https://img.shields.io/crates/v/arrow-quiver.svg)](https://crates.io/crates/arrow-quiver)
-[![Documentation](https://docs.rs/arrow-quiver/badge.svg)](https://docs.rs/arrow-quiver)
+[![Latest version](https://img.shields.io/crates/v/quiver.svg)](https://crates.io/crates/quiver)
+[![Documentation](https://docs.rs/quiver/badge.svg)](https://docs.rs/quiver)
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 
 A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.org/) record batches, for Rust's [`arrow-rs`](https://github.com/apache/arrow-rs).
 
 ## Example
-For a complete, compiling example, see [`example.rs`](crates/arrow-quiver/examples/example.rs).
+For a complete, compiling example, see [`example.rs`](crates/quiver/examples/example.rs).
 Run it with `cargo run --example example`.
 
 Use the strongly-typed `quiver::Column<L>` for compile-time guarantees (exact datatype,
@@ -18,8 +18,8 @@ to be dynamic:
 ``` rust
 use std::collections::BTreeMap;
 
-use arrow_quiver::arrow::array::ArrayRef;
-use arrow_quiver::{Column, DynColumn, List, Quiver};
+use quiver::arrow::array::ArrayRef;
+use quiver::{Column, DynColumn, List, Quiver};
 
 /// Important thing
 #[derive(Quiver)]
@@ -57,7 +57,7 @@ struct Thing {
 Building columns from values is infallible:
 
 ``` rust
-use arrow_quiver::{Column, List};
+use quiver::{Column, List};
 
 let names: Column<String> = vec!["Alice", "Bob"].into();
 let scores = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
@@ -68,7 +68,7 @@ Single columns can be extracted without parsing the whole batch — the derive g
 a `COLUMN_*` descriptor per column, so no names are hard-coded:
 
 ``` rust
-use arrow_quiver::{Column, Quiver};
+use quiver::{Column, Quiver};
 
 #[derive(Quiver)]
 struct Reading {
@@ -96,9 +96,9 @@ assert_eq!(empty.num_rows(), 0);
 ``` rust
 use std::sync::Arc;
 
-use arrow_quiver::arrow::array::{ArrayRef, ListArray};
-use arrow_quiver::arrow::datatypes::Int32Type;
-use arrow_quiver::{Column, List};
+use quiver::arrow::array::{ArrayRef, ListArray};
+use quiver::arrow::datatypes::Int32Type;
+use quiver::{Column, List};
 
 let dynamic_arrow_array: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int32Type, _, _>(
     vec![Some(vec![Some(1), Some(2)]), Some(vec![Some(3)])],
@@ -234,8 +234,8 @@ Cons:
 
 ## Crates
 
-* [`arrow-quiver`](crates/arrow-quiver) — the runtime crate: `Column<L>`, `DynColumn`, `Error`, and the `arrow` re-export
-* [`arrow-quiver-derive`](crates/arrow-quiver-derive) — the `#[derive(Quiver)]` proc-macro
+* [`quiver`](crates/quiver) — the runtime crate: `Column<L>`, `DynColumn`, `Error`, and the `arrow` re-export
+* [`quiver-derive`](crates/quiver-derive) — the `#[derive(Quiver)]` proc-macro
 
 ## License
 

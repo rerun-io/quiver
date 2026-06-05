@@ -1,7 +1,7 @@
 //! `Dictionary<Option<K>, V>` is not a thing:
 //! row nullability is `Option<Dictionary<K, V>>`.
 
-use arrow_quiver::{Datatype, Dictionary};
+use quiver::{Datatype, Dictionary};
 
 fn assert_datatype<L: Datatype>() {}
 

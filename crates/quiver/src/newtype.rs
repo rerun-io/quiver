@@ -30,9 +30,9 @@
 ///     }
 /// }
 ///
-/// arrow_quiver::newtype_datatype!(SensorName, String);
+/// quiver::newtype_datatype!(SensorName, String);
 ///
-/// let column = arrow_quiver::Column::<SensorName>::from_values([
+/// let column = quiver::Column::<SensorName>::from_values([
 ///     SensorName("kitchen".to_owned()),
 /// ]);
 /// assert_eq!(column.value(0), "kitchen"); // borrowed: the repr's value
@@ -96,7 +96,7 @@ use crate::datatype::{ColumnError, Datatype, InfallibleBuild};
 /// ```
 /// use std::net::Ipv4Addr;
 ///
-/// use arrow_quiver::{As, Column};
+/// use quiver::{As, Column};
 ///
 /// type IpColumn = Column<As<Ipv4Addr, u32>>; // u32: the arrow representation
 ///

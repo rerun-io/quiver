@@ -22,7 +22,7 @@ pub fn derive_quiver(input: &DeriveInput) -> syn::Result<TokenStream> {
 struct Quiver {
     ident: syn::Ident,
 
-    /// The path to the `arrow_quiver` crate (overridable with `#[quiver(crate = "…")]`).
+    /// The path to the `quiver` crate (overridable with `#[quiver(crate = "…")]`).
     krate: syn::Path,
 
     /// How to treat unknown columns when parsing.
@@ -112,7 +112,7 @@ impl Quiver {
         };
 
         let mut exhaustiveness = None;
-        let mut krate: syn::Path = syn::parse_quote!(::arrow_quiver);
+        let mut krate: syn::Path = syn::parse_quote!(::quiver);
         for attr in &input.attrs {
             if attr.path().is_ident("quiver") {
                 attr.parse_nested_meta(|meta| {

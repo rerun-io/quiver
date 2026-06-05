@@ -192,7 +192,7 @@ impl<L: InfallibleBuild> Column<Option<L>> {
     /// need converting, e.g. `Option<&str>` for a `Column<Option<String>>`:
     ///
     /// ```
-    /// # use arrow_quiver::Column;
+    /// # use quiver::Column;
     /// let column = Column::<Option<String>>::from_nullable_values([Some("a"), None]);
     /// ```
     pub fn from_nullable_values(

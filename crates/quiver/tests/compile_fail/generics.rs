@@ -1,6 +1,6 @@
 //! Generic structs are not supported.
 
-#[derive(arrow_quiver::Quiver)]
+#[derive(quiver::Quiver)]
 struct Thing<T> {
     name: T,
 }

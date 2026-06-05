@@ -44,7 +44,7 @@ pub use self::timestamp::{
 };
 
 #[cfg(feature = "derive")]
-pub use arrow_quiver_derive::Quiver;
+pub use quiver_derive::Quiver;
 
 /// A single dynamically-typed column of a record batch:
 /// the field description plus the actual data.

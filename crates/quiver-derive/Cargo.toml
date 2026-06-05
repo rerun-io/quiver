@@ -1,13 +1,13 @@
 [package]
 authors.workspace = true
 categories = ["encoding", "data-structures"]
-description = "Proc-macros for the arrow-quiver crate"
+description = "Proc-macros for the quiver crate"
 edition.workspace = true
 homepage.workspace = true
 include = ["LICENSE-APACHE", "LICENSE-MIT", "README.md", "**/*.rs", "Cargo.toml"]
 keywords = ["arrow", "columnar", "schema", "validation", "derive"]
 license.workspace = true
-name = "arrow-quiver-derive"
+name = "quiver-derive"
 publish = false                                                      # TODO: set to `true` if you plan on publishing the crate
 readme = "README.md"
 repository.workspace = true

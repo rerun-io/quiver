@@ -70,7 +70,7 @@ jobs:
           components: clippy,rustfmt
 
       - name: Check wasm32
-        run: cargo check --target wasm32-unknown-unknown --lib -p arrow-quiver
+        run: cargo check --target wasm32-unknown-unknown --lib -p quiver
 
   # ---------------------------------------------------------------------------
 

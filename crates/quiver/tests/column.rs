@@ -1,15 +1,15 @@
-//! Tests for standalone use of [`arrow_quiver::Column`] — no derive macro involved.
+//! Tests for standalone use of [`quiver::Column`] — no derive macro involved.
 
 use std::sync::Arc;
 
-use arrow_quiver::arrow::array::Array as _;
-use arrow_quiver::arrow::array::{
+use quiver::arrow::array::Array as _;
+use quiver::arrow::array::{
     ArrayRef, DurationMillisecondArray, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
     TimestampNanosecondArray, TimestampSecondArray,
 };
-use arrow_quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
-use arrow_quiver::arrow::error::ArrowError;
-use arrow_quiver::{
+use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
+use quiver::arrow::error::ArrowError;
+use quiver::{
     Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc,
 };
 
@@ -84,14 +84,14 @@ fn standalone_nested_list() {
     let inner_field = Arc::new(Field::new("item", DataType::Utf8, false));
     let inner = ListArray::new(
         Arc::clone(&inner_field),
-        arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 1, 3].into()),
+        quiver::arrow::buffer::OffsetBuffer::new(vec![0, 1, 3].into()),
         Arc::new(strings),
         None,
     );
     let outer_field = Arc::new(Field::new("item", DataType::List(inner_field), false));
     let outer = ListArray::new(
         outer_field,
-        arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2].into()),
+        quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2].into()),
         Arc::new(inner),
         None,
     );
@@ -317,7 +317,7 @@ fn convenience_constructors() {
     assert_eq!(
         column.as_arrow().data_type(),
         &DataType::Timestamp(
-            arrow_quiver::arrow::datatypes::TimeUnit::Nanosecond,
+            quiver::arrow::datatypes::TimeUnit::Nanosecond,
             Some("UTC".into())
         )
     );
@@ -400,7 +400,7 @@ fn into_iterator() {
 
 #[test]
 fn timestamp_and_duration_aliases() {
-    use arrow_quiver::{
+    use quiver::{
         Duration, DurationMillisecond, Millisecond, Nanosecond, Timestamp, TimestampNanosecond, Utc,
     };
 
@@ -421,7 +421,7 @@ fn timestamp_and_duration_aliases() {
 
 #[test]
 fn binary_columns() {
-    use arrow_quiver::{Binary, LargeBinary};
+    use quiver::{Binary, LargeBinary};
 
     let column = Column::<Binary>::from_values([b"abc".to_vec(), vec![0_u8, 1]]);
     assert_eq!(column.value(0), b"abc");
@@ -448,7 +448,7 @@ fn binary_columns() {
 
 #[test]
 fn f16_column() {
-    use arrow_quiver::half::f16;
+    use quiver::half::f16;
 
     let column = Column::<f16>::from_values([f16::from_f32(1.5), f16::from_f32(2.5)]);
     assert_eq!(Column::<f16>::datatype(), DataType::Float16);
@@ -461,8 +461,8 @@ fn f16_column() {
 
 #[test]
 fn dictionary_columns() {
-    use arrow_quiver::Dictionary;
-    use arrow_quiver::arrow::array::DictionaryArray;
+    use quiver::Dictionary;
+    use quiver::arrow::array::DictionaryArray;
 
     // Building dictionary-encodes the values:
     let column = Column::<Dictionary<i32, String>>::try_from_values(["a", "b", "a", "a"]).unwrap();
@@ -501,7 +501,7 @@ fn dictionary_columns() {
 
 #[test]
 fn dictionary_key_overflow_is_an_error() {
-    use arrow_quiver::Dictionary;
+    use quiver::Dictionary;
 
     // 200 distinct values do not fit in an i8 key:
     let values: Vec<String> = (0..200).map(|i| i.to_string()).collect();
@@ -515,7 +515,7 @@ fn dictionary_key_overflow_is_an_error() {
 
 #[test]
 fn dictionary_try_into() {
-    use arrow_quiver::Dictionary;
+    use quiver::Dictionary;
 
     let column: Column<Dictionary<i32, String>> = vec!["a", "b", "a"].try_into().unwrap();
     assert_eq!(column.to_vec(), ["a", "b", "a"]);
@@ -529,8 +529,8 @@ fn dictionary_try_into() {
 /// Validation must count *logical* nulls, not physical ones (self-review bug fix).
 #[test]
 fn logical_null_validation() {
-    use arrow_quiver::Dictionary;
-    use arrow_quiver::arrow::array::{DictionaryArray, ListArray};
+    use quiver::Dictionary;
+    use quiver::arrow::array::{DictionaryArray, ListArray};
 
     // A null item that is unreachable after slicing is fine…
     let list = ListArray::from_iter_primitive::<Int64Type, _, _>(vec![
@@ -563,7 +563,7 @@ fn logical_null_validation() {
 
     // An unreferenced null entry in a dictionary's value table is fine…
     let values = StringArray::from(vec![Some("a"), None]); // entry 1 is null, unreferenced
-    let keys = arrow_quiver::arrow::array::Int32Array::from(vec![0, 0]);
+    let keys = quiver::arrow::array::Int32Array::from(vec![0, 0]);
     let dictionary = DictionaryArray::new(keys, Arc::new(values));
     let column =
         Column::<Dictionary<i32, String>>::try_from(Arc::new(dictionary) as ArrayRef).unwrap();
@@ -571,7 +571,7 @@ fn logical_null_validation() {
 
     // …but a referenced one is still rejected:
     let values = StringArray::from(vec![Some("a"), None]);
-    let keys = arrow_quiver::arrow::array::Int32Array::from(vec![0, 1]); // references the null
+    let keys = quiver::arrow::array::Int32Array::from(vec![0, 1]); // references the null
     let dictionary = DictionaryArray::new(keys, Arc::new(values));
     let result = Column::<Dictionary<i32, String>>::try_from(Arc::new(dictionary) as ArrayRef);
     assert!(matches!(
@@ -586,7 +586,7 @@ fn logical_null_validation() {
 fn list_item_field_name_is_ignored() {
     let values = Int64Array::from(vec![1, 2, 3]);
     let field = Arc::new(Field::new("element", DataType::Int64, false)); // parquet-style
-    let offsets = arrow_quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
+    let offsets = quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
     let list = ListArray::new(field, offsets, Arc::new(values), None);
 
     let column = Column::<List<i64>>::try_from(Arc::new(list) as ArrayRef).unwrap();
@@ -596,7 +596,7 @@ fn list_item_field_name_is_ignored() {
 
 #[test]
 fn date_and_time_columns() {
-    use arrow_quiver::{Date32, Date64, Time32Second, Time64Nanosecond};
+    use quiver::{Date32, Date64, Time32Second, Time64Nanosecond};
 
     let column = Column::<Date32>::from_values([19_000_i32, 19_001]);
     assert_eq!(Column::<Date32>::datatype(), DataType::Date32);
@@ -607,7 +607,7 @@ fn date_and_time_columns() {
     let column = Column::<Time32Second>::from_values([3600_i32]);
     assert_eq!(
         Column::<Time32Second>::datatype(),
-        DataType::Time32(arrow_quiver::arrow::datatypes::TimeUnit::Second)
+        DataType::Time32(quiver::arrow::datatypes::TimeUnit::Second)
     );
     assert_eq!(column.value(0), 3600);
 
@@ -617,7 +617,7 @@ fn date_and_time_columns() {
 
 #[test]
 fn large_utf8_column() {
-    use arrow_quiver::LargeUtf8;
+    use quiver::LargeUtf8;
 
     let column = Column::<LargeUtf8>::from_values(["a", "b"]);
     assert_eq!(Column::<LargeUtf8>::datatype(), DataType::LargeUtf8);
@@ -661,7 +661,7 @@ fn column_slice() {
 
 #[test]
 fn fixed_size_list_columns() {
-    use arrow_quiver::FixedSizeList;
+    use quiver::FixedSizeList;
 
     // 3D positions:
     let column =
@@ -714,7 +714,7 @@ impl From<SensorName> for String {
     }
 }
 
-arrow_quiver::newtype_datatype!(SensorName, String);
+quiver::newtype_datatype!(SensorName, String);
 
 /// A `[u8; 16]`-backed newtype.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -731,7 +731,7 @@ impl From<ChunkId> for [u8; 16] {
     }
 }
 
-arrow_quiver::newtype_datatype!(ChunkId, [u8; 16]);
+quiver::newtype_datatype!(ChunkId, [u8; 16]);
 
 #[test]
 fn newtype_columns() {
@@ -767,7 +767,7 @@ fn newtype_columns() {
 fn as_adapter_for_foreign_types() {
     use std::net::Ipv4Addr;
 
-    use arrow_quiver::As;
+    use quiver::As;
 
     // `Ipv4Addr` is a foreign type: no `newtype_datatype!` possible (orphan rule).
     let column = Column::<As<Ipv4Addr, u32>>::from_values([

@@ -1,9 +1,9 @@
 //! Structs with dynamically-typed columns (`ArrayRef`, `ListArray`, …)
 //! get no static schema functions.
 
-use arrow_quiver::arrow::array::ArrayRef;
+use quiver::arrow::array::ArrayRef;
 
-#[derive(arrow_quiver::Quiver)]
+#[derive(quiver::Quiver)]
 struct Thing {
     anything: ArrayRef,
 }

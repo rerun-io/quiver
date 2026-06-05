@@ -1,6 +1,6 @@
-//! Proc-macros for the `arrow-quiver` crate.
+//! Proc-macros for the `quiver` crate.
 //!
-//! Use the `arrow-quiver` crate with the `derive` feature instead of depending on this crate directly.
+//! Use the `quiver` crate with the `derive` feature instead of depending on this crate directly.
 
 mod quiver;
 
@@ -36,8 +36,8 @@ use proc_macro::TokenStream;
 /// and raw arrow types when you *want* things to be dynamic.
 ///
 /// ## Struct attributes
-/// * `#[quiver(crate = "path::to::arrow_quiver")]` — the path the generated code uses to refer
-///   to the `arrow_quiver` crate (default `::arrow_quiver`), for renamed dependencies and
+/// * `#[quiver(crate = "path::to::quiver")]` — the path the generated code uses to refer
+///   to the `quiver` crate (default `::quiver`), for renamed dependencies and
 ///   re-exports (proc-macros have no `$crate` equivalent)
 /// * `#[quiver(exhaustive)]` — unknown columns are an error when parsing (the default, made explicit)
 /// * `#[quiver(nonexhaustive)]` — unknown columns are silently ignored when parsing
@@ -49,7 +49,7 @@ use proc_macro::TokenStream;
 /// * `#[quiver(name = "special:name")]` — the column name, when it isn't a valid Rust identifier
 /// * `#[quiver(metadata("key" = "value", …))]` — *declared* field metadata, stamped onto the
 ///   emitted arrow `Field` when encoding (merged with the per-instance
-///   [`Column::metadata`](https://docs.rs/arrow-quiver/latest/arrow_quiver/struct.Column.html#method.metadata);
+///   [`Column::metadata`](https://docs.rs/quiver/latest/quiver/struct.Column.html#method.metadata);
 ///   the instance wins on key conflicts), and included in the static `schema()` and the
 ///   `COLUMN_*` descriptors. **Not validated when parsing** — metadata is an annotation,
 ///   not access semantics, and intermediaries routinely strip it. Side effect: a

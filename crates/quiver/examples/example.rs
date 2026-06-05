@@ -8,8 +8,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use arrow_quiver::arrow::array::{ArrayRef, StringArray};
-use arrow_quiver::{Column, Quiver};
+use quiver::arrow::array::{ArrayRef, StringArray};
+use quiver::{Column, Quiver};
 
 /// A set of measurements.
 #[derive(Quiver)]
