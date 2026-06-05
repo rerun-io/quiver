@@ -11,7 +11,7 @@ use quiver::arrow::array::{
 };
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use quiver::arrow::record_batch::RecordBatch;
-use quiver::{DynColumn, Error, ErrorKind, List, Quiver};
+use quiver::{DynColumn, Error, ErrorKind, List, Quiver, Utf8};
 
 /// Important thing
 #[derive(Quiver)]
@@ -393,9 +393,9 @@ fn error_messages() {
 /// Strongly-typed wrapper columns.
 #[derive(Quiver)]
 struct Typed {
-    name: quiver::Column<String>,
+    name: quiver::Column<Utf8>,
     maybe_age: quiver::Column<Option<i64>>,
-    tags: quiver::Column<List<String>>,
+    tags: quiver::Column<List<Utf8>>,
     scores: Option<quiver::Column<List<Option<f64>>>>,
 }
 
@@ -717,9 +717,9 @@ fn column_descriptors() {
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
 #[derive(Quiver)]
 struct AllRequired {
-    name: quiver::Column<String>,
+    name: quiver::Column<Utf8>,
     maybe_age: quiver::Column<Option<i64>>,
-    tags: quiver::Column<List<String>>,
+    tags: quiver::Column<List<Utf8>>,
 }
 
 #[test]
@@ -895,7 +895,7 @@ fn declared_metadata_merges_with_instance_metadata() {
     let mut annotated = annotated();
     annotated.chunk_id.metadata_mut().extend([
         ("meta:kind".to_owned(), "override".to_owned()), // conflicts: instance wins
-        ("unit".to_owned(), "ids".to_owned()),            // disjoint: union
+        ("unit".to_owned(), "ids".to_owned()),           // disjoint: union
     ]);
 
     let batch = annotated.into_record_batch().unwrap();

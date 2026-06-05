@@ -6,7 +6,7 @@ use arrow::datatypes::DataType;
 
 use crate::ErrorKind;
 
-/// A logical column type, e.g. `String`, `Option<i64>`, or `List<String>`.
+/// A logical column type, e.g. `Utf8`, `Option<i64>`, or `List<Utf8>`.
 ///
 /// `Option<L>` means the values at this nesting level may be null.
 pub trait Datatype {
@@ -17,14 +17,14 @@ pub trait Datatype {
     /// Cheap to clone (arrow arrays are reference-counted).
     type Typed: Clone;
 
-    /// Zero-copy element view: `&'a str` for `String`, `i64` for `i64`,
+    /// Zero-copy element view: `&'a str` for `Utf8`, `i64` for `i64`,
     /// an iterator for `List<T>`, `Option<…>` for `Option<T>`.
     type Value<'a>
     where
         Self: 'a;
 
     /// The owned value of one element, used by the convenience constructors:
-    /// `String` for `String`, `Option<i64>` for `Option<i64>`, `Vec<…>` for `List<…>`, etc.
+    /// `String` for `Utf8`, `Option<i64>` for `Option<i64>`, `Vec<…>` for `List<…>`, etc.
     type Owned;
 
     /// The exact arrow datatype, built recursively
@@ -116,7 +116,7 @@ pub trait PrimitiveDatatype: Datatype {
 /// to hand out), and not nullable (`Option<…>`) or nested (`List<…>`) types,
 /// whose values are built on the fly.
 pub trait RefDatatype: Datatype {
-    /// The borrow target: `str` for `String`, `i64` for `i64`, etc.
+    /// The borrow target: `str` for `Utf8`, `i64` for `i64`, etc.
     type Ref: ?Sized;
 
     /// A reference to the value at `index`.

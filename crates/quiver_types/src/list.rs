@@ -1,6 +1,6 @@
 //! `List<L>`: a logical type for columns where each element is itself a list.
 //!
-//! In a `Column<List<String>>`, every element (row) holds a variable number of
+//! In a `Column<List<Utf8>>`, every element (row) holds a variable number of
 //! strings — like a `Vec<Vec<String>>`, but stored contiguously as one flat
 //! values array plus offsets: an [`arrow::array::ListArray`]
 //! ([`DataType::List`]).

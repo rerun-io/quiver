@@ -1,8 +1,8 @@
 error[E0277]: `Option<i32>` cannot be used as a dictionary key type
  --> tests/compile_fail/dictionary_option_key.rs:9:23
   |
-9 |     assert_datatype::<Dictionary<Option<i32>, String>>();
-  |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ dictionary keys must be one of `i8`–`i64`, `u8`–`u64`
+9 |     assert_datatype::<Dictionary<Option<i32>, Utf8>>();
+  |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ dictionary keys must be one of `i8`–`i64`, `u8`–`u64`
   |
   = help: the trait `DictionaryKey` is not implemented for `Option<i32>`
   = note: for nullable dictionary rows, use `Option<Dictionary<K, V>>` instead of `Dictionary<Option<K>, V>` — the keys are storage indices, not readable values
@@ -15,7 +15,7 @@ error[E0277]: `Option<i32>` cannot be used as a dictionary key type
             u32
             u64
             u8
-  = note: required for `quiver::Dictionary<Option<i32>, String>` to implement `Datatype`
+  = note: required for `quiver::Dictionary<Option<i32>, quiver::Utf8>` to implement `Datatype`
 note: required by a bound in `assert_datatype`
  --> tests/compile_fail/dictionary_option_key.rs:6:23
   |

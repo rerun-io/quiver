@@ -15,7 +15,7 @@ use crate::{ColumnError, Datatype};
 /// A strongly-typed, validated, zero-copy view of one record batch column.
 ///
 /// The logical type `L` describes the exact datatype and nullability,
-/// e.g. `Column<List<String>>` or `Column<Option<i64>>`.
+/// e.g. `Column<List<Utf8>>` or `Column<Option<i64>>`.
 pub struct Column<L: Datatype> {
     /// The data: the arrow array plus its downcast view.
     array: TypedArray<L>,
@@ -156,7 +156,7 @@ impl<L: Datatype> Column<L> {
     }
 
     /// Copies the values into a `Vec` of owned values,
-    /// e.g. `Vec<String>` for a `Column<String>`.
+    /// e.g. `Vec<String>` for a `Column<Utf8>`.
     #[must_use]
     pub fn to_vec(&self) -> Vec<L::Owned> {
         self.iter_owned().collect()
@@ -187,7 +187,7 @@ impl<L: Datatype> Column<L> {
 }
 
 /// `column[index]`: like [`Column::value`], but borrows from the array —
-/// `&column[i]` is `&str` for a `Column<String>`, `&i64` for a `Column<i64>`.
+/// `&column[i]` is `&str` for a `Column<Utf8>`, `&i64` for a `Column<i64>`.
 ///
 /// Available for columns whose values can be borrowed from the array:
 /// strings, binaries, and primitives — but not `bool` (bit-packed),
@@ -197,8 +197,8 @@ impl<L: Datatype> Column<L> {
 /// Panics if out of bounds (like [`Column::value`]).
 ///
 /// ```
-/// # use quiver::Column;
-/// let strings = Column::<String>::from_values(["a", "b"]);
+/// # use quiver::{Column, Utf8};
+/// let strings = Column::<Utf8>::from_values(["a", "b"]);
 /// assert_eq!(&strings[1], "b");
 ///
 /// let numbers = Column::<i64>::from_values([1, 2, 3]);
@@ -239,7 +239,7 @@ where
     L: InfallibleBuild,
 {
     /// Builds a column from owned values,
-    /// e.g. `Column::<String>::from_values(["a", "b"])`.
+    /// e.g. `Column::<Utf8>::from_values(["a", "b"])`.
     ///
     /// Infallible — for the one fallible encoding (dictionaries),
     /// see [`Column::try_from_values`].
@@ -266,11 +266,11 @@ impl<L: InfallibleBuild> Column<Option<L>> {
     /// Builds a nullable column from optional values.
     ///
     /// Unlike [`Column::from_values`], the values inside the `Option`s may still
-    /// need converting, e.g. `Option<&str>` for a `Column<Option<String>>`:
+    /// need converting, e.g. `Option<&str>` for a `Column<Option<Utf8>>`:
     ///
     /// ```
-    /// # use quiver::Column;
-    /// let column = Column::<Option<String>>::from_nullable_values([Some("a"), None]);
+    /// # use quiver::{Column, Utf8};
+    /// let column = Column::<Option<Utf8>>::from_nullable_values([Some("a"), None]);
     /// ```
     pub fn from_nullable_values(
         values: impl IntoIterator<Item = Option<impl Into<L::Owned>>>,
@@ -365,7 +365,7 @@ impl<'a, L: Datatype + 'a> IntoIterator for &'a Column<L> {
 }
 
 /// Iterating a `Column` by value yields owned values, like a `Vec` —
-/// e.g. `String` for a `Column<String>`.
+/// e.g. `String` for a `Column<Utf8>`.
 impl<L: Datatype> IntoIterator for Column<L> {
     type Item = L::Owned;
     type IntoIter = ColumnIntoIter<L>;

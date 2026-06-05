@@ -41,7 +41,7 @@ pub use self::error::{Error, ErrorKind};
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
 pub use self::list::{List, ListValue, TypedList};
 pub use self::newtype::As;
-pub use self::string::LargeUtf8;
+pub use self::string::{LargeUtf8, Utf8, Utf8View};
 pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
 pub use self::timestamp::{
     Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,
