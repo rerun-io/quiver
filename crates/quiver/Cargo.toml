@@ -29,7 +29,7 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 [features]
 default = ["derive"]
 
-## Enable the `#[derive(Record)]` proc-macro.
+## Enable the `#[derive(Quiver)]` proc-macro.
 derive = ["dep:quiver_derive"]
 
 ## Embed a list of all feature flags in the crate documentation, using the [`document-features`](https://docs.rs/document-features) crate.

@@ -714,18 +714,19 @@ fn column_descriptors() {
     assert_eq!(column.field.name(), "name");
 }
 
+/// All columns required: unlike `Typed`, this gets `empty_record_batch`.
+#[derive(Quiver)]
+struct AllRequired {
+    name: quiver::Column<String>,
+    maybe_age: quiver::Column<Option<i64>>,
+    tags: quiver::Column<List<String>>,
+}
+
 #[test]
 fn empty_record_batch() {
     // `empty_record_batch` is only generated when all columns are required
     // (`min_schema() == max_schema()`) — `Typed` has an optional column,
     // so it does NOT get the fn (only `AllRequired` does).
-    #[derive(Quiver)]
-    struct AllRequired {
-        name: quiver::Column<String>,
-        maybe_age: quiver::Column<Option<i64>>,
-        tags: quiver::Column<List<String>>,
-    }
-
     let batch = AllRequired::empty_record_batch();
     assert_eq!(batch.num_rows(), 0);
     assert_eq!(batch.num_columns(), 3);

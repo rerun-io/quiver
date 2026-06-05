@@ -363,6 +363,7 @@ impl Quiver {
                 ///
                 /// Only generated when all columns are required:
                 /// structs with optional (`Option<…>`) columns don't get this fn.
+                #[must_use]
                 pub fn empty_record_batch() -> #krate::arrow::record_batch::RecordBatch {
                     #krate::arrow::record_batch::RecordBatch::new_empty(
                         ::std::sync::Arc::new(Self::max_schema()),
@@ -379,6 +380,7 @@ impl Quiver {
                 /// Optional (`Option<…>`) columns are excluded; see [`Self::max_schema`].
                 ///
                 /// Per-instance metadata is not included.
+                #[must_use]
                 pub fn min_schema() -> #krate::arrow::datatypes::Schema {
                     #krate::arrow::datatypes::Schema::new(::std::vec![
                         #(#min_fields),*
@@ -391,6 +393,7 @@ impl Quiver {
                 /// see [`Self::min_schema`].
                 ///
                 /// Per-instance metadata is not included.
+                #[must_use]
                 pub fn max_schema() -> #krate::arrow::datatypes::Schema {
                     #krate::arrow::datatypes::Schema::new(::std::vec![
                         #(#max_fields),*

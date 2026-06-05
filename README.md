@@ -10,11 +10,11 @@ A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.or
 
 ## What
 [`arrow-rs`](https://github.com/apache/arrow-rs) is to a large extent dynamically typed.
-For instance, you cannot know until runtime if a [`arrow::ListArray`](https://docs.rs/arrow/latest/arrow/array/type.ListArray.html) will contain strrings or numbers, and wether or not the values in it can be `null`.
+For instance, you cannot know until runtime if an [`arrow::ListArray`](https://docs.rs/arrow/latest/arrow/array/type.ListArray.html) will contain strings or numbers, and whether or not the values in it can be `null`.
 
 `quiver` provides strongly typed (and zero-copy) wrappers around these arrays, with compile-time guarantees that are checked only once, during the construction of the columns. For instance, `quiver::Column<quiver::List<String>>` is a `ListArray` that is guaranteed to contain strings, with no nulls.
 
-Additionally, `quiver` provides a proc-macro for easily converting a `struct` of many arrays to and from arrow `RecordBatche`s (needs the `derive` feature to be enabled).
+Additionally, `quiver` provides a proc-macro for easily converting a `struct` of many arrays to and from arrow `RecordBatch`es (needs the `derive` feature to be enabled).
 
 A struct marked with `#[derive(Quiver)]` can contain either dynamically typed arrow arrays (`ArrayRef`, `ListArray`, …) or strongly typed `quiver` types (or a mix of both!).
 
@@ -172,7 +172,7 @@ More of the `Column` API:
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata
-  wins on key conflicts), included in `schema()`, never validated on parse
+  wins on key conflicts), included in `min_schema()`/`max_schema()`, never validated on parse
 * Domain newtypes: `newtype_datatype!(SensorName, String)` makes `Column<SensorName>` work,
   with all of the above; for *foreign* types (orphan rule), use the `As` adapter:
   `Column<As<Ipv4Addr, u32>>`

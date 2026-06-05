@@ -62,10 +62,12 @@ impl<L: Datatype> Column<L> {
 
     /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]
     /// when converting to/from a record batch.
+    #[must_use]
     pub fn metadata(&self) -> &std::collections::BTreeMap<String, String> {
         &self.metadata
     }
 
+    /// Mutable access to the per-column metadata; see [`Column::metadata`].
     pub fn metadata_mut(&mut self) -> &mut std::collections::BTreeMap<String, String> {
         &mut self.metadata
     }
@@ -92,14 +94,17 @@ impl<L: Datatype> Column<L> {
     }
 
     /// The exact arrow datatype of this column.
+    #[must_use]
     pub fn datatype() -> DataType {
         L::datatype()
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.array.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
@@ -108,12 +113,14 @@ impl<L: Datatype> Column<L> {
     ///
     /// See [`Column::value`] for the returned view;
     /// [`Column::get_owned`] returns the owned value instead.
+    #[must_use]
     pub fn get(&self, index: usize) -> Option<L::Value<'_>> {
         (index < self.len()).then(|| L::value(&self.typed, index))
     }
 
     /// The owned value at `index`, or `None` if out of bounds —
     /// e.g. `String` (or your newtype) where [`Column::get`] returns `&str`.
+    #[must_use]
     pub fn get_owned(&self, index: usize) -> Option<L::Owned> {
         self.get(index).map(L::to_owned_value)
     }
@@ -130,6 +137,7 @@ impl<L: Datatype> Column<L> {
     /// see [`Column::value_owned`].
     ///
     /// Panics if out of bounds.
+    #[must_use]
     pub fn value(&self, index: usize) -> L::Value<'_> {
         assert!(index < self.len(), "Index {index} out of bounds");
         L::value(&self.typed, index)
@@ -142,6 +150,7 @@ impl<L: Datatype> Column<L> {
     /// prefer [`Column::iter_owned`] or [`Column::to_vec`].
     ///
     /// Panics if out of bounds.
+    #[must_use]
     pub fn value_owned(&self, index: usize) -> L::Owned {
         L::to_owned_value(self.value(index))
     }
@@ -150,6 +159,7 @@ impl<L: Datatype> Column<L> {
     /// `&str`, `i64`, etc — like [`Column::value`], element by element.
     ///
     /// For owned values, see [`Column::iter_owned`].
+    #[must_use]
     pub fn iter(&self) -> ColumnIter<'_, L> {
         ColumnIter {
             column: self,
@@ -167,6 +177,7 @@ impl<L: Datatype> Column<L> {
 
     /// Copies the values into a `Vec` of owned values,
     /// e.g. `Vec<String>` for a `Column<String>`.
+    #[must_use]
     pub fn to_vec(&self) -> Vec<L::Owned> {
         self.iter_owned().collect()
     }
@@ -183,11 +194,13 @@ impl<L: Datatype> Column<L> {
     }
 
     /// The underlying arrow array.
+    #[must_use]
     pub fn as_arrow(&self) -> &ArrayRef {
         &self.array
     }
 
     /// Extract the underlying arrow array.
+    #[must_use]
     pub fn into_arrow(self) -> ArrayRef {
         self.array
     }
@@ -232,6 +245,7 @@ impl<L: PrimitiveDatatype> Column<L> {
     /// let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);
     /// assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);
     /// ```
+    #[must_use]
     pub fn as_slice(&self) -> &[L::Native] {
         L::values(&self.typed)
     }

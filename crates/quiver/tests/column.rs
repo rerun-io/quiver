@@ -459,7 +459,7 @@ fn value_owned_and_get_owned() {
 #[should_panic(expected = "Index 1 out of bounds")]
 fn value_owned_out_of_bounds() {
     let column = Column::<String>::from_values(["a"]);
-    let _: String = column.value_owned(1);
+    let _value: String = column.value_owned(1);
 }
 
 #[test]

@@ -27,6 +27,9 @@ pub struct ColumnDesc<C> {
 }
 
 impl<L: Datatype> ColumnDesc<Column<L>> {
+    /// Describes the column `name` of the `#[derive(Quiver)]` struct `record_type`.
+    ///
+    /// Usually not called directly: the derive generates these as `COLUMN_*` constants.
     pub const fn new(
         record_type: &'static str,
         name: &'static str,
@@ -41,6 +44,7 @@ impl<L: Datatype> ColumnDesc<Column<L>> {
     }
 
     /// The arrow field of this column, including the declared metadata.
+    #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
         arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
             self.metadata
@@ -98,6 +102,9 @@ pub struct DynColumnDesc {
 }
 
 impl DynColumnDesc {
+    /// Describes the column `name` of the `#[derive(Quiver)]` struct `record_type`.
+    ///
+    /// Usually not called directly: the derive generates these as `COLUMN_*` constants.
     pub const fn new(record_type: &'static str, name: &'static str) -> Self {
         Self { record_type, name }
     }
