@@ -14,6 +14,7 @@ mod datatype;
 mod date;
 mod dictionary;
 mod duration;
+mod dynamic;
 mod error;
 mod fixed_size_binary;
 mod fixed_size_list;
@@ -37,6 +38,7 @@ pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};
 pub use self::duration::{
     Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
 };
+pub use self::dynamic::Dyn;
 pub use self::error::{Error, ErrorKind};
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
 pub use self::list::{List, ListValue, TypedList};

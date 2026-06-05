@@ -1019,3 +1019,129 @@ fn custom_matches_hook() {
         Column::<Option<AnyInt>>::try_new(Arc::new(Int32Array::from(vec![Some(7), None]))).unwrap();
     assert_eq!(nullable.to_vec(), [Some(7), None]);
 }
+
+/// `[["a", "b"], ["c"]]` as a `List<Utf8>` array.
+fn string_list_array() -> ListArray {
+    let strings = StringArray::from(vec!["a", "b", "c"]);
+    let field = Arc::new(Field::new("item", DataType::Utf8, false));
+    ListArray::new(
+        field,
+        quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into()),
+        Arc::new(strings),
+        None,
+    )
+}
+
+/// Compares two arrays for logical equality.
+#[track_caller]
+fn assert_array_eq(
+    actual: &dyn quiver::arrow::array::Array,
+    expected: impl quiver::arrow::array::Array + 'static,
+) {
+    let expected: ArrayRef = Arc::new(expected);
+    assert_eq!(actual, expected.as_ref(), "Arrays differ");
+}
+
+#[test]
+fn dyn_leaf_flat() {
+    use quiver::Dyn;
+
+    // A `Dyn` column accepts any datatype:
+    let strings: ArrayRef = Arc::new(StringArray::from(vec!["a", "b"]));
+    let column = Column::<Dyn>::try_new(Arc::clone(&strings)).unwrap();
+    assert_eq!(column.len(), 2);
+
+    // Values are one-row zero-copy slices:
+    assert_array_eq(&column.value(1), StringArray::from(vec!["b"]));
+
+    let numbers: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3]));
+    assert!(Column::<Dyn>::try_new(numbers).is_ok());
+
+    // …but nulls are still validated:
+    let nullable: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
+    assert!(matches!(
+        Column::<Dyn>::try_new(Arc::clone(&nullable)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    let column = Column::<Option<Dyn>>::try_new(nullable).unwrap();
+    assert!(column.value(0).is_some());
+    assert!(column.value(1).is_none());
+
+    // Building from values is not supported (no datatype to build with):
+    let one_row: ArrayRef = Arc::new(Int64Array::from(vec![1]));
+    assert!(matches!(
+        Column::<Dyn>::try_from_values([one_row]),
+        Err(ColumnError::Build(_))
+    ));
+}
+
+#[test]
+fn dyn_leaf_in_list() {
+    use quiver::Dyn;
+
+    let string_lists: ArrayRef = Arc::new(string_list_array()); // [["a", "b"], ["c"]]
+
+    // The list *structure* is validated; the item datatype is not:
+    let column = Column::<List<Dyn>>::try_new(Arc::clone(&string_lists)).unwrap();
+
+    // Each row is available as one arrow array, zero-copy:
+    assert_array_eq(
+        &column.value(0).as_arrow(),
+        StringArray::from(vec!["a", "b"]),
+    );
+    assert_array_eq(&column.value(1).as_arrow(), StringArray::from(vec!["c"]));
+
+    // Item-by-item iteration yields one-row slices:
+    let items: Vec<ArrayRef> = column.value(0).collect();
+    assert_eq!(items.len(), 2);
+    assert_array_eq(&items[1], StringArray::from(vec!["b"]));
+
+    // Works for any item datatype:
+    let int_lists: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int64Type, _, _>(vec![
+        Some(vec![Some(1), Some(2)]),
+    ]));
+    assert!(Column::<List<Dyn>>::try_new(int_lists).is_ok());
+
+    // Non-list arrays are rejected (the structure is still checked):
+    let flat: ArrayRef = Arc::new(Int64Array::from(vec![1]));
+    assert!(matches!(
+        Column::<List<Dyn>>::try_new(flat),
+        Err(ColumnError::WrongDatatype { .. })
+    ));
+
+    // Null items are rejected at the non-`Option` level…
+    let with_null_items: ArrayRef =
+        Arc::new(ListArray::from_iter_primitive::<Int64Type, _, _>(vec![
+            Some(vec![Some(1), None]),
+        ]));
+    assert!(matches!(
+        Column::<List<Dyn>>::try_new(Arc::clone(&with_null_items)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    // …and accepted with `Option`:
+    assert!(Column::<List<Option<Dyn>>>::try_new(with_null_items).is_ok());
+}
+
+#[test]
+fn dyn_leaf_in_dictionary() {
+    use quiver::{Dictionary, Dyn};
+
+    // Dictionary-encoded lists with a dynamic leaf:
+    // the key→values indirection is handled by quiver.
+    let values = string_list_array(); // [["a", "b"], ["c"]]
+    let keys = quiver::arrow::array::Int32Array::from(vec![1, 0, 1]);
+    let dictionary: ArrayRef = Arc::new(quiver::arrow::array::DictionaryArray::new(
+        keys,
+        Arc::new(values),
+    ));
+
+    // Rows resolve through the dictionary keys: [["c"], ["a", "b"], ["c"]]
+    let column = Column::<Dictionary<i32, List<Dyn>>>::try_new(dictionary).unwrap();
+    assert_eq!(column.len(), 3);
+    assert_array_eq(&column.value(0).as_arrow(), StringArray::from(vec!["c"]));
+    assert_array_eq(
+        &column.value(1).as_arrow(),
+        StringArray::from(vec!["a", "b"]),
+    );
+    assert_array_eq(&column.value(2).as_arrow(), StringArray::from(vec!["c"]));
+}

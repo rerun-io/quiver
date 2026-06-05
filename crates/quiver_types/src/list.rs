@@ -145,6 +145,14 @@ impl<'a, L: Datatype> ListValue<'a, L> {
     }
 }
 
+/// For dynamically-typed leaves, a whole sublist can be taken as one array.
+impl ListValue<'_, crate::Dyn> {
+    /// The remaining items as one arrow array (zero-copy slice).
+    pub fn as_arrow(&self) -> ArrayRef {
+        self.values.slice(self.index, self.end - self.index)
+    }
+}
+
 impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 
