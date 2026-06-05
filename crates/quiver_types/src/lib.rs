@@ -24,6 +24,7 @@ mod primitive;
 mod string;
 mod time;
 mod timestamp;
+mod typed_array;
 
 pub use self::binary::{Binary, LargeBinary};
 pub use self::column::{Column, ColumnIntoIter, ColumnIter};

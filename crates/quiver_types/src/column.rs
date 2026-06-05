@@ -5,10 +5,11 @@
 //! every non-`Option` nesting level). After that, element access is infallible,
 //! fully typed, and zero-copy.
 
-use arrow::array::{Array as _, ArrayRef};
+use arrow::array::ArrayRef;
 use arrow::datatypes::DataType;
 
 use crate::datatype::{InfallibleBuild, PrimitiveDatatype, RefDatatype};
+use crate::typed_array::TypedArray;
 use crate::{ColumnError, Datatype};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
@@ -16,11 +17,8 @@ use crate::{ColumnError, Datatype};
 /// The logical type `L` describes the exact datatype and nullability,
 /// e.g. `Column<List<String>>` or `Column<Option<i64>>`.
 pub struct Column<L: Datatype> {
-    /// The original arrow array (kept for cheap conversion back to arrow).
-    array: ArrayRef,
-
-    /// The fully-downcast representation.
-    typed: L::Typed,
+    /// The data: the arrow array plus its downcast view.
+    array: TypedArray<L>,
 
     /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]
     /// when converting to/from a record batch.
@@ -37,25 +35,8 @@ impl<L: Datatype> Column<L> {
     /// # Errors
     /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
-        let expected = L::datatype();
-        let actual = array.data_type();
-        if !crate::datatype::datatypes_compatible(actual, &expected) {
-            return Err(ColumnError::WrongDatatype {
-                expected,
-                actual: actual.clone(),
-            });
-        }
-
-        if !L::NULLABLE && 0 < array.null_count() {
-            return Err(ColumnError::UnexpectedNulls {
-                null_count: array.null_count(),
-            });
-        }
-
-        let typed = L::downcast(&*array)?;
         Ok(Self {
-            array,
-            typed,
+            array: TypedArray::try_new(array)?,
             metadata: std::collections::BTreeMap::new(),
         })
     }
@@ -115,7 +96,7 @@ impl<L: Datatype> Column<L> {
     /// [`Column::get_owned`] returns the owned value instead.
     #[must_use]
     pub fn get(&self, index: usize) -> Option<L::Value<'_>> {
-        (index < self.len()).then(|| L::value(&self.typed, index))
+        self.array.get(index)
     }
 
     /// The owned value at `index`, or `None` if out of bounds —
@@ -139,8 +120,7 @@ impl<L: Datatype> Column<L> {
     /// Panics if out of bounds.
     #[must_use]
     pub fn value(&self, index: usize) -> L::Value<'_> {
-        assert!(index < self.len(), "Index {index} out of bounds");
-        L::value(&self.typed, index)
+        self.array.value(index)
     }
 
     /// The owned value at `index` — e.g. `String` (or your newtype)
@@ -188,7 +168,7 @@ impl<L: Datatype> Column<L> {
     /// The metadata is preserved.
     #[must_use]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
-        Self::try_new(self.array.slice(offset, length))
+        Self::try_new(self.array.as_arrow().slice(offset, length))
             .expect("Cannot fail: slicing preserves datatype and validity")
             .with_metadata(self.metadata.clone())
     }
@@ -196,13 +176,13 @@ impl<L: Datatype> Column<L> {
     /// The underlying arrow array.
     #[must_use]
     pub fn as_arrow(&self) -> &ArrayRef {
-        &self.array
+        self.array.as_arrow()
     }
 
     /// Extract the underlying arrow array.
     #[must_use]
     pub fn into_arrow(self) -> ArrayRef {
-        self.array
+        self.array.into_arrow()
     }
 }
 
@@ -228,8 +208,7 @@ impl<L: RefDatatype> std::ops::Index<usize> for Column<L> {
     type Output = L::Ref;
 
     fn index(&self, index: usize) -> &Self::Output {
-        assert!(index < self.len(), "Index {index} out of bounds");
-        L::value_ref(&self.typed, index)
+        self.array.value_ref(index)
     }
 }
 
@@ -247,7 +226,7 @@ impl<L: PrimitiveDatatype> Column<L> {
     /// ```
     #[must_use]
     pub fn as_slice(&self) -> &[L::Native] {
-        L::values(&self.typed)
+        self.array.values()
     }
 }
 
@@ -319,15 +298,14 @@ impl<L: Datatype> Default for Column<L> {
 /// Compares the data (like arrow array equality) and the metadata.
 impl<L: Datatype> PartialEq for Column<L> {
     fn eq(&self, other: &Self) -> bool {
-        self.metadata == other.metadata && self.array.as_ref() == other.array.as_ref()
+        self.metadata == other.metadata && self.array == other.array
     }
 }
 
 impl<L: Datatype> Clone for Column<L> {
     fn clone(&self) -> Self {
         Self {
-            array: ArrayRef::clone(&self.array),
-            typed: self.typed.clone(),
+            array: self.array.clone(),
             metadata: self.metadata.clone(),
         }
     }
@@ -336,7 +314,7 @@ impl<L: Datatype> Clone for Column<L> {
 impl<L: Datatype> std::fmt::Debug for Column<L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Column")
-            .field("array", &self.array)
+            .field("array", self.array.as_arrow())
             .field("metadata", &self.metadata)
             .finish_non_exhaustive()
     }
