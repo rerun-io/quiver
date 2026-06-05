@@ -2,18 +2,25 @@
 
 [![Latest version](https://img.shields.io/crates/v/quiver.svg)](https://crates.io/crates/quiver)
 [![Documentation](https://docs.rs/quiver/badge.svg)](https://docs.rs/quiver)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 
-A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.org/) record batches, for Rust's [`arrow-rs`](https://github.com/apache/arrow-rs).
+A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.org/) columns and record batches, for Rust's [`arrow-rs`](https://github.com/apache/arrow-rs).
+
+## What
+[`arrow-rs`](https://github.com/apache/arrow-rs) is to a large extent dynamically typed.
+For instance, you cannot know until runtime if a [`arrow::ListArray`](https://docs.rs/arrow/latest/arrow/array/type.ListArray.html) will contain strrings or numbers, and wether or not the values in it can be `null`.
+
+`quiver` provides strongly typed (and zero-copy) wrappers around these arrays, with compile-time guarantees that are checked only once, during the construction of the columns. For instance, `quiver::Column<quiver::List<String>>` is a `ListArray` that is guaranteed to contain strings, with no nulls.
+
+Additionally, `quiver` provides a proc-macro for easily converting a `struct` of many arrays to and from arrow `RecordBatche`s (needs the `derive` feature to be enabled).
+
+A struct marked with `#[derive(Quiver)]` can contain either dynamically typed arrow arrays (`ArrayRef`, `ListArray`, …) or strongly typed `quiver` types (or a mix of both!).
 
 ## Example
 For a complete, compiling example, see [`example.rs`](crates/quiver/examples/example.rs).
-Run it with `cargo run --example example`.
 
-Use the strongly-typed `quiver::Column<L>` for compile-time guarantees (exact datatype,
-including nested types, and nullability), and raw `arrow` types when you _want_ things
-to be dynamic:
 
 ``` rust
 use std::collections::BTreeMap;
@@ -51,7 +58,8 @@ struct Thing {
 // * `impl TryFrom<Thing> for RecordBatch` - fails on column length mismatch
 // * `fn from_record_batch()` and `fn into_record_batch()` - discoverable aliases for the above
 // * `COLUMN_*` descriptor constants - single-column access without hard-coding names
-// * `fn min_schema()`/`fn max_schema()` and `fn empty_record_batch()` - when all columns are statically typed
+// * `fn min_schema()`/`fn max_schema()` - when all columns are statically typed
+// * `fn empty_record_batch()` - when, additionally, all columns are required (min == max)
 ```
 
 Building columns from values is infallible:
@@ -86,7 +94,8 @@ let sensors = Reading::COLUMN_SENSOR.extract(&batch).unwrap();
 assert_eq!(sensors.to_vec(), ["kitchen"]); // `to_vec()` returns owned values
 assert_eq!(Reading::COLUMN_SENSOR.name, "sensor");
 
-// Static schema + infallible empty batches (when all columns are statically typed):
+// Static schema + infallible empty batches
+// (when all columns are statically typed and required):
 let empty = Reading::empty_record_batch(); // all declared columns, zero rows
 assert_eq!(empty.num_rows(), 0);
 ```
@@ -132,16 +141,26 @@ What is checked when parsing a `RecordBatch`:
 | Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
 | Timestamps     | Unit checked; the timezone must be `None` (`TimestampNanosecondArray`)       | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
 | Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
-| Cost           | None                                                                         | One eager validation pass at the parse boundary                   |
+| Cost           | None                                                                         | One eager validation at the parse boundary; cheap (see below)     |
 
 All validation happens once, when the record batch enters: after that, a `Column<L>` cannot
 be invalid (its fields are private and immutable), so element access never returns a `Result`.
 
+The validation is cheap — the values themselves are never read.
+It compares datatypes (proportional to schema depth, not row count) and checks
+null counts, which arrow caches, so the cost is O(1) per nesting level.
+The one exception: when a non-`Option` nesting level (e.g. the items of a `List<String>`)
+sits on an inner array that carries a null buffer, quiver counts only the nulls
+*reachable* through valid rows, which scans that validity bitmap —
+still independent of the value bytes.
+
 Structs whose columns all have a statically-known datatype also get generated
 `fn min_schema()` (the required columns) and `fn max_schema()` (all declared columns,
-including optional ones), plus an infallible `fn empty_record_batch()` —
-zero rows, every declared column present (optional ones too: parsing the result back
-yields `Some(empty column)`, not `None`).
+including optional ones).
+When additionally every column is required (`min_schema() == max_schema()`),
+an infallible `fn empty_record_batch()` is generated too — zero rows, every column present.
+Structs with optional (`Option<…>`) columns don't get it: there would be no single
+obvious empty batch, and a round-trip would silently turn `None` into `Some(empty)`.
 
 More of the `Column` API:
 
@@ -149,7 +168,7 @@ More of the `Column` API:
   `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty).
   The one exception: building a `Dictionary` column can fail (key overflow),
   so it uses `try_from_values` instead
-* Reading: `value`/`get`, `iter()` (borrowed), `iter_owned()`/`to_vec()` (owned)
+* Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata
@@ -247,17 +266,15 @@ Work-in-progress.
 
 ⚠️ Most of the code in this repository was generated by an LLM (under human direction and review). Read it with the appropriate skepticism.
 
-## TODO
-* [x] Add `column.to_vec()`, at least for simple types (String-arrays, scalar array, etc)
-* [x] Add `column.as_slice()` for primitive, non-nullable types (`&[f32]` etc)
-* [ ] `#[quiver(flatten)]` — struct composition (parked; evaluated 2026-06-04: feasible, no
-  stable-Rust blockers, ~2–3 sessions — the biggest derive feature so far). Spec highlights:
-  a doc-hidden `QuiverRecord` trait (`COLUMN_NAMES`, `partial_from_record_batch`,
-  `push_columns`) that the existing generated fns become wrappers over; flattened columns at
-  the flatten field's position; outer owns strictness; const-assert that the inner has no
-  `extra_columns`/`metadata` field; compile-time name-collision detection via const eval.
-  One spec amendment needed: `min_fields`/`max_fields` must live in a *separate* trait
-  implemented only for statically-typed structs (a mandatory method would force a lying
-  impl or runtime panic when flattening a dynamic inner). First step when picked up:
-  the `QuiverRecord` refactor, which is independently valuable.
-* [ ] Look for TODOs
+## Future work
+### `#[quiver(flatten)]`
+struct composition (parked; evaluated 2026-06-04: feasible, no
+stable-Rust blockers, ~2–3 sessions — the biggest derive feature so far). Spec highlights:
+a doc-hidden `QuiverRecord` trait (`COLUMN_NAMES`, `partial_from_record_batch`,
+`push_columns`) that the existing generated fns become wrappers over; flattened columns at
+the flatten field's position; outer owns strictness; const-assert that the inner has no
+`extra_columns`/`metadata` field; compile-time name-collision detection via const eval.
+One spec amendment needed: `min_fields`/`max_fields` must live in a *separate* trait
+implemented only for statically-typed structs (a mandatory method would force a lying
+impl or runtime panic when flattening a dynamic inner). First step when picked up:
+the `QuiverRecord` refactor, which is independently valuable.

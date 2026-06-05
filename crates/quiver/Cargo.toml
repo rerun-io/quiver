@@ -8,11 +8,11 @@ include = ["LICENSE-APACHE", "LICENSE-MIT", "README.md", "**/*.rs", "Cargo.toml"
 keywords = ["arrow", "columnar", "schema", "validation", "derive"]
 license.workspace = true
 name = "quiver"
-publish = false                                                      # TODO: set to `true` if you plan on publishing the crate
+publish = true
 readme = "README.md"
 repository.workspace = true
 rust-version.workspace = true
-version = "0.1.0"
+version.workspace = true
 
 [lints]
 workspace = true
@@ -32,10 +32,14 @@ default = ["derive"]
 ## Enable the `#[derive(Record)]` proc-macro.
 derive = ["dep:quiver_derive"]
 
+## Embed a list of all feature flags in the crate documentation, using the [`document-features`](https://docs.rs/document-features) crate.
+document-features = ["dep:document-features"]
+
 
 [dependencies]
 quiver_core.workspace = true
 
+document-features = { workspace = true, optional = true }
 quiver_derive = { workspace = true, optional = true }
 
 

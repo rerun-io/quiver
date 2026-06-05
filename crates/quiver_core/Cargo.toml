@@ -4,15 +4,21 @@ categories = ["encoding", "data-structures"]
 description = "Core types for the quiver crate"
 edition.workspace = true
 homepage.workspace = true
-include = ["LICENSE-APACHE", "LICENSE-MIT", "README.md", "**/*.rs", "Cargo.toml"]
+include = [
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "README.md",
+    "**/*.rs",
+    "Cargo.toml",
+]
 keywords = ["arrow", "columnar", "schema", "validation"]
 license.workspace = true
 name = "quiver_core"
-publish = false                                                      # TODO: set to `true` if you plan on publishing the crate
+publish = true
 readme = "README.md"
 repository.workspace = true
 rust-version.workspace = true
-version = "0.1.0"
+version.workspace = true
 
 [lints]
 workspace = true

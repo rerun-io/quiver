@@ -21,7 +21,9 @@ use proc_macro::TokenStream;
 /// * `fn min_schema()` / `fn max_schema()` — the static arrow schema of the required columns /
 ///   of all declared columns (including optional ones); only generated when all columns have a
 ///   statically-known datatype (no `ArrayRef`, `ListArray`, …)
-/// * `fn empty_record_batch()` — an infallible, zero-row record batch with the max schema
+/// * `fn empty_record_batch()` — an infallible, zero-row record batch with every declared column;
+///   only generated when, additionally, all columns are required (no `Option<…>` columns,
+///   i.e. `min_schema() == max_schema()`)
 ///
 /// ## Field types
 /// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact datatype

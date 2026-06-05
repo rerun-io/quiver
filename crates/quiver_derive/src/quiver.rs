@@ -351,6 +351,26 @@ impl Quiver {
             .map(|(field, _)| field)
             .collect();
 
+        // `empty_record_batch` is only generated when every column is
+        // required (`min_schema() == max_schema()`): with optional columns
+        // there is no single obvious empty batch (include them or not?),
+        // and a round-trip would silently turn `None` into `Some(empty)`.
+        let empty_record_batch_fn = (min_fields.len() == max_fields.len()).then(|| {
+            quote! {
+                /// An empty (zero-row) record batch with every declared column
+                /// present ([`Self::min_schema`], which here equals
+                /// [`Self::max_schema`]).
+                ///
+                /// Only generated when all columns are required:
+                /// structs with optional (`Option<…>`) columns don't get this fn.
+                pub fn empty_record_batch() -> #krate::arrow::record_batch::RecordBatch {
+                    #krate::arrow::record_batch::RecordBatch::new_empty(
+                        ::std::sync::Arc::new(Self::max_schema()),
+                    )
+                }
+            }
+        });
+
         Some(quote! {
             #[automatically_derived]
             impl #ident {
@@ -377,17 +397,7 @@ impl Quiver {
                     ])
                 }
 
-                /// An empty (zero-row) record batch with [`Self::max_schema`]:
-                /// all declared columns present, with zero rows.
-                ///
-                /// Optional (`Option<…>`) columns are *included* — present and
-                /// empty, like all the others. Parsing the result back therefore
-                /// yields `Some(empty column)` for them, not `None`.
-                pub fn empty_record_batch() -> #krate::arrow::record_batch::RecordBatch {
-                    #krate::arrow::record_batch::RecordBatch::new_empty(
-                        ::std::sync::Arc::new(Self::max_schema()),
-                    )
-                }
+                #empty_record_batch_fn
             }
         })
     }

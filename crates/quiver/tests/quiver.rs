@@ -716,15 +716,24 @@ fn column_descriptors() {
 
 #[test]
 fn empty_record_batch() {
-    let batch = Typed::empty_record_batch();
-    assert_eq!(batch.num_rows(), 0);
-    assert_eq!(batch.num_columns(), 4);
+    // `empty_record_batch` is only generated when all columns are required
+    // (`min_schema() == max_schema()`) — `Typed` has an optional column,
+    // so it does NOT get the fn (only `AllRequired` does).
+    #[derive(Quiver)]
+    struct AllRequired {
+        name: quiver::Column<String>,
+        maybe_age: quiver::Column<Option<i64>>,
+        tags: quiver::Column<List<String>>,
+    }
 
-    // The empty batch parses back, including the optional column
-    // (present, but empty):
-    let typed = Typed::try_from(batch).unwrap();
-    assert!(typed.name.is_empty());
-    assert!(typed.scores.unwrap().is_empty());
+    let batch = AllRequired::empty_record_batch();
+    assert_eq!(batch.num_rows(), 0);
+    assert_eq!(batch.num_columns(), 3);
+
+    // The empty batch parses back:
+    let parsed = AllRequired::try_from(batch).unwrap();
+    assert!(parsed.name.is_empty());
+    assert!(parsed.tags.is_empty());
 }
 
 /// Column matching is by name: the input column order never matters,
