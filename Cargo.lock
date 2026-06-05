@@ -564,11 +564,19 @@ dependencies = [
 name = "quiver"
 version = "0.1.0"
 dependencies = [
+ "quiver_core",
+ "quiver_derive",
+ "trybuild",
+]
+
+[[package]]
+name = "quiver_core"
+version = "0.1.0"
+dependencies = [
  "arrow",
  "half",
- "quiver_derive",
+ "quiver",
  "thiserror",
- "trybuild",
 ]
 
 [[package]]

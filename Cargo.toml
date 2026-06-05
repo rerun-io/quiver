@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/quiver",
+    "crates/quiver_core",
     "crates/quiver_derive",
 ]
 
@@ -17,6 +18,8 @@ rust-version = "1.92.0"
 
 [workspace.dependencies]
 # Internal crates:
+quiver = { path = "crates/quiver", version = "0.1.0", default-features = false }
+quiver_core = { path = "crates/quiver_core", version = "0.1.0" }
 quiver_derive = { path = "crates/quiver_derive", version = "0.1.0" }
 
 # External crates:
