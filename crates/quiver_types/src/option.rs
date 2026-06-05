@@ -29,6 +29,10 @@ impl<L: Datatype> Datatype for Option<L> {
         L::datatype()
     }
 
+    fn matches(actual: &DataType) -> bool {
+        L::matches(actual)
+    }
+
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         L::downcast(array)
     }

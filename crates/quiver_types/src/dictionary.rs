@@ -91,6 +91,13 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
         DataType::Dictionary(Box::new(K::datatype()), Box::new(V::datatype()))
     }
 
+    fn matches(actual: &DataType) -> bool {
+        match actual {
+            DataType::Dictionary(key, value) => K::matches(key) && V::matches(value),
+            _ => false,
+        }
+    }
+
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let dictionary = downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array)?;
         if !V::NULLABLE && 0 < dictionary.values().null_count() {

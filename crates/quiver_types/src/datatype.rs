@@ -31,6 +31,30 @@ pub trait Datatype {
     /// (including the nullability of inner fields).
     fn datatype() -> DataType;
 
+    /// Does this logical type accept arrow arrays of datatype `actual`?
+    ///
+    /// This is the datatype-matching hook, called once per column at the
+    /// validation boundary ([`Column::try_new`](crate::Column::try_new)).
+    ///
+    /// The default implementation compares `actual` against [`Self::datatype`]
+    /// with [`datatypes_compatible`]: like equality, except that the inner
+    /// [`arrow::datatypes::Field`]s of nested datatypes are compared
+    /// *structurally* — their names, nullability flags, and metadata are ignored.
+    ///
+    /// Container types ([`List`](crate::List), [`FixedSizeList`](crate::FixedSizeList),
+    /// [`Dictionary`](crate::Dictionary), `Option<…>`) forward to the `matches`
+    /// of their inner types, so an override applies at any nesting depth.
+    ///
+    /// Custom logical types can override this to accept *several* datatypes,
+    /// e.g. a timestamp of any unit, or any datatype at all.
+    ///
+    /// Contract: `matches` must accept only datatypes that [`Self::downcast`]
+    /// can handle. Error messages still report [`Self::datatype`] as the
+    /// expected datatype.
+    fn matches(actual: &DataType) -> bool {
+        datatypes_compatible(actual, &Self::datatype())
+    }
+
     /// Recursively downcasts the array, checking the nulls of all *children*.
     ///
     /// Nulls at the level of `array` itself are the responsibility of the caller
@@ -246,7 +270,10 @@ pub(crate) use impl_primitive_datatype;
 /// datatypes are compared *structurally*: their names (`"item"` vs `"element"`),
 /// nullability flags, and metadata are ignored.
 /// Actual nullability is enforced separately, by counting logical nulls.
-pub(crate) fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
+///
+/// This is the default implementation of [`Datatype::matches`];
+/// it is public so that custom `matches` overrides can fall back on it.
+pub fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
     match (actual, declared) {
         (DataType::List(actual), DataType::List(declared))
         | (DataType::LargeList(actual), DataType::LargeList(declared)) => {
