@@ -821,11 +821,11 @@ fn exhaustive_rejects_unknown_columns() {
 /// Columns with declared (`#[quiver(metadata(…))]`) field metadata.
 #[derive(Quiver)]
 struct Annotated {
-    #[quiver(metadata("rerun:kind" = "control"))]
+    #[quiver(metadata("meta:kind" = "control"))]
     chunk_id: quiver::Column<[u8; 16]>,
 
     #[quiver(
-        metadata("rerun:kind" = "index", "rerun:index_marker" = "start"),
+        metadata("meta:kind" = "index", "meta:index_marker" = "start"),
         name = "frame_nr"
     )]
     frame_start: quiver::Column<Option<i64>>,
@@ -848,12 +848,12 @@ fn declared_metadata_is_encoded() {
     let batch = annotated().into_record_batch().unwrap();
     let schema = batch.schema_ref();
     assert_eq!(
-        schema.field_with_name("chunk_id").unwrap().metadata()["rerun:kind"],
+        schema.field_with_name("chunk_id").unwrap().metadata()["meta:kind"],
         "control"
     );
     let frame_nr = schema.field_with_name("frame_nr").unwrap().metadata();
-    assert_eq!(frame_nr["rerun:kind"], "index");
-    assert_eq!(frame_nr["rerun:index_marker"], "start");
+    assert_eq!(frame_nr["meta:kind"], "index");
+    assert_eq!(frame_nr["meta:index_marker"], "start");
     assert_eq!(
         schema.field_with_name("comment").unwrap().metadata()["raw"],
         "yes"
@@ -885,7 +885,7 @@ fn declared_metadata_is_not_validated_when_parsing() {
             .schema_ref()
             .field_with_name("chunk_id")
             .unwrap()
-            .metadata()["rerun:kind"],
+            .metadata()["meta:kind"],
         "control"
     );
 }
@@ -894,7 +894,7 @@ fn declared_metadata_is_not_validated_when_parsing() {
 fn declared_metadata_merges_with_instance_metadata() {
     let mut annotated = annotated();
     annotated.chunk_id.metadata_mut().extend([
-        ("rerun:kind".to_owned(), "override".to_owned()), // conflicts: instance wins
+        ("meta:kind".to_owned(), "override".to_owned()), // conflicts: instance wins
         ("unit".to_owned(), "ids".to_owned()),            // disjoint: union
     ]);
 
@@ -905,7 +905,7 @@ fn declared_metadata_merges_with_instance_metadata() {
         .unwrap()
         .metadata()
         .clone();
-    assert_eq!(metadata["rerun:kind"], "override");
+    assert_eq!(metadata["meta:kind"], "override");
     assert_eq!(metadata["unit"], "ids");
 }
 
@@ -913,13 +913,13 @@ fn declared_metadata_merges_with_instance_metadata() {
 fn declared_metadata_in_static_schema() {
     let schema = Annotated::max_schema();
     let expected = Field::new("chunk_id", DataType::FixedSizeBinary(16), false)
-        .with_metadata(std::iter::once(("rerun:kind".to_owned(), "control".to_owned())).collect());
+        .with_metadata(std::iter::once(("meta:kind".to_owned(), "control".to_owned())).collect());
     assert_eq!(schema.field_with_name("chunk_id").unwrap(), &expected);
 
     // The COLUMN_* descriptor exposes it too:
     assert_eq!(
         Annotated::COLUMN_CHUNK_ID.metadata,
-        [("rerun:kind", "control")]
+        [("meta:kind", "control")]
     );
     assert_eq!(Annotated::COLUMN_CHUNK_ID.arrow_field(), expected);
 }

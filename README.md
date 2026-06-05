@@ -41,6 +41,11 @@ struct Thing {
     /// Strongly typed: a List<Utf8> where the items may be null
     pub tags: Column<List<Option<String>>>,
 
+    /// The column name defaults to the field name;
+    /// override it when it isn't a valid Rust identifier:
+    #[quiver(name = "special:kind")]
+    pub kind: Column<String>,
+
     /// Strongly typed values; the whole *column* may be missing
     pub dob: Option<Column<i64>>,
 
@@ -132,6 +137,8 @@ All column matching is done **by name** — column order never matters:
 parsing accepts any input column order, and encoding emits the columns
 in struct declaration order (with any `extra_columns` appended at the end),
 regardless of the order they had when parsed.
+The column name defaults to the field name; `#[quiver(name = "special:kind")]`
+overrides it, e.g. for column names that aren't valid Rust identifiers.
 
 What is checked when parsing a `RecordBatch`:
 
@@ -173,7 +180,7 @@ More of the `Column` API:
   and fixed-size binary non-nullable columns
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
-  `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata
+  `#[quiver(metadata("sorted" = "true"))]` — stamped on encode (instance metadata
   wins on key conflicts), included in `min_schema()`/`max_schema()`, never validated on parse
 * Domain newtypes: `newtype_datatype!(SensorName, String)` makes `Column<SensorName>` work,
   with all of the above; for *foreign* types (orphan rule), use the `As` adapter:
