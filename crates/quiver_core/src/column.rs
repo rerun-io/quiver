@@ -105,18 +105,29 @@ impl<L: Datatype> Column<L> {
     }
 
     /// The value at `index`, or `None` if out of bounds.
+    ///
+    /// See [`Column::value`] for the returned view;
+    /// [`Column::get_owned`] returns the owned value instead.
     pub fn get(&self, index: usize) -> Option<L::Value<'_>> {
         (index < self.len()).then(|| L::value(&self.typed, index))
     }
 
+    /// The owned value at `index`, or `None` if out of bounds —
+    /// e.g. `String` (or your newtype) where [`Column::get`] returns `&str`.
+    pub fn get_owned(&self, index: usize) -> Option<L::Owned> {
+        self.get(index).map(L::to_owned_value)
+    }
+
     /// The value at `index`.
     ///
-    /// Works for every logical type, returning the by-value view
+    /// Works for every logical type, returning the zero-copy view
     /// ([`Datatype::Value`]): `&str`, `i64`, `Option<…>`, an iterator for
     /// `List<…>`, etc.
     /// Where a plain reference exists in the array — strings, binaries,
     /// primitives (but not `bool`, `Option<…>`, or `List<…>`) — `column[index]`
     /// works too, and is handy with generic code expecting `&T`.
+    /// For the owned value (e.g. `String`, or your `newtype_datatype!` type),
+    /// see [`Column::value_owned`].
     ///
     /// Panics if out of bounds.
     pub fn value(&self, index: usize) -> L::Value<'_> {
@@ -124,6 +135,21 @@ impl<L: Datatype> Column<L> {
         L::value(&self.typed, index)
     }
 
+    /// The owned value at `index` — e.g. `String` (or your newtype)
+    /// where [`Column::value`] returns `&str`.
+    ///
+    /// May allocate (e.g. string columns); for bulk access,
+    /// prefer [`Column::iter_owned`] or [`Column::to_vec`].
+    ///
+    /// Panics if out of bounds.
+    pub fn value_owned(&self, index: usize) -> L::Owned {
+        L::to_owned_value(self.value(index))
+    }
+
+    /// Iterates over the zero-copy views ([`Datatype::Value`]):
+    /// `&str`, `i64`, etc — like [`Column::value`], element by element.
+    ///
+    /// For owned values, see [`Column::iter_owned`].
     pub fn iter(&self) -> ColumnIter<'_, L> {
         ColumnIter {
             column: self,
@@ -131,7 +157,10 @@ impl<L: Datatype> Column<L> {
         }
     }
 
-    /// Iterates over owned values, e.g. `String` instead of `&str`.
+    /// Iterates over owned values — e.g. `String` (or your newtype)
+    /// where [`Column::iter`] yields `&str`.
+    ///
+    /// May allocate per element (e.g. string columns).
     pub fn iter_owned(&self) -> impl Iterator<Item = L::Owned> + '_ {
         self.iter().map(L::to_owned_value)
     }

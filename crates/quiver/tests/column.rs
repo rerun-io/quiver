@@ -437,6 +437,32 @@ fn index_out_of_bounds() {
 }
 
 #[test]
+fn value_owned_and_get_owned() {
+    let column = Column::<String>::from_values(["a", "b"]);
+    let owned: String = column.value_owned(1);
+    assert_eq!(owned, "b");
+    assert_eq!(column.get_owned(0), Some("a".to_owned()));
+    assert_eq!(column.get_owned(2), None);
+
+    // The owned value of a newtype column is the newtype:
+    let column = Column::<SensorName>::from_values([SensorName("kitchen".to_owned())]);
+    assert_eq!(column.value_owned(0), SensorName("kitchen".to_owned()));
+    assert_eq!(column.get_owned(0), Some(SensorName("kitchen".to_owned())));
+
+    let column = Column::<Option<i64>>::from_values([Some(1), None]);
+    assert_eq!(column.value_owned(1), None);
+    assert_eq!(column.get_owned(1), Some(None));
+    assert_eq!(column.get_owned(2), None);
+}
+
+#[test]
+#[should_panic(expected = "Index 1 out of bounds")]
+fn value_owned_out_of_bounds() {
+    let column = Column::<String>::from_values(["a"]);
+    let _: String = column.value_owned(1);
+}
+
+#[test]
 fn nullable_construction_ergonomics() {
     // Owned values work directly:
     let column: Column<Option<String>> = vec![Some("a".to_owned()), None].into();
