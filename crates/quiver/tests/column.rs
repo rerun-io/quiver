@@ -389,10 +389,33 @@ fn as_slice() {
 }
 
 #[test]
+fn as_slice_fixed_size_binary() {
+    // Bulk zero-copy read of fixed-size binary columns:
+    let column = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    assert_eq!(column.as_slice(), &[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+
+    // Also when parsed from a raw arrow array:
+    let array: ArrayRef = Arc::new(
+        FixedSizeBinaryArray::try_from_iter(vec![[1_u8; 16], [2; 16]].into_iter()).unwrap(),
+    );
+    let column = Column::<[u8; 16]>::try_from(array).unwrap();
+    assert_eq!(column.as_slice(), &[[1_u8; 16], [2; 16]]);
+
+    // Empty:
+    let column = Column::<[u8; 4]>::default();
+    assert_eq!(column.as_slice(), &[] as &[[u8; 4]]);
+}
+
+#[test]
 fn as_slice_respects_offset() {
     let column = Column::<i64>::from_values([1, 2, 3, 4, 5]);
     let sliced = column.slice(1, 3);
     assert_eq!(sliced.as_slice(), &[2, 3, 4]);
+
+    // Fixed-size binary too — the byte window must follow the slice:
+    let column = Column::<[u8; 2]>::from_values([[1_u8, 2], [3, 4], [5, 6], [7, 8]]);
+    let sliced = column.slice(1, 2);
+    assert_eq!(sliced.as_slice(), &[[3_u8, 4], [5, 6]]);
 }
 
 #[test]
@@ -829,7 +852,7 @@ impl From<ChunkId> for [u8; 16] {
     }
 }
 
-quiver::newtype_datatype!(ChunkId, [u8; 16]);
+quiver::newtype_datatype!(ChunkId, [u8; 16], primitive);
 
 /// A `bool`-backed newtype: `bool` has no `RefDatatype` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.
@@ -877,6 +900,10 @@ fn newtype_columns() {
     let column = Column::<Option<ChunkId>>::from_nullable_values([Some(ChunkId([7; 16])), None]);
     assert_eq!(column.to_vec(), [Some(ChunkId([7; 16])), None]);
     assert_eq!(Column::<ChunkId>::datatype(), DataType::FixedSizeBinary(16));
+
+    // The `primitive` arm enables bulk zero-copy reads, yielding the repr's values:
+    let column = Column::<ChunkId>::from_values([ChunkId([7; 16]), ChunkId([8; 16])]);
+    assert_eq!(column.as_slice(), &[[7_u8; 16], [8; 16]]);
 
     let column = Column::<List<SensorName>>::from_values([vec![SensorName("a".to_owned())]]);
     assert_eq!(column.to_vec(), [vec![SensorName("a".to_owned())]]);

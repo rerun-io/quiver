@@ -20,6 +20,33 @@
 /// [`RefDatatype`](crate::RefDatatype) — most do, but not e.g. `bool` or
 /// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
 ///
+/// For representations that implement [`PrimitiveDatatype`](crate::PrimitiveDatatype)
+/// (primitives, `[u8; N]`), add a trailing `primitive` to also enable the bulk
+/// zero-copy [`Column::as_slice`](crate::Column::as_slice) — which, like
+/// reading, yields the *representation's* values
+/// (e.g. `&[[u8; 16]]` for a `[u8; 16]`-backed newtype):
+///
+/// ```
+/// #[derive(Debug, PartialEq)]
+/// struct Uuid([u8; 16]);
+///
+/// impl From<[u8; 16]> for Uuid {
+///     fn from(bytes: [u8; 16]) -> Self {
+///         Self(bytes)
+///     }
+/// }
+/// impl From<Uuid> for [u8; 16] {
+///     fn from(uuid: Uuid) -> Self {
+///         uuid.0
+///     }
+/// }
+///
+/// quiver::newtype_datatype!(Uuid, [u8; 16], primitive);
+///
+/// let column = quiver::Column::<Uuid>::from_values([Uuid([7; 16])]);
+/// assert_eq!(column.as_slice(), &[[7_u8; 16]]); // bulk, zero-copy
+/// ```
+///
 /// ```
 /// #[derive(Debug, PartialEq)]
 /// struct SensorName(String);
@@ -54,6 +81,18 @@ macro_rules! newtype_datatype {
 
             fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
                 <$repr as $crate::RefDatatype>::value_ref(typed, index)
+            }
+        }
+    };
+
+    ($newtype:ty, $repr:ty, primitive) => {
+        $crate::newtype_datatype!($newtype, $repr);
+
+        impl $crate::PrimitiveDatatype for $newtype {
+            type Native = <$repr as $crate::PrimitiveDatatype>::Native;
+
+            fn values(typed: &Self::Typed) -> &[Self::Native] {
+                <$repr as $crate::PrimitiveDatatype>::values(typed)
             }
         }
     };
