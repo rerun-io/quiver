@@ -9,7 +9,9 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, RefDatatype, downcast_array};
+use crate::datatype::{
+    ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, downcast_array,
+};
 
 /// `[u8; N]`: an arrow `FixedSizeBinary(N)` column, e.g. `[u8; 16]` for UUIDs.
 impl<const N: usize> Datatype for [u8; N] {
@@ -57,6 +59,24 @@ impl<const N: usize> Datatype for [u8; N] {
 }
 
 impl<const N: usize> InfallibleBuild for [u8; N] {}
+
+/// Enables the bulk zero-copy [`Column::as_slice`](crate::Column::as_slice):
+/// `&[[u8; N]]` for a `Column<[u8; N]>`.
+impl<const N: usize> PrimitiveDatatype for [u8; N] {
+    type Native = [u8; N];
+
+    fn values(typed: &Self::Typed) -> &[Self::Native] {
+        const {
+            assert!(0 < N, "as_slice() is not available for [u8; 0] columns");
+        }
+        // The buffer of a `FixedSizeBinaryArray` is normalized on construction
+        // and slicing: `value_data()` is exactly the `len * N` bytes of the
+        // logical window, with no leading offset.
+        let (chunks, remainder) = typed.value_data().as_chunks::<N>();
+        debug_assert!(remainder.is_empty(), "Guaranteed by the validated datatype");
+        chunks
+    }
+}
 
 impl<const N: usize> RefDatatype for [u8; N] {
     type Ref = [u8; N];

@@ -169,6 +169,8 @@ More of the `Column` API:
   The one exception: building a `Dictionary` column can fail (key overflow),
   so it uses `try_from_values` instead
 * Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
+* Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
+  and fixed-size binary non-nullable columns
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("rerun:kind" = "control"))]` — stamped on encode (instance metadata

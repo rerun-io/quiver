@@ -95,10 +95,12 @@ pub trait Datatype {
 /// [`Column::as_slice`](crate::Column::as_slice).
 ///
 /// Implemented by the primitive types except `bool` (arrow bit-packs it),
-/// and by the primitive-backed marker types
-/// ([`Date32`](crate::Date32), [`Timestamp`](crate::Timestamp), …).
+/// by the primitive-backed marker types
+/// ([`Date32`](crate::Date32), [`Timestamp`](crate::Timestamp), …),
+/// and by `[u8; N]` (fixed-size binary, stored contiguously).
 pub trait PrimitiveDatatype: Datatype {
-    /// The in-memory element type: `f32` for `f32`, `i64` for `Timestamp<…>`, etc.
+    /// The in-memory element type: `f32` for `f32`, `i64` for `Timestamp<…>`,
+    /// `[u8; N]` for `[u8; N]`, etc.
     type Native;
 
     /// All values as one contiguous slice.
