@@ -566,13 +566,13 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "half",
- "quiver-derive",
+ "quiver_derive",
  "thiserror",
  "trybuild",
 ]
 
 [[package]]
-name = "quiver-derive"
+name = "quiver_derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",

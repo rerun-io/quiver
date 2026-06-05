@@ -235,7 +235,7 @@ Cons:
 ## Crates
 
 * [`quiver`](crates/quiver) — the runtime crate: `Column<L>`, `DynColumn`, `Error`, and the `arrow` re-export
-* [`quiver-derive`](crates/quiver-derive) — the `#[derive(Quiver)]` proc-macro
+* [`quiver_derive`](crates/quiver_derive) — the `#[derive(Quiver)]` proc-macro
 
 ## License
 
