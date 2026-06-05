@@ -1,5 +1,7 @@
 # Release Checklist
 
+Use `cargo semver-checks` to check if a new release can be a patch release.
+
 * [ ] Update `CHANGELOG.md` using `./scripts/generate_changelog.py --version 0.NEW.VERSION`
 * [ ] Bump version numbers in `Cargo.toml` and run `cargo check`.
 * [ ] `git commit -m 'Release 0.x.0 - summary'`

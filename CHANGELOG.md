@@ -6,6 +6,16 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.1.1 - 2026-06-05
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.1.0..0.1.1
+
+#### PRs
+* Expose the datatype-matching hook: `Datatype::matches` [#1](https://github.com/rerun-io/quiver/pull/1) by [@emilk](https://github.com/emilk)
+* Bulk zero-copy `as_slice()` for fixed-size binary columns [#2](https://github.com/rerun-io/quiver/pull/2) by [@emilk](https://github.com/emilk)
+* Fix CI: cargo-deny wildcard policy + redundant doc link [#4](https://github.com/rerun-io/quiver/pull/4) by [@emilk](https://github.com/emilk)
+
+
 ## 0.1.0 - 2026-06-05 - Initial release
 
 A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.org/) columns and record batches, for Rust's [`arrow-rs`](https://github.com/apache/arrow-rs).

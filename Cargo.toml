@@ -14,7 +14,7 @@ include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rerun-io/quiver"
 rust-version = "1.92.0"
-version = "0.1.0"
+version = "0.1.1"
 
 
 [workspace.dependencies]
@@ -22,8 +22,8 @@ version = "0.1.0"
 # NOTE: no `version`, so that the `quiver_types` → `quiver` dev-dependency (for doctests)
 # is stripped on `cargo publish` (it cannot resolve before `quiver` itself is published):
 quiver = { path = "crates/quiver", default-features = false }
-quiver_types = { path = "crates/quiver_types", version = "0.1.0" }
-quiver_derive = { path = "crates/quiver_derive", version = "0.1.0" }
+quiver_types = { path = "crates/quiver_types", version = "0.1.1" }
+quiver_derive = { path = "crates/quiver_derive", version = "0.1.1" }
 
 # External crates:
 arrow = { version = ">=57.0, <59", default-features = false }
