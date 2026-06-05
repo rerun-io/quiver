@@ -28,11 +28,10 @@ impl<L: Datatype> TypedArray<L> {
     /// # Errors
     /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
-        let expected = L::datatype();
         let actual = array.data_type();
-        if !crate::datatype::datatypes_compatible(actual, &expected) {
+        if !L::matches(actual) {
             return Err(ColumnError::WrongDatatype {
-                expected,
+                expected: L::datatype(),
                 actual: actual.clone(),
             });
         }

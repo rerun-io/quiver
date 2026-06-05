@@ -65,6 +65,15 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
         )
     }
 
+    fn matches(actual: &DataType) -> bool {
+        match actual {
+            DataType::FixedSizeList(item, size) => {
+                *size as usize == N && L::matches(item.data_type())
+            }
+            _ => false,
+        }
+    }
+
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let list = downcast_array::<arrow::array::FixedSizeListArray>(array)?;
         if !L::NULLABLE {

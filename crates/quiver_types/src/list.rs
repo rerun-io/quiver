@@ -57,6 +57,13 @@ impl<L: Datatype + 'static> Datatype for List<L> {
         )))
     }
 
+    fn matches(actual: &DataType) -> bool {
+        match actual {
+            DataType::List(item) => L::matches(item.data_type()),
+            _ => false,
+        }
+    }
+
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let list = downcast_array::<arrow::array::ListArray>(array)?;
         if !L::NULLABLE {

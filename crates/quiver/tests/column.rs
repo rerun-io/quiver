@@ -919,3 +919,76 @@ fn as_adapter_for_foreign_types() {
     let column = Column::<List<As<Ipv4Addr, u32>>>::from_values([vec![Ipv4Addr::LOCALHOST]]);
     assert_eq!(column.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
 }
+
+/// A custom logical type that overrides [`quiver::Datatype::matches`]:
+/// it accepts both `Int32` and `Int64` arrays, reading every value as `i64`.
+struct AnyInt;
+
+impl quiver::Datatype for AnyInt {
+    type Typed = ArrayRef;
+    type Value<'a> = i64;
+    type Owned = i64;
+
+    /// The canonical datatype: used when encoding, and in error messages.
+    fn datatype() -> DataType {
+        DataType::Int64
+    }
+
+    fn matches(actual: &DataType) -> bool {
+        matches!(actual, DataType::Int32 | DataType::Int64)
+    }
+
+    fn downcast(
+        array: &dyn quiver::arrow::array::Array,
+    ) -> Result<Self::Typed, quiver::ColumnError> {
+        Ok(quiver::arrow::array::make_array(array.to_data()))
+    }
+
+    fn is_null(typed: &Self::Typed, index: usize) -> bool {
+        typed.is_null(index)
+    }
+
+    fn value(typed: &Self::Typed, index: usize) -> i64 {
+        use quiver::arrow::array::AsArray as _;
+        match typed.data_type() {
+            DataType::Int32 => i64::from(typed.as_primitive::<Int32Type>().value(index)),
+            DataType::Int64 => typed.as_primitive::<Int64Type>().value(index),
+            _ => unreachable!("`matches` only accepts Int32 and Int64"),
+        }
+    }
+
+    fn build(values: impl Iterator<Item = Option<i64>>) -> Result<ArrayRef, quiver::ColumnError> {
+        Ok(Arc::new(values.collect::<Int64Array>()))
+    }
+
+    fn to_owned_value(value: i64) -> i64 {
+        value
+    }
+}
+
+#[test]
+fn custom_matches_hook() {
+    use quiver::arrow::array::Int32Array;
+
+    // The override accepts both integer widths:
+    let from_i32 = Column::<AnyInt>::try_new(Arc::new(Int32Array::from(vec![1, 2]))).unwrap();
+    let from_i64 = Column::<AnyInt>::try_new(Arc::new(Int64Array::from(vec![3]))).unwrap();
+    assert_eq!(from_i32.to_vec(), [1, 2]);
+    assert_eq!(from_i64.to_vec(), [3]);
+
+    // …but nothing else:
+    let err = Column::<AnyInt>::try_new(Arc::new(StringArray::from(vec!["nope"]))).unwrap_err();
+    assert!(matches!(err, ColumnError::WrongDatatype { .. }));
+
+    // Containers forward to the inner `matches`, at any nesting depth:
+    let int32_items =
+        ListArray::from_iter_primitive::<Int32Type, _, _>(vec![Some(vec![Some(1), Some(2)])]);
+    let lists = Column::<List<Option<AnyInt>>>::try_new(Arc::new(int32_items)).unwrap();
+    let items: Vec<Option<i64>> = lists.value(0).collect();
+    assert_eq!(items, [Some(1), Some(2)]);
+
+    // `Option<…>` forwards too:
+    let nullable =
+        Column::<Option<AnyInt>>::try_new(Arc::new(Int32Array::from(vec![Some(7), None]))).unwrap();
+    assert_eq!(nullable.to_vec(), [Some(7), None]);
+}

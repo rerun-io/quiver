@@ -72,6 +72,10 @@ macro_rules! newtype_datatype {
                 <$repr as $crate::Datatype>::datatype()
             }
 
+            fn matches(actual: &$crate::arrow::datatypes::DataType) -> bool {
+                <$repr as $crate::Datatype>::matches(actual)
+            }
+
             fn downcast(
                 array: &dyn $crate::arrow::array::Array,
             ) -> ::core::result::Result<Self::Typed, $crate::ColumnError> {
@@ -150,6 +154,10 @@ where
 
     fn datatype() -> arrow::datatypes::DataType {
         Repr::datatype()
+    }
+
+    fn matches(actual: &arrow::datatypes::DataType) -> bool {
+        Repr::matches(actual)
     }
 
     fn downcast(array: &dyn arrow::array::Array) -> Result<Self::Typed, ColumnError> {
