@@ -327,7 +327,11 @@ impl Quiver {
                     ColumnKind::Wrapper { column_type } => quote! {
                         #krate::arrow::datatypes::Field::new(
                             #column_name,
-                            <#column_type>::datatype(),
+                            // Panics for `Dyn`-containing columns, which have
+                            // no static datatype:
+                            <#column_type>::datatype().expect(
+                                ::core::concat!("Column '", #column_name, "' has no static datatype"),
+                            ),
                             <#column_type>::NULLABLE,
                         )
                         #metadata
@@ -674,7 +678,7 @@ impl ColumnField {
                                 record_type: #record_type,
                                 kind: #krate::ErrorKind::WrongDatatype {
                                     column: #column_name.to_owned(),
-                                    expected: #datatype,
+                                    expected: ::core::option::Option::Some(#datatype),
                                     actual: actual.clone(),
                                 },
                             });
@@ -781,15 +785,20 @@ impl ColumnField {
                         .iter()
                         .map(|(key, value)| (key.clone(), value.clone())),
                 );
+                let array = array.into_arrow();
                 fields.push(::std::sync::Arc::new(
                     #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        <#column_type>::datatype(),
+                        // `Dyn`-containing columns have no static datatype;
+                        // use the actual datatype of the array instead:
+                        <#column_type>::datatype().unwrap_or_else(|| {
+                            #krate::arrow::array::Array::data_type(&array).clone()
+                        }),
                         <#column_type>::NULLABLE,
                     )
                     .with_metadata(metadata),
                 ));
-                columns.push(array.into_arrow());
+                columns.push(array);
             },
         };
 

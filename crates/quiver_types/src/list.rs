@@ -49,11 +49,9 @@ impl<L: Datatype + 'static> Datatype for List<L> {
         Self: 'a;
     type Owned = Vec<L::Owned>;
 
-    fn datatype() -> DataType {
-        DataType::List(std::sync::Arc::new(arrow::datatypes::Field::new(
-            "item",
-            L::datatype(),
-            L::NULLABLE,
+    fn datatype() -> Option<DataType> {
+        Some(DataType::List(std::sync::Arc::new(
+            arrow::datatypes::Field::new("item", L::datatype()?, L::NULLABLE),
         )))
     }
 
@@ -107,9 +105,14 @@ impl<L: Datatype + 'static> Datatype for List<L> {
             }
         }
 
+        let item_datatype = L::datatype().ok_or_else(|| {
+            ColumnError::Build(arrow::error::ArrowError::NotYetImplemented(
+                "Cannot build a column without a static datatype".to_owned(),
+            ))
+        })?;
         let field = std::sync::Arc::new(arrow::datatypes::Field::new(
             "item",
-            L::datatype(),
+            item_datatype,
             L::NULLABLE,
         ));
         let offsets = arrow::buffer::OffsetBuffer::from_lengths(lengths);

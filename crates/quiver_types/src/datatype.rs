@@ -29,7 +29,10 @@ pub trait Datatype {
 
     /// The exact arrow datatype, built recursively
     /// (including the nullability of inner fields).
-    fn datatype() -> DataType;
+    ///
+    /// `None` for logical types without a static datatype:
+    /// [`Dyn`](crate::Dyn), and any type containing it (`List<Dyn>`, …).
+    fn datatype() -> Option<DataType>;
 
     /// Does this logical type accept arrow arrays of datatype `actual`?
     ///
@@ -37,7 +40,7 @@ pub trait Datatype {
     /// validation boundary ([`Column::try_new`](crate::Column::try_new)).
     ///
     /// The default implementation compares `actual` against [`Self::datatype`]
-    /// with [`datatypes_compatible`]: like equality, except that the inner
+    /// with [`datatypes_compatible`] (`None` matches nothing): like equality, except that the inner
     /// [`arrow::datatypes::Field`]s of nested datatypes are compared
     /// *structurally* — their names, nullability flags, and metadata are ignored.
     ///
@@ -52,7 +55,7 @@ pub trait Datatype {
     /// can handle. Error messages still report [`Self::datatype`] as the
     /// expected datatype.
     fn matches(actual: &DataType) -> bool {
-        datatypes_compatible(actual, &Self::datatype())
+        Self::datatype().is_some_and(|declared| datatypes_compatible(actual, &declared))
     }
 
     /// Recursively downcasts the array, checking the nulls of all *children*.
@@ -143,9 +146,11 @@ pub trait InfallibleBuild: Datatype {}
 /// Does not know which column it concerns — see [`ColumnError::for_column`].
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
-    #[error("Expected datatype {expected:?}, found {actual:?}")]
+    #[error("Expected datatype {}, found {actual:?}", crate::error::fmt_expected(expected.as_ref()))]
     WrongDatatype {
-        expected: DataType,
+        /// `None` when the expected logical type has no static datatype
+        /// (it contains a [`Dyn`](crate::Dyn) leaf).
+        expected: Option<DataType>,
         actual: DataType,
     },
 
@@ -197,7 +202,7 @@ pub(crate) fn downcast_array<A: Array + Clone + 'static>(
         .downcast_ref::<A>()
         .cloned()
         .ok_or_else(|| ColumnError::WrongDatatype {
-            expected: DataType::Null, // unreachable; see docstring
+            expected: None, // unreachable; see docstring
             actual: array.data_type().clone(),
         })
 }
@@ -209,8 +214,8 @@ macro_rules! impl_flat_datatype {
             type Value<'a> = $value;
             type Owned = $rust;
 
-            fn datatype() -> DataType {
-                $datatype
+            fn datatype() -> Option<DataType> {
+                Some($datatype)
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -308,8 +313,8 @@ macro_rules! impl_marker_datatype {
             type Value<'a> = $value;
             type Owned = $owned;
 
-            fn datatype() -> DataType {
-                $datatype
+            fn datatype() -> Option<DataType> {
+                Some($datatype)
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

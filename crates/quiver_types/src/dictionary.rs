@@ -87,8 +87,11 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
 
-    fn datatype() -> DataType {
-        DataType::Dictionary(Box::new(K::datatype()), Box::new(V::datatype()))
+    fn datatype() -> Option<DataType> {
+        Some(DataType::Dictionary(
+            Box::new(K::datatype()?),
+            Box::new(V::datatype()?),
+        ))
     }
 
     fn matches(actual: &DataType) -> bool {
@@ -134,7 +137,12 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
         let plain = V::build(values)?;
         // This can fail on key overflow: too many distinct values for `K`
         // (e.g. more than 127 for `i8`). Hence `Dictionary` is NOT `InfallibleBuild`.
-        arrow::compute::cast(&plain, &Self::datatype()).map_err(ColumnError::Build)
+        let datatype = Self::datatype().ok_or_else(|| {
+            ColumnError::Build(arrow::error::ArrowError::NotYetImplemented(
+                "Cannot build a dictionary without a static datatype".to_owned(),
+            ))
+        })?;
+        arrow::compute::cast(&plain, &datatype).map_err(ColumnError::Build)
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {

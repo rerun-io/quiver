@@ -19,10 +19,14 @@ pub enum ErrorKind {
     )]
     MissingColumn { column: String },
 
-    #[error("Column {column:?}: expected datatype {expected:?}, found {actual:?}")]
+    #[error("Column {column:?}: expected datatype {}, found {actual:?}", fmt_expected(expected.as_ref()))]
     WrongDatatype {
         column: String,
-        expected: DataType,
+
+        /// `None` when the expected logical type has no static datatype
+        /// (it contains a [`Dyn`](crate::Dyn) leaf).
+        expected: Option<DataType>,
+
         actual: DataType,
     },
 
@@ -48,6 +52,14 @@ pub enum ErrorKind {
 
     #[error("Failed to build the record batch: {0}")]
     BuildRecordBatch(ArrowError),
+}
+
+/// Formats the `expected` datatype of a `WrongDatatype` error.
+pub(crate) fn fmt_expected(expected: Option<&DataType>) -> String {
+    match expected {
+        Some(datatype) => format!("{datatype:?}"),
+        None => "<dynamic>".to_owned(),
+    }
 }
 
 /// Lets `?` convert quiver errors in functions returning arrow results.

@@ -31,8 +31,10 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
         Self: 'a;
     type Owned = i64;
 
-    fn datatype() -> DataType {
-        DataType::Duration(<U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT)
+    fn datatype() -> Option<DataType> {
+        Some(DataType::Duration(
+            <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
+        ))
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

@@ -19,12 +19,12 @@ impl<const N: usize> Datatype for [u8; N] {
     type Value<'a> = &'a [u8; N];
     type Owned = [u8; N];
 
-    fn datatype() -> DataType {
+    fn datatype() -> Option<DataType> {
         const {
             assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
         }
         #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        DataType::FixedSizeBinary(N as i32)
+        Some(DataType::FixedSizeBinary(N as i32))
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

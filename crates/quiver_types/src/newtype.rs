@@ -107,7 +107,7 @@ macro_rules! newtype_datatype {
                 Self: 'a;
             type Owned = $newtype;
 
-            fn datatype() -> $crate::arrow::datatypes::DataType {
+            fn datatype() -> ::core::option::Option<$crate::arrow::datatypes::DataType> {
                 <$repr as $crate::Datatype>::datatype()
             }
 
@@ -191,7 +191,7 @@ where
         Self: 'a;
     type Owned = T;
 
-    fn datatype() -> arrow::datatypes::DataType {
+    fn datatype() -> Option<arrow::datatypes::DataType> {
         Repr::datatype()
     }
 

@@ -50,19 +50,19 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
         Self: 'a;
     type Owned = [L::Owned; N];
 
-    fn datatype() -> DataType {
+    fn datatype() -> Option<DataType> {
         const {
             assert!(N <= i32::MAX as usize, "FixedSizeList size too large");
         }
         #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        DataType::FixedSizeList(
+        Some(DataType::FixedSizeList(
             std::sync::Arc::new(arrow::datatypes::Field::new(
                 "item",
-                L::datatype(),
+                L::datatype()?,
                 L::NULLABLE,
             )),
             N as i32,
-        )
+        ))
     }
 
     fn matches(actual: &DataType) -> bool {
@@ -113,9 +113,14 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
             }
         }
 
+        let item_datatype = L::datatype().ok_or_else(|| {
+            ColumnError::Build(arrow::error::ArrowError::NotYetImplemented(
+                "Cannot build a column without a static datatype".to_owned(),
+            ))
+        })?;
         let field = std::sync::Arc::new(arrow::datatypes::Field::new(
             "item",
-            L::datatype(),
+            item_datatype,
             // The placeholder slots of null rows are physically null
             // (but masked by the row validity):
             true,

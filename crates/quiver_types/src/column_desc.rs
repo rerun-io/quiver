@@ -44,9 +44,12 @@ impl<L: Datatype> ColumnDesc<Column<L>> {
     }
 
     /// The arrow field of this column, including the declared metadata.
+    ///
+    /// Panics for logical types without a static datatype ([`Dyn`](crate::Dyn)-containing).
     #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
+        let datatype = L::datatype().expect("This column has no static datatype");
+        arrow::datatypes::Field::new(self.name, datatype, L::NULLABLE).with_metadata(
             self.metadata
                 .iter()
                 .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))

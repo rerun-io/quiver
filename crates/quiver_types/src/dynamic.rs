@@ -14,8 +14,12 @@ use crate::{ColumnError, Datatype};
 /// A dynamically-typed leaf: accepts *any* arrow datatype.
 ///
 /// The structure *around* it is still validated, e.g. `Column<List<Dyn>>`
-/// requires a list array (with no null items — use `List<Option<Dyn>>` to
-/// allow them), but the item datatype is unconstrained.
+/// requires a list array, but the item datatype is unconstrained.
+///
+/// Nullability works like for every logical type: `Dyn` itself is
+/// *never* null — a `Column<Dyn>` must be null-free, and a `Column<List<Dyn>>`
+/// must have no null items. Wrap in `Option<…>` to allow nulls:
+/// `Column<Option<Dyn>>`, `Column<List<Option<Dyn>>>`.
 ///
 /// Reading yields [`ArrayRef`]s: [`Column::value`](crate::Column::value)
 /// on a `Column<Dyn>` is a one-row zero-copy slice, and a whole
@@ -25,11 +29,15 @@ use crate::{ColumnError, Datatype};
 /// Limitations, since the datatype is unknown until runtime:
 /// * Building from values (`from_values`, `try_from_values`, …) is not
 ///   supported — construct the arrow array directly and use
-///   [`Column::try_new`](crate::Column::try_new).
-/// * [`Datatype::datatype`] reports the placeholder [`DataType::Null`].
-///   It only surfaces in error messages ("expected" datatype) and in the
-///   generated static schemas of `#[derive(Quiver)]` structs — prefer raw
-///   [`ArrayRef`] fields there if you need accurate schemas.
+///   [`Column::try_new`](crate::Column::try_new). `Default` (the empty
+///   column) is unavailable for the same reason, and panics.
+/// * [`Datatype::datatype`] returns `None`, for `Dyn` and anything
+///   containing it. Error messages show the expected datatype as
+///   `<dynamic>`, and the generated `min_schema`/`max_schema`/
+///   `empty_record_batch` of a `#[derive(Quiver)]` struct panic if a column
+///   has no static datatype — prefer raw [`ArrayRef`] fields in derive
+///   structs if you need static schemas. Encoding (`into_record_batch`)
+///   works: the field datatype is taken from the actual array.
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Dyn {
@@ -41,10 +49,10 @@ impl Datatype for Dyn {
     type Value<'a> = ArrayRef;
     type Owned = ArrayRef;
 
-    /// The placeholder [`DataType::Null`]: `Dyn` has no static datatype.
+    /// `None`: `Dyn` has no static datatype.
     /// Validation goes through [`Dyn::matches`] instead, which accepts everything.
-    fn datatype() -> DataType {
-        DataType::Null
+    fn datatype() -> Option<DataType> {
+        None
     }
 
     /// Everything matches.

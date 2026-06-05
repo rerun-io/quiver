@@ -33,8 +33,8 @@ macro_rules! impl_binary_datatype {
             type Value<'a> = &'a [u8];
             type Owned = Vec<u8>;
 
-            fn datatype() -> DataType {
-                $datatype
+            fn datatype() -> Option<DataType> {
+                Some($datatype)
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

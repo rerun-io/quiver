@@ -25,7 +25,7 @@ impl<L: Datatype> Datatype for Option<L> {
         Self: 'a;
     type Owned = Option<L::Owned>;
 
-    fn datatype() -> DataType {
+    fn datatype() -> Option<DataType> {
         L::datatype()
     }
 

@@ -137,7 +137,7 @@ fn wrong_datatype() {
             record_type: "Strict",
             kind: ErrorKind::WrongDatatype {
                 column,
-                expected: DataType::Utf8,
+                expected: Some(DataType::Utf8),
                 actual: DataType::Int64,
             },
         }) if column == "name"
@@ -970,4 +970,33 @@ fn column_name_constants_in_patterns() {
     );
     // Renames are honored:
     assert_eq!(Annotated::COLUMN_FRAME_START_NAME, "frame_nr");
+}
+
+/// A derive struct with a dynamically-typed leaf column.
+#[derive(Quiver)]
+struct WithDyn {
+    values: quiver::Column<quiver::Dyn>,
+}
+
+#[test]
+fn derive_with_dyn_column() {
+    let values =
+        quiver::Column::<quiver::Dyn>::try_new(Arc::new(StringArray::from(vec!["a", "b"])))
+            .unwrap();
+
+    // Encoding works: the field datatype is taken from the actual array:
+    let batch = WithDyn { values }.into_record_batch().unwrap();
+    assert_eq!(batch.schema_ref().field(0).data_type(), &DataType::Utf8);
+
+    // …and the batch parses back:
+    let with_dyn = WithDyn::try_from(batch).unwrap();
+    assert_eq!(with_dyn.values.len(), 2);
+}
+
+#[test]
+#[should_panic(expected = "Column 'values' has no static datatype")]
+fn derive_with_dyn_column_has_no_static_schema() {
+    // `Dyn` columns have no static datatype, so the generated
+    // schema fns cannot describe them:
+    let _schema = WithDyn::min_schema();
 }

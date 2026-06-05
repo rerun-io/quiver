@@ -74,9 +74,10 @@ impl<L: Datatype> Column<L> {
         Self::try_new(array)
     }
 
-    /// The exact arrow datatype of this column.
+    /// The exact arrow datatype of this column, or `None` if the logical type
+    /// has no static datatype (it contains a [`Dyn`](crate::Dyn) leaf).
     #[must_use]
-    pub fn datatype() -> DataType {
+    pub fn datatype() -> Option<DataType> {
         L::datatype()
     }
 
@@ -292,9 +293,14 @@ impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for Column<L> {
 }
 
 /// An empty column.
+///
+/// Panics for logical types without a static datatype ([`Dyn`](crate::Dyn)-containing) —
+/// there is no datatype to make the empty array with.
 impl<L: Datatype> Default for Column<L> {
     fn default() -> Self {
-        let array = arrow::array::new_empty_array(&L::datatype());
+        let datatype =
+            L::datatype().expect("Cannot make an empty column without a static datatype");
+        let array = arrow::array::new_empty_array(&datatype);
         Self::try_new(array).expect("An empty array of the right datatype is always valid")
     }
 }

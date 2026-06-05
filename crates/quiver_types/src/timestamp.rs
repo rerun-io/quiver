@@ -95,11 +95,11 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
         Self: 'a;
     type Owned = i64;
 
-    fn datatype() -> DataType {
-        DataType::Timestamp(
+    fn datatype() -> Option<DataType> {
+        Some(DataType::Timestamp(
             <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
             Z::timezone(),
-        )
+        ))
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
