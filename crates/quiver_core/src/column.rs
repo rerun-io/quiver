@@ -8,7 +8,7 @@
 use arrow::array::{Array as _, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{InfallibleBuild, PrimitiveDatatype};
+use crate::datatype::{InfallibleBuild, PrimitiveDatatype, RefDatatype};
 use crate::{ColumnError, Datatype};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
@@ -111,6 +111,13 @@ impl<L: Datatype> Column<L> {
 
     /// The value at `index`.
     ///
+    /// Works for every logical type, returning the by-value view
+    /// ([`Datatype::Value`]): `&str`, `i64`, `Option<…>`, an iterator for
+    /// `List<…>`, etc.
+    /// Where a plain reference exists in the array — strings, binaries,
+    /// primitives (but not `bool`, `Option<…>`, or `List<…>`) — `column[index]`
+    /// works too, and is handy with generic code expecting `&T`.
+    ///
     /// Panics if out of bounds.
     pub fn value(&self, index: usize) -> L::Value<'_> {
         assert!(index < self.len(), "Index {index} out of bounds");
@@ -154,6 +161,33 @@ impl<L: Datatype> Column<L> {
     /// Extract the underlying arrow array.
     pub fn into_arrow(self) -> ArrayRef {
         self.array
+    }
+}
+
+/// `column[index]`: like [`Column::value`], but borrows from the array —
+/// `&column[i]` is `&str` for a `Column<String>`, `&i64` for a `Column<i64>`.
+///
+/// Available for columns whose values can be borrowed from the array:
+/// strings, binaries, and primitives — but not `bool` (bit-packed),
+/// nullable (`Option<…>`), or nested (`List<…>`) columns,
+/// whose values are built on the fly.
+///
+/// Panics if out of bounds (like [`Column::value`]).
+///
+/// ```
+/// # use quiver::Column;
+/// let strings = Column::<String>::from_values(["a", "b"]);
+/// assert_eq!(&strings[1], "b");
+///
+/// let numbers = Column::<i64>::from_values([1, 2, 3]);
+/// assert_eq!(numbers[2], 3);
+/// ```
+impl<L: RefDatatype> std::ops::Index<usize> for Column<L> {
+    type Output = L::Ref;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        assert!(index < self.len(), "Index {index} out of bounds");
+        L::value_ref(&self.typed, index)
     }
 }
 

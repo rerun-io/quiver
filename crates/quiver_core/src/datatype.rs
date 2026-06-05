@@ -81,6 +81,24 @@ pub trait PrimitiveDatatype: Datatype {
     fn values(typed: &Self::Typed) -> &[Self::Native];
 }
 
+/// Logical types whose element values can be borrowed as plain references
+/// (`&str`, `&i64`, …), enabling `column[index]`
+/// (see [`Column`](crate::Column)'s `Index` impl).
+///
+/// Implemented by strings, binaries, primitives, and the primitive-backed
+/// marker types — but not `bool` (arrow bit-packs it, so there is no `&bool`
+/// to hand out), and not nullable (`Option<…>`) or nested (`List<…>`) types,
+/// whose values are built on the fly.
+pub trait RefDatatype: Datatype {
+    /// The borrow target: `str` for `String`, `i64` for `i64`, etc.
+    type Ref: ?Sized;
+
+    /// A reference to the value at `index`.
+    ///
+    /// Contract: `index` is in bounds, and the value is non-null.
+    fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref;
+}
+
 /// Marker for logical types whose [`Datatype::build`] can never fail,
 /// making the convenient [`Column::from_values`](crate::Column::from_values)
 /// (and `From<Vec<T>>`, `FromIterator`) available.
@@ -198,8 +216,8 @@ macro_rules! impl_flat_datatype {
 
 pub(crate) use impl_flat_datatype;
 
-/// Implements [`PrimitiveDatatype`] for a logical type whose `Typed` array
-/// is an [`arrow::array::PrimitiveArray`].
+/// Implements [`PrimitiveDatatype`] and [`RefDatatype`] for a logical type
+/// whose `Typed` array is an [`arrow::array::PrimitiveArray`].
 macro_rules! impl_primitive_datatype {
     ($logical:ty, $native:ty) => {
         impl crate::datatype::PrimitiveDatatype for $logical {
@@ -207,6 +225,14 @@ macro_rules! impl_primitive_datatype {
 
             fn values(typed: &Self::Typed) -> &[$native] {
                 typed.values()
+            }
+        }
+
+        impl crate::datatype::RefDatatype for $logical {
+            type Ref = $native;
+
+            fn value_ref(typed: &Self::Typed, index: usize) -> &$native {
+                &typed.values()[index]
             }
         }
     };

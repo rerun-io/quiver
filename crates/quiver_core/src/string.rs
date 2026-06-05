@@ -11,7 +11,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::datatype::{
-    ColumnError, Datatype, downcast_array, impl_flat_datatype, impl_marker_datatype,
+    ColumnError, Datatype, RefDatatype, downcast_array, impl_flat_datatype, impl_marker_datatype,
 };
 
 impl_flat_datatype!(String, arrow::array::StringArray, &'a str, DataType::Utf8);
@@ -28,3 +28,19 @@ impl_marker_datatype!(
     String,
     DataType::LargeUtf8
 );
+
+impl RefDatatype for String {
+    type Ref = str;
+
+    fn value_ref(typed: &Self::Typed, index: usize) -> &str {
+        typed.value(index)
+    }
+}
+
+impl RefDatatype for LargeUtf8 {
+    type Ref = str;
+
+    fn value_ref(typed: &Self::Typed, index: usize) -> &str {
+        typed.value(index)
+    }
+}

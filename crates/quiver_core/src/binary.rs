@@ -10,7 +10,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, RefDatatype, downcast_array};
 
 /// Marker for an arrow `Binary` column: variable-length byte strings.
 ///
@@ -61,6 +61,14 @@ macro_rules! impl_binary_datatype {
         }
 
         impl InfallibleBuild for $marker {}
+
+        impl RefDatatype for $marker {
+            type Ref = [u8];
+
+            fn value_ref(typed: &Self::Typed, index: usize) -> &[u8] {
+                typed.value(index)
+            }
+        }
     };
 }
 

@@ -396,6 +396,47 @@ fn as_slice_respects_offset() {
 }
 
 #[test]
+fn index() {
+    let strings = Column::<String>::from_values(["a", "b"]);
+    assert_eq!(&strings[0], "a");
+    assert_eq!(&strings[1], "b");
+
+    let numbers = Column::<i64>::from_values([1, 2, 3]);
+    assert_eq!(numbers[2], 3);
+
+    let binary = Column::<quiver::Binary>::from_values([vec![1_u8, 2], vec![3]]);
+    assert_eq!(&binary[1], [3_u8]);
+
+    let uuids = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4]]);
+    assert_eq!(uuids[0], [1_u8, 2, 3, 4]);
+
+    let timestamps = Column::<Timestamp<Nanosecond, Utc>>::from_values([10_i64, 20]);
+    assert_eq!(timestamps[1], 20);
+
+    // Dictionary values are looked up through the keys:
+    let tags: Column<quiver::Dictionary<i32, String>> = vec!["a", "b", "a"].try_into().unwrap();
+    assert_eq!(&tags[2], "a");
+
+    // The `As` adapter yields the representation's reference:
+    let ips =
+        Column::<quiver::As<std::net::Ipv4Addr, u32>>::from_values([std::net::Ipv4Addr::LOCALHOST]);
+    assert_eq!(ips[0], u32::from(std::net::Ipv4Addr::LOCALHOST));
+
+    // Indexing respects slice offsets:
+    let sliced = numbers.slice(1, 2);
+    assert_eq!(sliced[0], 2);
+    let sliced = strings.slice(1, 1);
+    assert_eq!(&sliced[0], "b");
+}
+
+#[test]
+#[should_panic(expected = "Index 2 out of bounds")]
+fn index_out_of_bounds() {
+    let strings = Column::<String>::from_values(["a", "b"]);
+    let _: &str = &strings[2];
+}
+
+#[test]
 fn nullable_construction_ergonomics() {
     // Owned values work directly:
     let column: Column<Option<String>> = vec![Some("a".to_owned()), None].into();

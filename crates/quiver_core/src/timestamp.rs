@@ -13,7 +13,9 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, downcast_array};
+use crate::datatype::{
+    ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, downcast_array,
+};
 
 /// Marker for an arrow `Timestamp` column, e.g. `Timestamp<Nanosecond, Utc>`.
 ///
@@ -134,5 +136,13 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> PrimitiveDatatype for
 
     fn values(typed: &Self::Typed) -> &[i64] {
         typed.values()
+    }
+}
+
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> RefDatatype for Timestamp<U, Z> {
+    type Ref = i64;
+
+    fn value_ref(typed: &Self::Typed, index: usize) -> &i64 {
+        &typed.values()[index]
     }
 }

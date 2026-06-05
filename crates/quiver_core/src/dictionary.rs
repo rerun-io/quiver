@@ -12,7 +12,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, downcast_array};
+use crate::datatype::{ColumnError, Datatype, RefDatatype, downcast_array};
 
 /// Marker for an arrow `Dictionary` column, e.g. `Dictionary<i32, String>`.
 ///
@@ -132,6 +132,16 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         V::to_owned_value(value)
+    }
+}
+
+/// References are looked up through the dictionary keys, like [`Datatype::value`].
+impl<K: DictionaryKey + 'static, V: RefDatatype + 'static> RefDatatype for Dictionary<K, V> {
+    type Ref = V::Ref;
+
+    fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
+        let key = typed.dictionary.keys().value(index).as_usize();
+        V::value_ref(&typed.values, key)
     }
 }
 

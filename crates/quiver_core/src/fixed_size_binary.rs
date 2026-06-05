@@ -9,7 +9,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, Datatype, InfallibleBuild, RefDatatype, downcast_array};
 
 /// `[u8; N]`: an arrow `FixedSizeBinary(N)` column, e.g. `[u8; 16]` for UUIDs.
 impl<const N: usize> Datatype for [u8; N] {
@@ -57,3 +57,11 @@ impl<const N: usize> Datatype for [u8; N] {
 }
 
 impl<const N: usize> InfallibleBuild for [u8; N] {}
+
+impl<const N: usize> RefDatatype for [u8; N] {
+    type Ref = [u8; N];
+
+    fn value_ref(typed: &Self::Typed, index: usize) -> &[u8; N] {
+        Self::value(typed, index)
+    }
+}
