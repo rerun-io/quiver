@@ -805,6 +805,24 @@ impl From<ChunkId> for [u8; 16] {
 
 quiver::newtype_datatype!(ChunkId, [u8; 16]);
 
+/// A `bool`-backed newtype: `bool` has no `RefDatatype` (bit-packed),
+/// so the `Index` support must be opted out of with `noref`.
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct IsActive(bool);
+
+impl From<bool> for IsActive {
+    fn from(active: bool) -> Self {
+        Self(active)
+    }
+}
+impl From<IsActive> for bool {
+    fn from(active: IsActive) -> Self {
+        active.0
+    }
+}
+
+quiver::newtype_datatype!(IsActive, bool, noref);
+
 #[test]
 fn newtype_columns() {
     let column = Column::<SensorName>::from_values([
@@ -816,6 +834,9 @@ fn newtype_columns() {
     // Reading is zero-copy, yielding the repr's borrowed value:
     let values: Vec<&str> = column.iter().collect();
     assert_eq!(values, ["kitchen", "attic"]);
+
+    // Indexing borrows through the repr:
+    assert_eq!(&column[1], "attic");
 
     // Owned values are the newtype:
     assert_eq!(
@@ -833,6 +854,11 @@ fn newtype_columns() {
 
     let column = Column::<List<SensorName>>::from_values([vec![SensorName("a".to_owned())]]);
     assert_eq!(column.to_vec(), [vec![SensorName("a".to_owned())]]);
+
+    // `noref` newtypes still read normally (just no `column[index]`):
+    let column = Column::<IsActive>::from_values([IsActive(true), IsActive(false)]);
+    assert!(column.value(0));
+    assert_eq!(column.to_vec(), [IsActive(true), IsActive(false)]);
 }
 
 #[test]

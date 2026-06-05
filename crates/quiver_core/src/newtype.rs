@@ -15,6 +15,11 @@
 /// (e.g. `&str` for a `String`-backed newtype);
 /// owned values ([`Column::to_vec`](crate::Column::to_vec) etc.) are the newtype.
 ///
+/// `column[index]` works too, borrowing through the representation.
+/// That requires the representation to implement
+/// [`RefDatatype`](crate::RefDatatype) — most do, but not e.g. `bool` or
+/// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
+///
 /// ```
 /// #[derive(Debug, PartialEq)]
 /// struct SensorName(String);
@@ -36,11 +41,24 @@
 ///     SensorName("kitchen".to_owned()),
 /// ]);
 /// assert_eq!(column.value(0), "kitchen"); // borrowed: the repr's value
+/// assert_eq!(&column[0], "kitchen"); // indexing, also borrowed
 /// assert_eq!(column.to_vec(), [SensorName("kitchen".to_owned())]); // owned: the newtype
 /// ```
 #[macro_export]
 macro_rules! newtype_datatype {
     ($newtype:ty, $repr:ty) => {
+        $crate::newtype_datatype!($newtype, $repr, noref);
+
+        impl $crate::RefDatatype for $newtype {
+            type Ref = <$repr as $crate::RefDatatype>::Ref;
+
+            fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
+                <$repr as $crate::RefDatatype>::value_ref(typed, index)
+            }
+        }
+    };
+
+    ($newtype:ty, $repr:ty, noref) => {
         impl $crate::Datatype for $newtype {
             const NULLABLE: bool = <$repr as $crate::Datatype>::NULLABLE;
             type Typed = <$repr as $crate::Datatype>::Typed;
