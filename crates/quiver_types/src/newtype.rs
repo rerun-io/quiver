@@ -17,7 +17,7 @@
 ///
 /// `column[index]` works too, borrowing through the representation.
 /// That requires the representation to implement
-/// [`RefDatatype`](crate::RefDatatype) — most do, but not e.g. `bool` or
+/// [`RefDatatype`] — most do, but not e.g. `bool` or
 /// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
 ///
 /// ```

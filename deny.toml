@@ -36,6 +36,10 @@ ignore = []
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+# The `quiver_types` → `quiver` dev-dependency is path-only on purpose:
+# it must be stripped on `cargo publish` (it cannot resolve before `quiver`
+# itself is published). Path-only internal deps are not real wildcards:
+allow-wildcard-paths = true
 deny = [
   { name = "openssl", reason = "Use rustls" },
   { name = "openssl-sys", reason = "Use rustls" },
