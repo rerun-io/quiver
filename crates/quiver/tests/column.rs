@@ -568,6 +568,39 @@ fn binary_columns() {
 }
 
 #[test]
+fn binary_view_columns() {
+    use quiver::arrow::array::BinaryViewArray;
+    use quiver::{Binary, BinaryView};
+
+    let column = Column::<BinaryView>::from_values([b"abc".to_vec(), vec![0_u8, 1]]);
+    assert_eq!(column.value(0), b"abc");
+    assert_eq!(&column[1], &[0_u8, 1]);
+    assert_eq!(column.to_vec(), [b"abc".to_vec(), vec![0_u8, 1]]);
+    assert_eq!(Column::<BinaryView>::datatype(), DataType::BinaryView);
+
+    // BinaryView ≠ Binary:
+    let result = Column::<Binary>::try_from(column.into_arrow());
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nullable:
+    let column = Column::<Option<BinaryView>>::from_nullable_values([Some(b"abc".to_vec()), None]);
+    assert_eq!(column.to_vec(), [Some(b"abc".to_vec()), None]);
+
+    // Parsing an externally built array:
+    let array = BinaryViewArray::from_iter_values([b"x".as_slice(), b"yz"]);
+    let column = Column::<BinaryView>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.value(1), b"yz");
+
+    // A null at a non-nullable level is rejected:
+    let array = BinaryViewArray::from_iter([Some(b"x".as_slice()), None]);
+    let result = Column::<BinaryView>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+}
+
+#[test]
 fn f16_column() {
     use quiver::half::f16;
 

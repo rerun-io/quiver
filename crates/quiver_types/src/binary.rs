@@ -1,10 +1,13 @@
-//! [`Binary`] and [`LargeBinary`]: logical types for columns of byte strings.
+//! [`Binary`], [`LargeBinary`], and [`BinaryView`]: logical types for columns of
+//! byte strings.
 //!
 //! Each element is a variable-length sequence of bytes (like a `Vec<u8>`),
 //! stored as an [`arrow::array::BinaryArray`]
-//! ([`DataType::Binary`]), or
+//! ([`DataType::Binary`]),
 //! [`arrow::array::LargeBinaryArray`] for 64-bit offsets (when a single column
-//! may hold more than 2 `GiB` of data in total).
+//! may hold more than 2 `GiB` of data in total), or
+//! [`arrow::array::BinaryViewArray`] for the newer "view" encoding
+//! ([`DataType::BinaryView`]), optimized for comparisons and out-of-order writes.
 //! Reading is zero-copy: the element values are `&[u8]`.
 
 use arrow::array::{Array, ArrayRef};
@@ -25,6 +28,13 @@ pub struct Binary;
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct LargeBinary;
+
+/// Marker for an arrow `BinaryView` column: like [`Binary`], in the newer "view"
+/// encoding ([`arrow::array::BinaryViewArray`]), optimized for comparisons
+/// and out-of-order writes.
+///
+/// This type is never instantiated — it only appears as a type parameter.
+pub struct BinaryView;
 
 macro_rules! impl_binary_datatype {
     ($marker:ty, $array:ty, $datatype:expr) => {
@@ -77,4 +87,9 @@ impl_binary_datatype!(
     LargeBinary,
     arrow::array::LargeBinaryArray,
     DataType::LargeBinary
+);
+impl_binary_datatype!(
+    BinaryView,
+    arrow::array::BinaryViewArray,
+    DataType::BinaryView
 );

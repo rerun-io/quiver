@@ -196,7 +196,7 @@ The supported logical types:
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
 | `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
 | `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
-| `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
+| `Binary`, `LargeBinary`, `BinaryView`        | The same                     | `&[u8]`                   |
 | `Date32`, `Date64`                           | `Date32`, `Date64`           | `i32` days / `i64` ms     |
 | `Time32Second` … `Time64Nanosecond`          | `Time32(…)`, `Time64(…)`     | `i32` / `i64`             |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
@@ -206,21 +206,29 @@ The supported logical types:
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
-Not *yet* supported as logical types:
+### What is *not* supported
+
+There are two tiers of "not supported", and they behave very differently.
+
+**1. No strongly-typed `Column<L>` yet — but fine as raw, downcast-only `arrow` fields.**
+These have no logical type, so you cannot write `Column<Struct>`, but you *can* hold them
+as a raw `arrow` array field (`StructArray`, `LargeListArray`, …), validated by downcast only:
 
 * `Struct` (parked; investigated 2026-06-04 — moderate effort: a new derive generating
   per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
   by the parent validity, on both parse and build)
-* The string/binary *view* types
 * `LargeList`
 
-Most of these can still be used as raw, downcast-only arrow array fields
-(`StructArray`, `DictionaryArray`, `LargeListArray`, …).
-The difficult and exotic datatypes — `Decimal`, `Map`, `Union`, `Interval`,
-and run-end arrays — are explicitly unsupported even as raw fields,
-with a clear compile error.
+**2. Explicitly unsupported, even as raw `arrow` fields — these give a clear compile error.**
+The difficult and exotic datatypes:
+
+* `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
+* `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)
+* `Map`
+* `Union`
+* Run-end encoded arrays (`RunArray`)
 
 Timezones are matched as exact strings: `Timestamp<Nanosecond, Utc>` ("UTC") will
 not accept an array with the equivalent timezone `"+00:00"`.

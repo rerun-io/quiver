@@ -26,7 +26,7 @@ mod time;
 mod timestamp;
 mod typed_array;
 
-pub use self::binary::{Binary, LargeBinary};
+pub use self::binary::{Binary, BinaryView, LargeBinary};
 pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{
