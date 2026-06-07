@@ -204,6 +204,7 @@ The supported logical types:
 | `Dictionary<i32, Utf8>`                      | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
 | `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
+| `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
 ### What is *not* supported
@@ -225,7 +226,6 @@ The difficult and exotic datatypes:
 
 * `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
 * `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)
-* `Map`
 * `Union`
 * Run-end encoded arrays (`RunArray`)
 

@@ -902,6 +902,96 @@ fn large_list_columns() {
     assert_eq!(column.len(), 1);
 }
 
+#[test]
+fn map_columns() {
+    use quiver::Map;
+    use quiver::arrow::array::{Int64Builder, MapBuilder, StringBuilder};
+
+    // Build from owned (key, value) pairs:
+    let column = Column::<Map<Utf8, i64>>::from_values([
+        vec![("a".to_owned(), 1_i64), ("b".to_owned(), 2)],
+        vec![],
+        vec![("c".to_owned(), 3)],
+    ]);
+    assert_eq!(
+        Column::<Map<Utf8, i64>>::datatype(),
+        DataType::Map(
+            Arc::new(Field::new(
+                "entries",
+                DataType::Struct(
+                    vec![
+                        Field::new("keys", DataType::Utf8, false),
+                        Field::new("values", DataType::Int64, false),
+                    ]
+                    .into()
+                ),
+                false,
+            )),
+            false,
+        )
+    );
+
+    // Each row reads back as its (key, value) pairs:
+    let rows: Vec<Vec<(String, i64)>> = column.to_vec();
+    assert_eq!(
+        rows,
+        [
+            vec![("a".to_owned(), 1), ("b".to_owned(), 2)],
+            vec![],
+            vec![("c".to_owned(), 3)],
+        ]
+    );
+
+    // Zero-copy iteration over one row's pairs:
+    let first: Vec<(&str, i64)> = column.value(0).collect();
+    assert_eq!(first, [("a", 1), ("b", 2)]);
+
+    // Parsing an externally built (arrow `MapBuilder`) map array:
+    let mut builder = MapBuilder::new(None, StringBuilder::new(), Int64Builder::new());
+    builder.keys().append_value("x");
+    builder.values().append_value(10);
+    builder.append(true).unwrap();
+    builder.append(true).unwrap(); // empty map
+    let array = builder.finish();
+    let column = Column::<Map<Utf8, i64>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.value_owned(0), [("x".to_owned(), 10)]);
+    assert_eq!(column.value_owned(1), []);
+
+    // Nullable values:
+    let column = Column::<Map<Utf8, Option<i64>>>::from_values([vec![
+        ("a".to_owned(), Some(1_i64)),
+        ("b".to_owned(), None),
+    ]]);
+    let rows: Vec<Vec<(String, Option<i64>)>> = column.to_vec();
+    assert_eq!(
+        rows,
+        [vec![("a".to_owned(), Some(1)), ("b".to_owned(), None)]]
+    );
+
+    // A null value at a non-nullable level is rejected:
+    let mut builder = MapBuilder::new(None, StringBuilder::new(), Int64Builder::new());
+    builder.keys().append_value("a");
+    builder.values().append_null();
+    builder.append(true).unwrap();
+    let array = builder.finish();
+    let result = Column::<Map<Utf8, i64>>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Whole-row (map) nullability:
+    let column = Column::<Option<Map<Utf8, i64>>>::from_nullable_values([
+        Some(vec![("a".to_owned(), 1_i64)]),
+        None,
+    ]);
+    let rows: Vec<Option<Vec<(&str, i64)>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(rows, [Some(vec![("a", 1)]), None]);
+}
+
 /// Domain newtypes via `newtype_datatype!`.
 #[derive(Debug, PartialEq)]
 struct SensorName(String);

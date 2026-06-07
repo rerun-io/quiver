@@ -1,10 +1,10 @@
 //! Difficult and exotic datatypes are explicitly unsupported.
 
-use quiver::arrow::array::MapArray;
+use quiver::arrow::array::UnionArray;
 
 #[derive(quiver::Quiver)]
 struct Thing {
-    map: MapArray,
+    onion: UnionArray,
 }
 
 fn main() {}
