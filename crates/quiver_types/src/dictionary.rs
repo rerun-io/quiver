@@ -14,7 +14,7 @@ use arrow::datatypes::DataType;
 
 use crate::datatype::{ColumnError, Datatype, RefDatatype, downcast_array};
 
-/// Marker for an arrow `Dictionary` column, e.g. `Dictionary<i32, String>`.
+/// Marker for an arrow `Dictionary` column, e.g. `Dictionary<i32, Utf8>`.
 ///
 /// Think of `Dictionary<K, V>` as *a column of `V`, dictionary-compressed*:
 /// the encoding is a storage detail, and the element values are those of `V`

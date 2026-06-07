@@ -8,11 +8,12 @@
 /// making `Column<MyType>` work — including nesting (`List<MyType>`),
 /// the convenience constructors, and the derive.
 ///
-/// The newtype must convert to and from its representation:
-/// `impl From<MyType> for Repr` and `impl From<Repr> for MyType`.
+/// The newtype must convert to and from the representation's *owned value*
+/// ([`Datatype::Owned`], e.g. `String` for `Utf8`):
+/// `impl From<MyType> for Owned` and `impl From<Owned> for MyType`.
 ///
 /// Reading stays zero-copy and yields the *representation's* borrowed value
-/// (e.g. `&str` for a `String`-backed newtype);
+/// (e.g. `&str` for a `Utf8`-backed newtype);
 /// owned values ([`Column::to_vec`](crate::Column::to_vec) etc.) are the newtype.
 ///
 /// `column[index]` works too, borrowing through the representation.
@@ -62,7 +63,7 @@
 ///     }
 /// }
 ///
-/// quiver::newtype_datatype!(SensorName, String);
+/// quiver::newtype_datatype!(SensorName, quiver::Utf8);
 ///
 /// let column = quiver::Column::<SensorName>::from_values([
 ///     SensorName("kitchen".to_owned()),

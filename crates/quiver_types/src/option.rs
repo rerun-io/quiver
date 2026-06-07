@@ -5,7 +5,7 @@
 //! the type: a `Column<Option<i64>>` may contain nulls and its elements read as
 //! `Option<i64>`, while a `Column<i64>` is guaranteed null-free at construction.
 //!
-//! This works at every nesting level, e.g. `List<Option<String>>` for a list
+//! This works at every nesting level, e.g. `List<Option<Utf8>>` for a list
 //! column whose *items* may be null.
 
 use arrow::array::{Array, ArrayRef};

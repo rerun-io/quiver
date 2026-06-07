@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use quiver::arrow::array::{ArrayRef, StringArray};
-use quiver::{Column, Quiver};
+use quiver::{Column, Quiver, Utf8};
 
 /// A set of measurements.
 #[derive(Quiver)]
@@ -21,7 +21,7 @@ struct Measurements {
     /// Name of the sensor.
     ///
     /// A strongly-typed quiver column: guaranteed to be `Utf8` with no nulls.
-    sensor: Column<String>,
+    sensor: Column<Utf8>,
 
     /// Measured temperature.
     ///

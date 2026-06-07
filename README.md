@@ -12,7 +12,7 @@ A zero-copy, strongly typed interface for [Apache Arrow](https://arrow.apache.or
 [`arrow-rs`](https://github.com/apache/arrow-rs) is to a large extent dynamically typed.
 For instance, you cannot know until runtime if an [`arrow::ListArray`](https://docs.rs/arrow/latest/arrow/array/type.ListArray.html) will contain strings or numbers, and whether or not the values in it can be `null`.
 
-`quiver` provides strongly typed (and zero-copy) wrappers around these arrays, with compile-time guarantees that are checked only once, during the construction of the columns. For instance, `quiver::Column<quiver::List<String>>` is a `ListArray` that is guaranteed to contain strings, with no nulls.
+`quiver` provides strongly typed (and zero-copy) wrappers around these arrays, with compile-time guarantees that are checked only once, during the construction of the columns. For instance, `quiver::Column<quiver::List<Utf8>>` is a `ListArray` that is guaranteed to contain strings, with no nulls.
 
 Additionally, `quiver` provides a proc-macro for easily converting a `struct` of many arrays to and from arrow `RecordBatch`es (needs the `derive` feature to be enabled).
 
@@ -26,7 +26,7 @@ For a complete, compiling example, see [`example.rs`](crates/quiver/examples/exa
 use std::collections::BTreeMap;
 
 use quiver::arrow::array::ArrayRef;
-use quiver::{Column, DynColumn, List, Quiver};
+use quiver::{Column, DynColumn, List, Quiver, Utf8};
 
 /// Important thing
 #[derive(Quiver)]
@@ -36,15 +36,15 @@ struct Thing {
     pub metadata: BTreeMap<String, String>,
 
     /// Strongly typed: guaranteed to be Utf8, with no nulls
-    pub name: Column<String>,
+    pub name: Column<Utf8>,
 
     /// Strongly typed: a List<Utf8> where the items may be null
-    pub tags: Column<List<Option<String>>>,
+    pub tags: Column<List<Option<Utf8>>>,
 
     /// The column name defaults to the field name;
     /// override it when it isn't a valid Rust identifier:
     #[quiver(name = "special:kind")]
-    pub kind: Column<String>,
+    pub kind: Column<Utf8>,
 
     /// Strongly typed values; the whole *column* may be missing
     pub dob: Option<Column<i64>>,
@@ -70,9 +70,9 @@ struct Thing {
 Building columns from values is infallible:
 
 ``` rust
-use quiver::{Column, List};
+use quiver::{Column, List, Utf8};
 
-let names: Column<String> = vec!["Alice", "Bob"].into();
+let names: Column<Utf8> = vec!["Alice", "Bob"].into();
 let scores = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
 let maybe: Column<Option<f64>> = [Some(1.5), None].into_iter().collect();
 ```
@@ -81,11 +81,11 @@ Single columns can be extracted without parsing the whole batch — the derive g
 a `COLUMN_*` descriptor per column, so no names are hard-coded:
 
 ``` rust
-use quiver::{Column, Quiver};
+use quiver::{Column, Quiver, Utf8};
 
 #[derive(Quiver)]
 struct Reading {
-    sensor: Column<String>,
+    sensor: Column<Utf8>,
 }
 
 let batch = Reading {
@@ -112,7 +112,7 @@ use std::sync::Arc;
 
 use quiver::arrow::array::{ArrayRef, ListArray};
 use quiver::arrow::datatypes::Int32Type;
-use quiver::{Column, List};
+use quiver::{Column, List, Utf8};
 
 let dynamic_arrow_array: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int32Type, _, _>(
     vec![Some(vec![Some(1), Some(2)]), Some(vec![Some(3)])],
@@ -130,7 +130,7 @@ for list in &column {
 
 A `#[derive(Quiver)]` field can hold its column either as a raw `arrow` array
 (e.g. `StringArray`, `ListArray`, `ArrayRef`) or as a strongly-typed `quiver::Column<L>`,
-where `L` is a *logical type* like `List<Option<String>>`.
+where `L` is a *logical type* like `List<Option<Utf8>>`.
 Use quiver types for compile-time guarantees; use arrow types when you _want_ things to be dynamic.
 
 All column matching is done **by name** — column order never matters:
@@ -144,7 +144,7 @@ What is checked when parsing a `RecordBatch`:
 
 |                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
 |----------------|------------------------------------------------------------------------------|------------------------------------------------------------------|
-| Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Structural match, recursively (`List<String>` ≠ `List<i64>`; inner field names/nullability flags/metadata are not compared — actual nulls are what matters) |
+| Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Structural match, recursively (`List<Utf8>` ≠ `List<i64>`; inner field names/nullability flags/metadata are not compared — actual nulls are what matters) |
 | Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
 | Timestamps     | Unit checked; the timezone must be `None` (`TimestampNanosecondArray`)       | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
 | Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
@@ -156,7 +156,7 @@ be invalid (its fields are private and immutable), so element access never retur
 The validation is cheap — the values themselves are never read.
 It compares datatypes (proportional to schema depth, not row count) and checks
 null counts, which arrow caches, so the cost is O(1) per nesting level.
-The one exception: when a non-`Option` nesting level (e.g. the items of a `List<String>`)
+The one exception: when a non-`Option` nesting level (e.g. the items of a `List<Utf8>`)
 sits on an inner array that carries a null buffer, quiver counts only the nulls
 *reachable* through valid rows, which scans that validity bitmap —
 still independent of the value bytes.
@@ -182,7 +182,7 @@ More of the `Column` API:
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("sorted" = "true"))]` — stamped on encode (instance metadata
   wins on key conflicts), included in `min_schema()`/`max_schema()`, never validated on parse
-* Domain newtypes: `newtype_datatype!(SensorName, String)` makes `Column<SensorName>` work,
+* Domain newtypes: `newtype_datatype!(SensorName, Utf8)` makes `Column<SensorName>` work,
   with all of the above; for *foreign* types (orphan rule), use the `As` adapter:
   `Column<As<Ipv4Addr, u32>>`
 * Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
@@ -194,14 +194,14 @@ The supported logical types:
 | Logical type `L`                             | Arrow datatype               | Element value             |
 |----------------------------------------------|------------------------------|---------------------------|
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
-| `String`, `LargeUtf8`                        | `Utf8`, `LargeUtf8`          | `&str`                    |
+| `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
 | `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
 | `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
 | `Date32`, `Date64`                           | `Date32`, `Date64`           | `i32` days / `i64` ms     |
 | `Time32Second` … `Time64Nanosecond`          | `Time32(…)`, `Time64(…)`     | `i32` / `i64`             |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
-| `Dictionary<i32, String>`                    | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
+| `Dictionary<i32, Utf8>`                      | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
 | `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |

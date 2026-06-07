@@ -10,14 +10,14 @@ use quiver::arrow::array::{
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
 use quiver::arrow::error::ArrowError;
 use quiver::{
-    Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc,
+    Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
 #[test]
 fn standalone_flat_column() {
     let dynamic_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar"]));
 
-    let column = Column::<String>::try_from(dynamic_array).unwrap();
+    let column = Column::<Utf8>::try_from(dynamic_array).unwrap();
     assert_eq!(column.len(), 2);
     assert_eq!(column.value(0), "foo");
     assert_eq!(column.get(2), None);
@@ -67,7 +67,7 @@ fn standalone_list_column() {
 fn standalone_wrong_datatype() {
     let dynamic_array: ArrayRef = Arc::new(Int64Array::from(vec![1]));
 
-    let result = Column::<String>::try_from(dynamic_array);
+    let result = Column::<Utf8>::try_from(dynamic_array);
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
@@ -96,7 +96,7 @@ fn standalone_nested_list() {
         None,
     );
 
-    let column = Column::<List<List<String>>>::try_from(Arc::new(outer) as ArrayRef).unwrap();
+    let column = Column::<List<List<Utf8>>>::try_from(Arc::new(outer) as ArrayRef).unwrap();
     let nested: Vec<Vec<Vec<&str>>> = column
         .iter()
         .map(|outer| outer.map(Iterator::collect).collect())
@@ -244,7 +244,7 @@ fn default_column_is_empty() {
     let column = Column::<i64>::default();
     assert!(column.is_empty());
 
-    let column = Column::<List<Option<String>>>::default();
+    let column = Column::<List<Option<Utf8>>>::default();
     assert!(column.is_empty());
     assert_eq!(column.iter().count(), 0);
     assert!(column.metadata().is_empty());
@@ -276,7 +276,7 @@ fn errors_convert_to_arrow_error() {
 #[test]
 fn convenience_constructors() {
     // From anything that converts into the owned value (e.g. `&str` → `String`):
-    let column = Column::<String>::from_values(["a", "b"]);
+    let column = Column::<Utf8>::from_values(["a", "b"]);
     let values: Vec<&str> = column.iter().collect();
     assert_eq!(values, ["a", "b"]);
 
@@ -332,11 +332,11 @@ fn static_datatype() {
     assert_eq!(Column::<i64>::datatype(), DataType::Int64);
     assert_eq!(Column::<Option<i64>>::datatype(), DataType::Int64); // Nullability is not part of the datatype
     assert_eq!(
-        Column::<List<Option<String>>>::datatype(),
+        Column::<List<Option<Utf8>>>::datatype(),
         DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
     );
     assert_eq!(
-        Column::<List<String>>::datatype(),
+        Column::<List<Utf8>>::datatype(),
         DataType::List(Arc::new(Field::new("item", DataType::Utf8, false)))
     );
     const {
@@ -347,11 +347,11 @@ fn static_datatype() {
 
 #[test]
 fn to_vec_and_iter_owned() {
-    let column = Column::<String>::from_values(["a", "b"]);
+    let column = Column::<Utf8>::from_values(["a", "b"]);
     let owned: Vec<String> = column.to_vec();
     assert_eq!(owned, ["a".to_owned(), "b".to_owned()]);
 
-    let column = Column::<Option<String>>::from_values([Some("a".to_owned()), None]);
+    let column = Column::<Option<Utf8>>::from_values([Some("a".to_owned()), None]);
     assert_eq!(column.to_vec(), [Some("a".to_owned()), None]);
 
     let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
@@ -420,7 +420,7 @@ fn as_slice_respects_offset() {
 
 #[test]
 fn index() {
-    let strings = Column::<String>::from_values(["a", "b"]);
+    let strings = Column::<Utf8>::from_values(["a", "b"]);
     assert_eq!(&strings[0], "a");
     assert_eq!(&strings[1], "b");
 
@@ -437,7 +437,7 @@ fn index() {
     assert_eq!(timestamps[1], 20);
 
     // Dictionary values are looked up through the keys:
-    let tags: Column<quiver::Dictionary<i32, String>> = vec!["a", "b", "a"].try_into().unwrap();
+    let tags: Column<quiver::Dictionary<i32, Utf8>> = vec!["a", "b", "a"].try_into().unwrap();
     assert_eq!(&tags[2], "a");
 
     // The `As` adapter yields the representation's reference:
@@ -455,13 +455,13 @@ fn index() {
 #[test]
 #[should_panic(expected = "Index 2 out of bounds")]
 fn index_out_of_bounds() {
-    let strings = Column::<String>::from_values(["a", "b"]);
+    let strings = Column::<Utf8>::from_values(["a", "b"]);
     let _: &str = &strings[2];
 }
 
 #[test]
 fn value_owned_and_get_owned() {
-    let column = Column::<String>::from_values(["a", "b"]);
+    let column = Column::<Utf8>::from_values(["a", "b"]);
     let owned: String = column.value_owned(1);
     assert_eq!(owned, "b");
     assert_eq!(column.get_owned(0), Some("a".to_owned()));
@@ -481,19 +481,19 @@ fn value_owned_and_get_owned() {
 #[test]
 #[should_panic(expected = "Index 1 out of bounds")]
 fn value_owned_out_of_bounds() {
-    let column = Column::<String>::from_values(["a"]);
+    let column = Column::<Utf8>::from_values(["a"]);
     let _value: String = column.value_owned(1);
 }
 
 #[test]
 fn nullable_construction_ergonomics() {
     // Owned values work directly:
-    let column: Column<Option<String>> = vec![Some("a".to_owned()), None].into();
+    let column: Column<Option<Utf8>> = vec![Some("a".to_owned()), None].into();
     assert_eq!(column.to_vec(), [Some("a".to_owned()), None]);
 
     // Borrowed values need `from_nullable_values`
     // (std has no `From<Option<&str>> for Option<String>`):
-    let column = Column::<Option<String>>::from_nullable_values([Some("a"), None]);
+    let column = Column::<Option<Utf8>>::from_nullable_values([Some("a"), None]);
     assert_eq!(column.to_vec(), [Some("a".to_owned()), None]);
 
     let column = Column::<Option<List<i64>>>::from_nullable_values([Some(vec![1, 2]), None]);
@@ -502,7 +502,7 @@ fn nullable_construction_ergonomics() {
 
 #[test]
 fn into_iterator() {
-    let column = Column::<String>::from_values(["a", "b"]);
+    let column = Column::<Utf8>::from_values(["a", "b"]);
 
     // By reference: borrowed values.
     let mut borrowed = Vec::new();
@@ -586,9 +586,9 @@ fn dictionary_columns() {
     use quiver::arrow::array::DictionaryArray;
 
     // Building dictionary-encodes the values:
-    let column = Column::<Dictionary<i32, String>>::try_from_values(["a", "b", "a", "a"]).unwrap();
+    let column = Column::<Dictionary<i32, Utf8>>::try_from_values(["a", "b", "a", "a"]).unwrap();
     assert_eq!(
-        Column::<Dictionary<i32, String>>::datatype(),
+        Column::<Dictionary<i32, Utf8>>::datatype(),
         DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
     );
 
@@ -599,11 +599,11 @@ fn dictionary_columns() {
 
     // Parsing an externally built dictionary array:
     let array: DictionaryArray<Int64Type> = vec!["x", "y", "x"].into_iter().collect();
-    let column = Column::<Dictionary<i64, String>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    let column = Column::<Dictionary<i64, Utf8>>::try_from(Arc::new(array) as ArrayRef).unwrap();
     assert_eq!(column.value(2), "x");
 
     // The key type must match:
-    let result = Column::<Dictionary<i32, String>>::try_from(column.into_arrow());
+    let result = Column::<Dictionary<i32, Utf8>>::try_from(column.into_arrow());
     assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
 
     // Null keys via the column-level Option:
@@ -612,10 +612,10 @@ fn dictionary_columns() {
         .collect::<DictionaryArray<_>>();
     let array = Arc::new(array) as ArrayRef;
     assert!(matches!(
-        Column::<Dictionary<i32, String>>::try_from(Arc::clone(&array)),
+        Column::<Dictionary<i32, Utf8>>::try_from(Arc::clone(&array)),
         Err(ColumnError::UnexpectedNulls { null_count: 1 })
     ));
-    let column = Column::<Option<Dictionary<i32, String>>>::try_from(array).unwrap();
+    let column = Column::<Option<Dictionary<i32, Utf8>>>::try_from(array).unwrap();
     let values: Vec<Option<&str>> = column.iter().collect();
     assert_eq!(values, [Some("x"), None]);
 }
@@ -626,11 +626,11 @@ fn dictionary_key_overflow_is_an_error() {
 
     // 200 distinct values do not fit in an i8 key:
     let values: Vec<String> = (0..200).map(|i| i.to_string()).collect();
-    let result = Column::<Dictionary<i8, String>>::try_from_values(values.clone());
+    let result = Column::<Dictionary<i8, Utf8>>::try_from_values(values.clone());
     assert!(matches!(result, Err(ColumnError::Build(_))));
 
     // …but they fit in an i16 key:
-    let column = Column::<Dictionary<i16, String>>::try_from_values(values).unwrap();
+    let column = Column::<Dictionary<i16, Utf8>>::try_from_values(values).unwrap();
     assert_eq!(column.len(), 200);
 }
 
@@ -638,12 +638,12 @@ fn dictionary_key_overflow_is_an_error() {
 fn dictionary_try_into() {
     use quiver::Dictionary;
 
-    let column: Column<Dictionary<i32, String>> = vec!["a", "b", "a"].try_into().unwrap();
+    let column: Column<Dictionary<i32, Utf8>> = vec!["a", "b", "a"].try_into().unwrap();
     assert_eq!(column.to_vec(), ["a", "b", "a"]);
 
     // Key overflow propagates as an error:
     let values: Vec<String> = (0..200).map(|i| i.to_string()).collect();
-    let result: Result<Column<Dictionary<i8, String>>, _> = values.try_into();
+    let result: Result<Column<Dictionary<i8, Utf8>>, _> = values.try_into();
     assert!(matches!(result, Err(ColumnError::Build(_))));
 }
 
@@ -687,14 +687,14 @@ fn logical_null_validation() {
     let keys = quiver::arrow::array::Int32Array::from(vec![0, 0]);
     let dictionary = DictionaryArray::new(keys, Arc::new(values));
     let column =
-        Column::<Dictionary<i32, String>>::try_from(Arc::new(dictionary) as ArrayRef).unwrap();
+        Column::<Dictionary<i32, Utf8>>::try_from(Arc::new(dictionary) as ArrayRef).unwrap();
     assert_eq!(column.to_vec(), ["a", "a"]);
 
     // …but a referenced one is still rejected:
     let values = StringArray::from(vec![Some("a"), None]);
     let keys = quiver::arrow::array::Int32Array::from(vec![0, 1]); // references the null
     let dictionary = DictionaryArray::new(keys, Arc::new(values));
-    let result = Column::<Dictionary<i32, String>>::try_from(Arc::new(dictionary) as ArrayRef);
+    let result = Column::<Dictionary<i32, Utf8>>::try_from(Arc::new(dictionary) as ArrayRef);
     assert!(matches!(
         result,
         Err(ColumnError::UnexpectedNulls { null_count: 1 })
@@ -749,9 +749,9 @@ fn large_utf8_column() {
 
 #[test]
 fn column_partial_eq() {
-    let a = Column::<String>::from_values(["x", "y"]);
-    let b = Column::<String>::from_values(["x", "y"]);
-    let c = Column::<String>::from_values(["x", "z"]);
+    let a = Column::<Utf8>::from_values(["x", "y"]);
+    let b = Column::<Utf8>::from_values(["x", "y"]);
+    let c = Column::<Utf8>::from_values(["x", "z"]);
     assert_eq!(a, b);
     assert_ne!(a, c);
 
@@ -835,7 +835,7 @@ impl From<SensorName> for String {
     }
 }
 
-quiver::newtype_datatype!(SensorName, String);
+quiver::newtype_datatype!(SensorName, Utf8);
 
 /// A `[u8; 16]`-backed newtype.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -1018,4 +1018,31 @@ fn custom_matches_hook() {
     let nullable =
         Column::<Option<AnyInt>>::try_new(Arc::new(Int32Array::from(vec![Some(7), None]))).unwrap();
     assert_eq!(nullable.to_vec(), [Some(7), None]);
+}
+
+#[test]
+fn utf8_string_encodings() {
+    use quiver::{LargeUtf8, Utf8View};
+
+    // All three string encodings build from and yield the same values:
+    let plain = Column::<Utf8>::from_values(["a", "b"]);
+    let large = Column::<LargeUtf8>::from_values(["a", "b"]);
+    let view = Column::<Utf8View>::from_values(["a", "b"]);
+
+    assert_eq!(Column::<Utf8>::datatype(), DataType::Utf8);
+    assert_eq!(Column::<LargeUtf8>::datatype(), DataType::LargeUtf8);
+    assert_eq!(Column::<Utf8View>::datatype(), DataType::Utf8View);
+
+    for column in [&plain.to_vec(), &large.to_vec(), &view.to_vec()] {
+        assert_eq!(column, &["a".to_owned(), "b".to_owned()]);
+    }
+
+    // Zero-copy reads and indexing work for all of them:
+    assert_eq!(view.value(1), "b");
+    assert_eq!(&view[0], "a");
+
+    // Nullable views too:
+    let nullable = Column::<Option<Utf8View>>::from_nullable_values([Some("a"), None]);
+    let values: Vec<Option<&str>> = nullable.iter().collect();
+    assert_eq!(values, [Some("a"), None]);
 }
