@@ -853,6 +853,55 @@ fn fixed_size_list_columns() {
     assert_eq!(sliced.to_vec(), [[3, 4], [5, 6]]);
 }
 
+#[test]
+fn large_list_columns() {
+    use quiver::LargeList;
+    use quiver::arrow::array::LargeListArray;
+
+    let column = Column::<LargeList<i64>>::from_values([vec![1_i64, 2], vec![3]]);
+    assert_eq!(
+        Column::<LargeList<i64>>::datatype(),
+        DataType::LargeList(Arc::new(Field::new("item", DataType::Int64, false)))
+    );
+    let lists: Vec<Vec<i64>> = column.to_vec();
+    assert_eq!(lists, [vec![1, 2], vec![3]]);
+
+    // Iteration is zero-copy, like List:
+    let first: Vec<i64> = column.value(0).collect();
+    assert_eq!(first, [1, 2]);
+
+    // List ≠ LargeList: the offset width is part of the type:
+    let result = Column::<List<i64>>::try_from(Arc::clone(column.as_arrow()));
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nullable items:
+    let column = Column::<LargeList<Option<i64>>>::from_values([vec![Some(1), None]]);
+    let lists: Vec<Vec<Option<i64>>> = column.iter().map(Iterator::collect).collect();
+    assert_eq!(lists, [vec![Some(1), None]]);
+
+    // A reachable null item at a non-nullable level is rejected:
+    let array = LargeListArray::from_iter_primitive::<Int64Type, _, _>(vec![Some(vec![None])]);
+    let result = Column::<LargeList<i64>>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Nullable rows:
+    let array =
+        LargeListArray::from_iter_primitive::<Int64Type, _, _>(vec![Some(vec![Some(1)]), None]);
+    let column = Column::<Option<LargeList<i64>>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    let lists: Vec<Option<Vec<i64>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(lists, [Some(vec![1]), None]);
+
+    // Nested in a List:
+    let column = Column::<LargeList<List<Utf8>>>::from_values([vec![vec!["a".to_owned()]]]);
+    assert_eq!(column.len(), 1);
+}
+
 /// Domain newtypes via `newtype_datatype!`.
 #[derive(Debug, PartialEq)]
 struct SensorName(String);

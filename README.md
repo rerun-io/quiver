@@ -202,7 +202,7 @@ The supported logical types:
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `Dictionary<i32, Utf8>`                      | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
-| `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
+| `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
@@ -212,14 +212,13 @@ There are two tiers of "not supported", and they behave very differently.
 
 **1. No strongly-typed `Column<L>` yet — but fine as raw, downcast-only `arrow` fields.**
 These have no logical type, so you cannot write `Column<Struct>`, but you *can* hold them
-as a raw `arrow` array field (`StructArray`, `LargeListArray`, …), validated by downcast only:
+as a raw `arrow` array field (`StructArray`, …), validated by downcast only:
 
 * `Struct` (parked; investigated 2026-06-04 — moderate effort: a new derive generating
   per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
   by the parent validity, on both parse and build)
-* `LargeList`
 
 **2. Explicitly unsupported, even as raw `arrow` fields — these give a clear compile error.**
 The difficult and exotic datatypes:

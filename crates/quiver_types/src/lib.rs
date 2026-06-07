@@ -17,6 +17,7 @@ mod duration;
 mod error;
 mod fixed_size_binary;
 mod fixed_size_list;
+mod large_list;
 mod list;
 mod newtype;
 mod option;
@@ -39,6 +40,7 @@ pub use self::duration::{
 };
 pub use self::error::{Error, ErrorKind};
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
+pub use self::large_list::{LargeList, TypedLargeList};
 pub use self::list::{List, ListValue, TypedList};
 pub use self::newtype::As;
 pub use self::string::{LargeUtf8, Utf8, Utf8View};
