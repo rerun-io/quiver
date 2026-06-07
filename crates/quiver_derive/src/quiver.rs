@@ -917,6 +917,7 @@ fn is_downcast_only_array(array_type_name: &str) -> bool {
             | "LargeListArray"
             | "ListArray"
             | "MapArray"
+            | "RunArray"
             | "StructArray"
     )
 }
@@ -932,7 +933,6 @@ fn is_punted_array(array_type_name: &str) -> bool {
             | "IntervalDayTimeArray"
             | "IntervalMonthDayNanoArray"
             | "IntervalYearMonthArray"
-            | "RunArray"
             | "UnionArray"
     )
 }

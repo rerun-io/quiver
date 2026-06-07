@@ -992,6 +992,66 @@ fn map_columns() {
     assert_eq!(rows, [Some(vec![("a", 1)]), None]);
 }
 
+#[test]
+fn run_columns() {
+    use quiver::Run;
+    use quiver::arrow::array::{Int32Array, RunArray, StringArray};
+    use quiver::arrow::datatypes::Int32Type;
+
+    // Building run-end-encodes the values (consecutive duplicates collapse):
+    let column = Column::<Run<i32, Utf8>>::try_from_values(["a", "a", "a", "b", "b"]).unwrap();
+    assert_eq!(
+        Column::<Run<i32, Utf8>>::datatype(),
+        DataType::RunEndEncoded(
+            Arc::new(Field::new("run_ends", DataType::Int32, false)),
+            Arc::new(Field::new("values", DataType::Utf8, false)),
+        )
+    );
+
+    // The encoding is transparent: values read as if it were a plain column:
+    let values: Vec<&str> = column.iter().collect();
+    assert_eq!(values, ["a", "a", "a", "b", "b"]);
+    assert_eq!(column.value(3), "b");
+    assert_eq!(&column[0], "a"); // `RefDatatype`, looked up through the run ends
+
+    // Parsing an externally built run array:
+    let run_ends = Int32Array::from(vec![2, 5, 6]); // runs end at logical 2, 5, 6
+    let run_values = StringArray::from(vec!["x", "y", "z"]);
+    let array = RunArray::<Int32Type>::try_new(&run_ends, &run_values).unwrap();
+    let column = Column::<Run<i32, Utf8>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.to_vec(), ["x", "x", "y", "y", "y", "z"]);
+
+    // The run-end index type is part of the type:
+    let result = Column::<Run<i64, Utf8>>::try_from(Arc::clone(column.as_arrow()));
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nulls live in the values, so nullability is `Run<R, Option<V>>`:
+    let run_ends = Int32Array::from(vec![1, 2]);
+    let run_values = StringArray::from(vec![Some("x"), None]);
+    let array = RunArray::<Int32Type>::try_new(&run_ends, &run_values).unwrap();
+    let array = Arc::new(array) as ArrayRef;
+
+    // …a null at a non-nullable level is rejected:
+    assert!(matches!(
+        Column::<Run<i32, Utf8>>::try_from(Arc::clone(&array)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // …but `Run<i32, Option<Utf8>>` accepts it:
+    let column = Column::<Run<i32, Option<Utf8>>>::try_from(array).unwrap();
+    let values: Vec<Option<&str>> = column.iter().collect();
+    assert_eq!(values, [Some("x"), None]);
+
+    // Run-end overflow propagates as an error (more rows than `i16` can index):
+    let many: Vec<String> = (0..40_000).map(|i| i.to_string()).collect();
+    let result = Column::<Run<i16, Utf8>>::try_from_values(many.clone());
+    assert!(matches!(result, Err(ColumnError::Build(_))));
+
+    // …but `i32` indices fit:
+    let column = Column::<Run<i32, Utf8>>::try_from_values(many).unwrap();
+    assert_eq!(column.len(), 40_000);
+}
+
 /// Domain newtypes via `newtype_datatype!`.
 #[derive(Debug, PartialEq)]
 struct SensorName(String);

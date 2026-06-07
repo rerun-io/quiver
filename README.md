@@ -173,8 +173,8 @@ More of the `Column` API:
 
 * Construction is infallible: `from_values`, `From<Vec<T>>`, `FromIterator`,
   `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty).
-  The one exception: building a `Dictionary` column can fail (key overflow),
-  so it uses `try_from_values` instead
+  The exceptions: building a `Dictionary` (key overflow) or `Run` (run-end
+  overflow) column can fail, so those use `try_from_values` instead
 * Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
 * Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
   and fixed-size binary non-nullable columns
@@ -202,6 +202,7 @@ The supported logical types:
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `Dictionary<i32, Utf8>`                      | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
+| `Run<i32, Utf8>`                             | `RunEndEncoded(Int32, Utf8)` | Transparent: `&str`       |
 | `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
@@ -227,7 +228,6 @@ The difficult and exotic datatypes:
 * `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
 * `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)
 * `Union`
-* Run-end encoded arrays (`RunArray`)
 
 Timezones are matched as exact strings: `Timestamp<Nanosecond, Utc>` ("UTC") will
 not accept an array with the equivalent timezone `"+00:00"`.

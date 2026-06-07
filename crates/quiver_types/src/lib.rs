@@ -23,6 +23,7 @@ mod map;
 mod newtype;
 mod option;
 mod primitive;
+mod run;
 mod string;
 mod time;
 mod timestamp;
@@ -45,6 +46,7 @@ pub use self::large_list::{LargeList, TypedLargeList};
 pub use self::list::{List, ListValue, TypedList};
 pub use self::map::{Map, MapValue, TypedMap};
 pub use self::newtype::As;
+pub use self::run::{Run, RunEndType, TypedRun};
 pub use self::string::{LargeUtf8, Utf8, Utf8View};
 pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
 pub use self::timestamp::{
