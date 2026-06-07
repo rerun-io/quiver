@@ -1,4 +1,4 @@
-//! Difficult and exotic datatypes are explicitly unsupported.
+//! Some datatypes are not yet supported, not even as raw arrow fields.
 
 use quiver::arrow::array::UnionArray;
 

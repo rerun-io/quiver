@@ -223,7 +223,7 @@ as a raw `arrow` array field (`StructArray`, …), validated by downcast only:
   by the parent validity, on both parse and build)
 
 **2. Explicitly unsupported, even as raw `arrow` fields — these give a clear compile error.**
-The difficult and exotic datatypes:
+Some types are not yet supported:
 
 * `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
 * `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)

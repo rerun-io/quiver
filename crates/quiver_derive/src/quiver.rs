@@ -922,7 +922,7 @@ fn is_downcast_only_array(array_type_name: &str) -> bool {
     )
 }
 
-/// Difficult and exotic array types we explicitly do not support (yet).
+/// Array types we do not yet support, not even as raw downcast-only fields.
 fn is_punted_array(array_type_name: &str) -> bool {
     matches!(
         array_type_name,
