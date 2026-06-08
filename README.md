@@ -216,7 +216,7 @@ These datatypes have no logical type yet, so there is no `Column<L>` for them:
 
 * `Struct` — but usable as a raw, downcast-only `arrow` field (`StructArray`).
   (Parked; investigated 2026-06-04 — moderate effort: a new derive generating
-  per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
+  per-row view/owned/typed mirror structs; the `LogicalType` trait needs no changes.
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
   by the parent validity, on both parse and build.)

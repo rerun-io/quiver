@@ -6,13 +6,13 @@
 //! `f16` comes from the [`half`] crate (re-exported as [`crate::half`]),
 //! matching its use in [`arrow::array::Float16Array`].
 //!
-//! See [`Datatype`] for a usage example.
+//! See [`LogicalType`] for a usage example.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::datatype::{
-    ColumnError, Datatype, downcast_array, impl_flat_datatype, impl_primitive_datatype,
+    ColumnError, LogicalType, downcast_array, impl_flat_datatype, impl_primitive_datatype,
 };
 
 impl_flat_datatype!(bool, arrow::array::BooleanArray, bool, DataType::Boolean);

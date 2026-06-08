@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use arrow::array::ArrayRef;
 
-use crate::{Column, Datatype, DynColumn, Error, ErrorKind};
+use crate::{Column, DynColumn, Error, ErrorKind, LogicalType};
 
 // Column descriptors
 
@@ -26,7 +26,7 @@ pub struct ColumnDesc<C> {
     _marker: PhantomData<fn() -> C>,
 }
 
-impl<L: Datatype> ColumnDesc<Column<L>> {
+impl<L: LogicalType> ColumnDesc<Column<L>> {
     /// Describes the column `name` of the `#[derive(Quiver)]` struct `record_type`.
     ///
     /// Usually not called directly: the derive generates these as `COLUMN_*` constants.
@@ -41,17 +41,6 @@ impl<L: Datatype> ColumnDesc<Column<L>> {
             metadata,
             _marker: PhantomData,
         }
-    }
-
-    /// The arrow field of this column, including the declared metadata.
-    #[must_use]
-    pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
-            self.metadata
-                .iter()
-                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-                .collect(),
-        )
     }
 
     /// Extracts and validates this single column of a record batch.
@@ -86,6 +75,19 @@ impl<L: Datatype> ColumnDesc<Column<L>> {
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect(),
         ))
+    }
+}
+
+impl<L: crate::ConcreteType> ColumnDesc<Column<L>> {
+    /// The arrow field of this column, including the declared metadata.
+    #[must_use]
+    pub fn arrow_field(&self) -> arrow::datatypes::Field {
+        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
+            self.metadata
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+                .collect(),
+        )
     }
 }
 

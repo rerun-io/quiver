@@ -8,15 +8,15 @@
 use arrow::array::ArrayRef;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{InfallibleBuild, PrimitiveDatatype, RefDatatype};
+use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
 use crate::typed_array::TypedArray;
-use crate::{ColumnError, Datatype};
+use crate::{ColumnError, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
 ///
 /// The logical type `L` describes the exact datatype and nullability,
 /// e.g. `Column<List<Utf8>>` or `Column<Option<i64>>`.
-pub struct Column<L: Datatype> {
+pub struct Column<L: LogicalType> {
     /// The data: the arrow array plus its downcast view.
     array: TypedArray<L>,
 
@@ -25,7 +25,7 @@ pub struct Column<L: Datatype> {
     metadata: std::collections::BTreeMap<String, String>,
 }
 
-impl<L: Datatype> Column<L> {
+impl<L: LogicalType> Column<L> {
     /// May the values of this column be null?
     pub const NULLABLE: bool = L::NULLABLE;
 
@@ -60,26 +60,6 @@ impl<L: Datatype> Column<L> {
         self
     }
 
-    /// Builds a column from owned values; the fallible form of
-    /// [`Column::from_values`], needed only for fallible encodings
-    /// (dictionary key overflow).
-    ///
-    /// # Errors
-    /// Errors if the encoding fails, e.g. too many distinct values
-    /// for the dictionary key type.
-    pub fn try_from_values(
-        values: impl IntoIterator<Item = impl Into<L::Owned>>,
-    ) -> Result<Self, ColumnError> {
-        let array = L::build(values.into_iter().map(|value| Some(value.into())))?;
-        Self::try_new(array)
-    }
-
-    /// The exact arrow datatype of this column.
-    #[must_use]
-    pub fn datatype() -> DataType {
-        L::datatype()
-    }
-
     #[must_use]
     pub fn len(&self) -> usize {
         self.array.len()
@@ -109,7 +89,7 @@ impl<L: Datatype> Column<L> {
     /// The value at `index`.
     ///
     /// Works for every logical type, returning the zero-copy view
-    /// ([`Datatype::Value`]): `&str`, `i64`, `Option<…>`, an iterator for
+    /// ([`LogicalType::Value`]): `&str`, `i64`, `Option<…>`, an iterator for
     /// `List<…>`, etc.
     /// Where a plain reference exists in the array — strings, binaries,
     /// primitives (but not `bool`, `Option<…>`, or `List<…>`) — `column[index]`
@@ -135,7 +115,7 @@ impl<L: Datatype> Column<L> {
         L::to_owned_value(self.value(index))
     }
 
-    /// Iterates over the zero-copy views ([`Datatype::Value`]):
+    /// Iterates over the zero-copy views ([`LogicalType::Value`]):
     /// `&str`, `i64`, etc — like [`Column::value`], element by element.
     ///
     /// For owned values, see [`Column::iter_owned`].
@@ -186,6 +166,31 @@ impl<L: Datatype> Column<L> {
     }
 }
 
+/// Construction and schema, for logical types with a single concrete arrow
+/// datatype. (Multi-encoding types like [`AnyList`](crate::AnyList) are
+/// parse-only: build a concrete encoding instead.)
+impl<L: crate::ConcreteType> Column<L> {
+    /// Builds a column from owned values; the fallible form of
+    /// [`Column::from_values`], needed only for fallible encodings
+    /// (dictionary key overflow).
+    ///
+    /// # Errors
+    /// Errors if the encoding fails, e.g. too many distinct values
+    /// for the dictionary key type.
+    pub fn try_from_values(
+        values: impl IntoIterator<Item = impl Into<L::Owned>>,
+    ) -> Result<Self, ColumnError> {
+        let array = L::build(values.into_iter().map(|value| Some(value.into())))?;
+        Self::try_new(array)
+    }
+
+    /// The exact arrow datatype of this column.
+    #[must_use]
+    pub fn datatype() -> DataType {
+        L::datatype()
+    }
+}
+
 /// `column[index]`: like [`Column::value`], but borrows from the array —
 /// `&column[i]` is `&str` for a `Column<Utf8>`, `&i64` for a `Column<i64>`.
 ///
@@ -204,7 +209,7 @@ impl<L: Datatype> Column<L> {
 /// let numbers = Column::<i64>::from_values([1, 2, 3]);
 /// assert_eq!(numbers[2], 3);
 /// ```
-impl<L: RefDatatype> std::ops::Index<usize> for Column<L> {
+impl<L: RefType> std::ops::Index<usize> for Column<L> {
     type Output = L::Ref;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -212,7 +217,7 @@ impl<L: RefDatatype> std::ops::Index<usize> for Column<L> {
     }
 }
 
-impl<L: PrimitiveDatatype> Column<L> {
+impl<L: PrimitiveType> Column<L> {
     /// The values as a contiguous zero-copy slice,
     /// e.g. `&[f32]` for a `Column<f32>`,
     /// or `&[[u8; 16]]` for a `Column<FixedSizeBinary<16>>`.
@@ -234,7 +239,7 @@ impl<L: PrimitiveDatatype> Column<L> {
     }
 }
 
-impl<L: Datatype> Column<L>
+impl<L: LogicalType> Column<L>
 where
     L: InfallibleBuild,
 {
@@ -248,7 +253,7 @@ where
     }
 }
 
-impl<L: Datatype> Column<Option<L>> {
+impl<L: crate::ConcreteType> Column<Option<L>> {
     /// Builds a nullable column from optional values; the fallible form of
     /// [`Column::from_nullable_values`].
     ///
@@ -291,8 +296,8 @@ impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for Column<L> {
     }
 }
 
-/// An empty column.
-impl<L: Datatype> Default for Column<L> {
+/// An empty column. Only for logical types with a single concrete datatype.
+impl<L: crate::ConcreteType> Default for Column<L> {
     fn default() -> Self {
         let array = arrow::array::new_empty_array(&L::datatype());
         Self::try_new(array).expect("An empty array of the right datatype is always valid")
@@ -300,13 +305,13 @@ impl<L: Datatype> Default for Column<L> {
 }
 
 /// Compares the data (like arrow array equality) and the metadata.
-impl<L: Datatype> PartialEq for Column<L> {
+impl<L: LogicalType> PartialEq for Column<L> {
     fn eq(&self, other: &Self) -> bool {
         self.metadata == other.metadata && self.array == other.array
     }
 }
 
-impl<L: Datatype> Clone for Column<L> {
+impl<L: LogicalType> Clone for Column<L> {
     fn clone(&self) -> Self {
         Self {
             array: self.array.clone(),
@@ -315,7 +320,7 @@ impl<L: Datatype> Clone for Column<L> {
     }
 }
 
-impl<L: Datatype> std::fmt::Debug for Column<L> {
+impl<L: LogicalType> std::fmt::Debug for Column<L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Column")
             .field("array", self.array.as_arrow())
@@ -324,7 +329,7 @@ impl<L: Datatype> std::fmt::Debug for Column<L> {
     }
 }
 
-impl<L: Datatype> TryFrom<ArrayRef> for Column<L> {
+impl<L: LogicalType> TryFrom<ArrayRef> for Column<L> {
     type Error = ColumnError;
 
     fn try_from(array: ArrayRef) -> Result<Self, Self::Error> {
@@ -333,12 +338,12 @@ impl<L: Datatype> TryFrom<ArrayRef> for Column<L> {
 }
 
 /// Iterator over the values of a [`Column`].
-pub struct ColumnIter<'a, L: Datatype> {
+pub struct ColumnIter<'a, L: LogicalType> {
     column: &'a Column<L>,
     index: usize,
 }
 
-impl<'a, L: Datatype + 'a> Iterator for ColumnIter<'a, L> {
+impl<'a, L: LogicalType + 'a> Iterator for ColumnIter<'a, L> {
     type Item = L::Value<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -353,9 +358,9 @@ impl<'a, L: Datatype + 'a> Iterator for ColumnIter<'a, L> {
     }
 }
 
-impl<'a, L: Datatype + 'a> ExactSizeIterator for ColumnIter<'a, L> {}
+impl<'a, L: LogicalType + 'a> ExactSizeIterator for ColumnIter<'a, L> {}
 
-impl<'a, L: Datatype + 'a> IntoIterator for &'a Column<L> {
+impl<'a, L: LogicalType + 'a> IntoIterator for &'a Column<L> {
     type Item = L::Value<'a>;
     type IntoIter = ColumnIter<'a, L>;
 
@@ -366,7 +371,7 @@ impl<'a, L: Datatype + 'a> IntoIterator for &'a Column<L> {
 
 /// Iterating a `Column` by value yields owned values, like a `Vec` —
 /// e.g. `String` for a `Column<Utf8>`.
-impl<L: Datatype> IntoIterator for Column<L> {
+impl<L: LogicalType> IntoIterator for Column<L> {
     type Item = L::Owned;
     type IntoIter = ColumnIntoIter<L>;
 
@@ -379,12 +384,12 @@ impl<L: Datatype> IntoIterator for Column<L> {
 }
 
 /// By-value iterator over the owned values of a [`Column`].
-pub struct ColumnIntoIter<L: Datatype> {
+pub struct ColumnIntoIter<L: LogicalType> {
     column: Column<L>,
     index: usize,
 }
 
-impl<L: Datatype> Iterator for ColumnIntoIter<L> {
+impl<L: LogicalType> Iterator for ColumnIntoIter<L> {
     type Item = L::Owned;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -400,4 +405,4 @@ impl<L: Datatype> Iterator for ColumnIntoIter<L> {
     }
 }
 
-impl<L: Datatype> ExactSizeIterator for ColumnIntoIter<L> {}
+impl<L: LogicalType> ExactSizeIterator for ColumnIntoIter<L> {}

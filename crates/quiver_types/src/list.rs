@@ -20,7 +20,7 @@ use arrow::array::{Array, ArrayRef, OffsetSizeTrait};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 
 /// Marker for an arrow `List` column with items of logical type `L`.
 ///
@@ -40,17 +40,17 @@ pub struct List<L> {
 }
 
 /// The validated representation of a `List` column: the list array plus its downcast values.
-pub struct TypedList<L: Datatype> {
+pub struct TypedList<L: LogicalType> {
     list: arrow::array::ListArray,
     values: L::Typed,
 }
 
-/// Generates the [`Datatype`] (and friends) impl for a list logical type:
+/// Generates the [`LogicalType`] (and friends) impl for a list logical type:
 /// shared by [`List`] (32-bit offsets) and [`LargeList`](crate::LargeList)
 /// (64-bit offsets).
 macro_rules! impl_list_datatype {
     ($marker:ident, $typed:ident, $array:ty, $variant:ident) => {
-        impl<L: Datatype> Clone for $typed<L> {
+        impl<L: LogicalType> Clone for $typed<L> {
             fn clone(&self) -> Self {
                 Self {
                     list: self.list.clone(),
@@ -59,7 +59,7 @@ macro_rules! impl_list_datatype {
             }
         }
 
-        impl<L: Datatype + 'static> Datatype for $marker<L> {
+        impl<L: LogicalType + 'static> LogicalType for $marker<L> {
             type Typed = $typed<L>;
             type Value<'a>
                 = ListValue<'a, L>
@@ -67,19 +67,15 @@ macro_rules! impl_list_datatype {
                 Self: 'a;
             type Owned = Vec<L::Owned>;
 
-            fn datatype() -> DataType {
-                DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
-                    "item",
-                    L::datatype(),
-                    L::NULLABLE,
-                )))
-            }
-
             fn matches(actual: &DataType) -> bool {
                 match actual {
                     DataType::$variant(item) => L::matches(item.data_type()),
                     _ => false,
                 }
+            }
+
+            fn expected_datatype() -> String {
+                format!("{}({})", stringify!($variant), L::expected_datatype())
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -108,6 +104,20 @@ macro_rules! impl_list_datatype {
                     offsets[index].as_usize(),
                     offsets[index + 1].as_usize(),
                 )
+            }
+
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                value.map(L::to_owned_value).collect()
+            }
+        }
+
+        impl<L: crate::ConcreteType + 'static> crate::ConcreteType for $marker<L> {
+            fn datatype() -> DataType {
+                DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
+                    "item",
+                    L::datatype(),
+                    L::NULLABLE,
+                )))
             }
 
             fn build(
@@ -145,10 +155,6 @@ macro_rules! impl_list_datatype {
                     nulls,
                 )))
             }
-
-            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-                value.map(L::to_owned_value).collect()
-            }
         }
 
         impl<L: InfallibleBuild + 'static> InfallibleBuild for $marker<L> {}
@@ -160,20 +166,20 @@ pub(crate) use impl_list_datatype;
 impl_list_datatype!(List, TypedList, arrow::array::ListArray, List);
 
 /// One list element of a `Column<List<L>>`: an iterator over the typed items.
-pub struct ListValue<'a, L: Datatype> {
+pub struct ListValue<'a, L: LogicalType> {
     values: &'a L::Typed,
     index: usize,
     end: usize,
 }
 
-impl<'a, L: Datatype> ListValue<'a, L> {
+impl<'a, L: LogicalType> ListValue<'a, L> {
     /// `index..end` into `values`.
     pub(crate) fn new(values: &'a L::Typed, index: usize, end: usize) -> Self {
         Self { values, index, end }
     }
 }
 
-impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
+impl<'a, L: LogicalType + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -192,7 +198,7 @@ impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
     }
 }
 
-impl<'a, L: Datatype + 'a> ExactSizeIterator for ListValue<'a, L> {}
+impl<'a, L: LogicalType + 'a> ExactSizeIterator for ListValue<'a, L> {}
 
 /// Counts the nulls among the *reachable* items of a list array (`List` or
 /// `LargeList` — it is generic over the offset width):

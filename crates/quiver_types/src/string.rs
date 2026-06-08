@@ -15,7 +15,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, RefDatatype, impl_marker_datatype};
+use crate::datatype::{ColumnError, LogicalType, RefType, impl_marker_datatype};
 
 /// UTF-8 text: an arrow [`DataType::Utf8`] column with `String` values.
 ///
@@ -80,7 +80,7 @@ impl_marker_datatype!(
     DataType::Utf8View
 );
 
-impl RefDatatype for Utf8 {
+impl RefType for Utf8 {
     type Ref = str;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &str {
@@ -88,7 +88,7 @@ impl RefDatatype for Utf8 {
     }
 }
 
-impl RefDatatype for LargeUtf8 {
+impl RefType for LargeUtf8 {
     type Ref = str;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &str {
@@ -96,7 +96,7 @@ impl RefDatatype for LargeUtf8 {
     }
 }
 
-impl RefDatatype for Utf8View {
+impl RefType for Utf8View {
     type Ref = str;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &str {

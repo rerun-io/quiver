@@ -72,9 +72,9 @@ fn standalone_wrong_datatype() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            expected: DataType::Utf8,
+            expected,
             actual: DataType::Int64,
-        })
+        }) if expected == "Utf8"
     ));
 }
 
@@ -116,9 +116,9 @@ fn standalone_fixed_size_binary_column() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            expected: DataType::FixedSizeBinary(8),
+            expected,
             actual: DataType::FixedSizeBinary(16),
-        })
+        }) if expected == "FixedSizeBinary(8)"
     ));
 
     // Matching size:
@@ -271,7 +271,7 @@ fn errors_convert_to_arrow_error() {
         .err()
         .unwrap();
     assert!(matches!(err, ArrowError::ExternalError(_)));
-    assert!(err.to_string().contains("Expected datatype"));
+    assert!(err.to_string().contains("Expected Int64"));
 }
 
 #[test]
@@ -989,15 +989,8 @@ fn list_view_columns() {
 fn any_list_columns() {
     use quiver::{AnyList, FixedSizeList, LargeList, LargeListView, ListView};
 
-    // Building emits the canonical `List` encoding:
-    let column = Column::<AnyList<i64>>::from_values([vec![1_i64, 2], vec![3]]);
-    assert_eq!(
-        Column::<AnyList<i64>>::datatype(),
-        Column::<List<i64>>::datatype()
-    );
-    assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
-
-    // …but `try_from` accepts every variable-length encoding, read uniformly:
+    // `AnyList` is parse-only (no single datatype to build): `try_from` accepts
+    // every variable-length encoding, read uniformly:
     let encodings = [
         Column::<List<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
         Column::<LargeList<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
@@ -1152,7 +1145,7 @@ fn run_columns() {
     let values: Vec<&str> = column.iter().collect();
     assert_eq!(values, ["a", "a", "a", "b", "b"]);
     assert_eq!(column.value(3), "b");
-    assert_eq!(&column[0], "a"); // `RefDatatype`, looked up through the run ends
+    assert_eq!(&column[0], "a"); // `RefType`, looked up through the run ends
 
     // Parsing an externally built run array:
     let run_ends = Int32Array::from(vec![2, 5, 6]); // runs end at logical 2, 5, 6
@@ -1226,7 +1219,7 @@ impl From<ChunkId> for [u8; 16] {
 
 quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
 
-/// A `bool`-backed newtype: `bool` has no `RefDatatype` (bit-packed),
+/// A `bool`-backed newtype: `bool` has no `RefType` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct IsActive(bool);
@@ -1319,22 +1312,21 @@ fn as_adapter_for_foreign_types() {
     assert_eq!(column.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
 }
 
-/// A custom logical type that overrides [`quiver::Datatype::matches`]:
+/// A custom logical type that overrides [`quiver::LogicalType::matches`]:
 /// it accepts both `Int32` and `Int64` arrays, reading every value as `i64`.
 struct AnyInt;
 
-impl quiver::Datatype for AnyInt {
+impl quiver::LogicalType for AnyInt {
     type Typed = ArrayRef;
     type Value<'a> = i64;
     type Owned = i64;
 
-    /// The canonical datatype: used when encoding, and in error messages.
-    fn datatype() -> DataType {
-        DataType::Int64
-    }
-
     fn matches(actual: &DataType) -> bool {
         matches!(actual, DataType::Int32 | DataType::Int64)
+    }
+
+    fn expected_datatype() -> String {
+        "Int32 or Int64".to_owned()
     }
 
     fn downcast(
@@ -1356,12 +1348,19 @@ impl quiver::Datatype for AnyInt {
         }
     }
 
-    fn build(values: impl Iterator<Item = Option<i64>>) -> Result<ArrayRef, quiver::ColumnError> {
-        Ok(Arc::new(values.collect::<Int64Array>()))
-    }
-
     fn to_owned_value(value: i64) -> i64 {
         value
+    }
+}
+
+impl quiver::ConcreteType for AnyInt {
+    /// The canonical datatype: used when encoding, and in error messages.
+    fn datatype() -> DataType {
+        DataType::Int64
+    }
+
+    fn build(values: impl Iterator<Item = Option<i64>>) -> Result<ArrayRef, quiver::ColumnError> {
+        Ok(Arc::new(values.collect::<Int64Array>()))
     }
 }
 

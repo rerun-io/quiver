@@ -11,7 +11,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, impl_marker_datatype, impl_primitive_datatype};
+use crate::datatype::{ColumnError, LogicalType, impl_marker_datatype, impl_primitive_datatype};
 
 /// Days since the Unix epoch, as an `i32`.
 ///

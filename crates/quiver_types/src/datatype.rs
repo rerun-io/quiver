@@ -1,4 +1,4 @@
-//! The [`Datatype`] trait: the bridge between quiver's logical column types
+//! The [`LogicalType`] trait: the bridge between quiver's logical column types
 //! and the arrow arrays they are stored in.
 
 use arrow::array::{Array, ArrayRef};
@@ -23,7 +23,7 @@ use crate::ErrorKind;
 /// let maybe = Column::<Option<i64>>::from_values([Some(1), None]);
 /// assert_eq!(maybe.value(1), None);
 /// ```
-pub trait Datatype {
+pub trait LogicalType {
     /// May the values at this level be null? (`true` only for `Option<…>`)
     const NULLABLE: bool = false;
 
@@ -41,32 +41,35 @@ pub trait Datatype {
     /// `String` for `Utf8`, `Option<i64>` for `Option<i64>`, `Vec<…>` for `List<…>`, etc.
     type Owned;
 
-    /// The exact arrow datatype, built recursively
-    /// (including the nullability of inner fields).
-    fn datatype() -> DataType;
-
     /// Does this logical type accept arrow arrays of datatype `actual`?
     ///
     /// This is the datatype-matching hook, called once per column at the
     /// validation boundary ([`Column::try_new`](crate::Column::try_new)).
     ///
-    /// The default implementation compares `actual` against [`Self::datatype`]
-    /// with [`datatypes_compatible`]: like equality, except that the inner
-    /// [`arrow::datatypes::Field`]s of nested datatypes are compared
-    /// *structurally* — their names, nullability flags, and metadata are ignored.
+    /// Types with a single concrete datatype ([`ConcreteType`]) typically
+    /// implement it as `datatypes_compatible(actual, &Self::datatype())`:
+    /// like equality, except that the inner [`arrow::datatypes::Field`]s of
+    /// nested datatypes are compared *structurally* — their names, nullability
+    /// flags, and metadata are ignored.
     ///
     /// Container types ([`List`](crate::List), [`FixedSizeList`](crate::FixedSizeList),
     /// [`Dictionary`](crate::Dictionary), `Option<…>`) forward to the `matches`
     /// of their inner types, so an override applies at any nesting depth.
-    ///
-    /// Custom logical types can override this to accept *several* datatypes,
-    /// e.g. a timestamp of any unit, or any datatype at all.
+    /// Multi-encoding types like [`AnyList`](crate::AnyList) accept *several*
+    /// datatypes — which is exactly why matching lives here, on the read-only
+    /// [`LogicalType`], rather than on [`ConcreteType`].
     ///
     /// Contract: `matches` must accept only datatypes that [`Self::downcast`]
-    /// can handle. Error messages still report [`Self::datatype`] as the
-    /// expected datatype.
-    fn matches(actual: &DataType) -> bool {
-        datatypes_compatible(actual, &Self::datatype())
+    /// can handle.
+    fn matches(actual: &DataType) -> bool;
+
+    /// A human description of the datatype(s) this logical type accepts,
+    /// reported as the "expected" type in [`ColumnError::WrongDatatype`].
+    ///
+    /// Defaults to a generic phrase; [`ConcreteType`] types override it with
+    /// their exact datatype.
+    fn expected_datatype() -> String {
+        "a compatible datatype".to_owned()
     }
 
     /// Recursively downcasts the array, checking the nulls of all *children*.
@@ -89,6 +92,23 @@ pub trait Datatype {
     /// Contract: `index` is in bounds, and the value is non-null unless `Self` is an `Option`.
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_>;
 
+    /// Converts a borrowed element value into an owned one,
+    /// e.g. `&str` → `String`.
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
+}
+
+/// A [`LogicalType`] that corresponds to a *single* concrete arrow datatype,
+/// and can therefore be built and used to generate schemas.
+///
+/// Implemented by every logical type except multi-encoding ones like
+/// [`AnyList`](crate::AnyList), which accept several arrow datatypes and so have
+/// no single [`datatype`](ConcreteType::datatype) to report or build — those are
+/// parse-only (read via [`LogicalType`], but no `from_values`/`Default`/schema).
+pub trait ConcreteType: LogicalType {
+    /// The exact arrow datatype, built recursively
+    /// (including the nullability of inner fields).
+    fn datatype() -> DataType;
+
     /// Builds an arrow array of this datatype from owned values.
     ///
     /// `None` items only ever occur at `Option<…>` levels.
@@ -98,10 +118,6 @@ pub trait Datatype {
     /// today that is dictionary key overflow (see [`crate::Dictionary`]).
     /// Implementations of [`InfallibleBuild`] never error.
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError>;
-
-    /// Converts a borrowed element value into an owned one,
-    /// e.g. `&str` → `String`.
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
 }
 
 /// Logical types whose values are stored in one contiguous buffer of
@@ -112,7 +128,7 @@ pub trait Datatype {
 /// by the primitive-backed marker types
 /// ([`Date32`](crate::Date32), [`Timestamp`](crate::Timestamp), …),
 /// and by [`FixedSizeBinary<N>`](crate::FixedSizeBinary) (stored contiguously).
-pub trait PrimitiveDatatype: Datatype {
+pub trait PrimitiveType: LogicalType {
     /// The in-memory element type: `f32` for `f32`, `i64` for `Timestamp<…>`,
     /// `[u8; N]` for `[u8; N]`, etc.
     type Native;
@@ -129,7 +145,7 @@ pub trait PrimitiveDatatype: Datatype {
 /// marker types — but not `bool` (arrow bit-packs it, so there is no `&bool`
 /// to hand out), and not nullable (`Option<…>`) or nested (`List<…>`) types,
 /// whose values are built on the fly.
-pub trait RefDatatype: Datatype {
+pub trait RefType: LogicalType {
     /// The borrow target: `str` for `Utf8`, `i64` for `i64`, etc.
     type Ref: ?Sized;
 
@@ -139,27 +155,29 @@ pub trait RefDatatype: Datatype {
     fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref;
 }
 
-/// Marker for logical types whose [`Datatype::build`] can never fail,
+/// Marker for logical types whose [`ConcreteType::build`] can never fail,
 /// making the convenient [`Column::from_values`](crate::Column::from_values)
 /// (and `From<Vec<T>>`, `FromIterator`) available.
 ///
-/// Implemented by every logical type except [`Dictionary`](crate::Dictionary),
-/// whose encoding can fail (key overflow) — use
-/// [`Column::try_from_values`](crate::Column::try_from_values) there.
+/// Implemented by every concrete logical type except [`Dictionary`](crate::Dictionary)
+/// and [`Run`](crate::Run), whose encodings can fail (key / run-end overflow) —
+/// use [`Column::try_from_values`](crate::Column::try_from_values) there.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` cannot be built infallibly",
-    note = "dictionary encoding can fail (key overflow): use `Column::try_from_values` instead of `from_values`"
+    note = "dictionary/run encoding can fail (overflow): use `Column::try_from_values` instead of `from_values`"
 )]
-pub trait InfallibleBuild: Datatype {}
+pub trait InfallibleBuild: ConcreteType {}
 
 /// What can go wrong when constructing a [`Column`](crate::Column).
 ///
 /// Does not know which column it concerns — see [`ColumnError::for_column`].
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
-    #[error("Expected datatype {expected:?}, found {actual:?}")]
+    #[error("Expected {expected}, found {actual:?}")]
     WrongDatatype {
-        expected: DataType,
+        /// A human description of the expected datatype(s)
+        /// (see [`LogicalType::expected_datatype`]).
+        expected: String,
         actual: DataType,
     },
 
@@ -211,20 +229,24 @@ pub(crate) fn downcast_array<A: Array + Clone + 'static>(
         .downcast_ref::<A>()
         .cloned()
         .ok_or_else(|| ColumnError::WrongDatatype {
-            expected: DataType::Null, // unreachable; see docstring
+            expected: "<unknown>".to_owned(), // unreachable; see docstring
             actual: array.data_type().clone(),
         })
 }
 
 macro_rules! impl_flat_datatype {
     ($rust:ty, $array:ty, $value:ty, $datatype:expr) => {
-        impl Datatype for $rust {
+        impl LogicalType for $rust {
             type Typed = $array;
             type Value<'a> = $value;
             type Owned = $rust;
 
-            fn datatype() -> DataType {
-                $datatype
+            fn matches(actual: &DataType) -> bool {
+                crate::datatype::datatypes_compatible(actual, &$datatype)
+            }
+
+            fn expected_datatype() -> String {
+                format!("{:?}", $datatype)
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -239,14 +261,20 @@ macro_rules! impl_flat_datatype {
                 typed.value(index)
             }
 
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                value.into()
+            }
+        }
+
+        impl crate::datatype::ConcreteType for $rust {
+            fn datatype() -> DataType {
+                $datatype
+            }
+
             fn build(
                 values: impl Iterator<Item = Option<Self::Owned>>,
             ) -> Result<ArrayRef, ColumnError> {
                 Ok(std::sync::Arc::new(<$array>::from_iter(values)))
-            }
-
-            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-                value.into()
             }
         }
 
@@ -256,11 +284,11 @@ macro_rules! impl_flat_datatype {
 
 pub(crate) use impl_flat_datatype;
 
-/// Implements [`PrimitiveDatatype`] and [`RefDatatype`] for a logical type
+/// Implements [`PrimitiveType`] and [`RefType`] for a logical type
 /// whose `Typed` array is an [`arrow::array::PrimitiveArray`].
 macro_rules! impl_primitive_datatype {
     ($logical:ty, $native:ty) => {
-        impl crate::datatype::PrimitiveDatatype for $logical {
+        impl crate::datatype::PrimitiveType for $logical {
             type Native = $native;
 
             fn values(typed: &Self::Typed) -> &[$native] {
@@ -268,7 +296,7 @@ macro_rules! impl_primitive_datatype {
             }
         }
 
-        impl crate::datatype::RefDatatype for $logical {
+        impl crate::datatype::RefType for $logical {
             type Ref = $native;
 
             fn value_ref(typed: &Self::Typed, index: usize) -> &$native {
@@ -287,7 +315,7 @@ pub(crate) use impl_primitive_datatype;
 /// nullability flags, and metadata are ignored.
 /// Actual nullability is enforced separately, by counting logical nulls.
 ///
-/// This is the default implementation of [`Datatype::matches`];
+/// This is the default implementation of [`LogicalType::matches`];
 /// it is public so that custom `matches` overrides can fall back on it.
 pub fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
     match (actual, declared) {
@@ -315,17 +343,21 @@ pub fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
     }
 }
 
-/// Implements [`Datatype`] for a marker type whose owned value differs from the
+/// Implements [`LogicalType`] for a marker type whose owned value differs from the
 /// marker itself (e.g. the marker `Date32` has `i32` values).
 macro_rules! impl_marker_datatype {
     ($marker:ty, $array:ty, $value:ty, $owned:ty, $datatype:expr) => {
-        impl Datatype for $marker {
+        impl LogicalType for $marker {
             type Typed = $array;
             type Value<'a> = $value;
             type Owned = $owned;
 
-            fn datatype() -> DataType {
-                $datatype
+            fn matches(actual: &DataType) -> bool {
+                crate::datatype::datatypes_compatible(actual, &$datatype)
+            }
+
+            fn expected_datatype() -> String {
+                format!("{:?}", $datatype)
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -340,14 +372,20 @@ macro_rules! impl_marker_datatype {
                 typed.value(index)
             }
 
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                value.into()
+            }
+        }
+
+        impl crate::datatype::ConcreteType for $marker {
+            fn datatype() -> DataType {
+                $datatype
+            }
+
             fn build(
                 values: impl Iterator<Item = Option<Self::Owned>>,
             ) -> Result<ArrayRef, ColumnError> {
                 Ok(std::sync::Arc::new(<$array>::from_iter(values)))
-            }
-
-            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-                value.into()
             }
         }
 

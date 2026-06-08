@@ -11,15 +11,17 @@
 //! source) and you only care about the logical list. The concrete types stay
 //! preferable when you *know* (and want to enforce) the encoding.
 //!
-//! Building (`from_values`) always emits the canonical [`List`] encoding.
+//! `AnyList` is *parse-only*: it is not a [`ConcreteType`](crate::ConcreteType)
+//! (it has no single arrow datatype), so it has no `from_values`/`Default`/schema.
+//! To build, pick a concrete encoding such as `Column<List<L>>`.
 
 use std::marker::PhantomData;
 
-use arrow::array::{Array, ArrayRef, FixedSizeListArray};
+use arrow::array::{Array, FixedSizeListArray};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, LogicalType, downcast_array};
 use crate::fixed_size_list::logical_item_null_count;
 use crate::list::ListValue;
 use crate::{
@@ -34,16 +36,13 @@ use crate::{
 /// building emits a plain [`List`]. Item nullability is `AnyList<Option<L>>`.
 ///
 /// ```
-/// use quiver::{AnyList, Column, Utf8};
+/// use quiver::{AnyList, Column};
 /// use quiver::arrow::array::{ArrayRef, LargeListArray};
 /// use quiver::arrow::datatypes::Int64Type;
 /// # use std::sync::Arc;
 ///
-/// // Built as a `List`:
-/// let column = Column::<AnyList<i64>>::from_values([vec![1, 2], vec![3]]);
-/// assert_eq!(column.value(0).collect::<Vec<_>>(), [1, 2]);
-///
-/// // …but it also accepts a `LargeList` (or `ListView`, `FixedSizeList`, …):
+/// // Accepts a `List`, `LargeList`, `ListView`, `LargeListView`, or `FixedSizeList`
+/// // — here a `LargeList` — and reads them all the same way:
 /// let large = LargeListArray::from_iter_primitive::<Int64Type, _, _>(vec![Some(vec![Some(7)])]);
 /// let column = Column::<AnyList<i64>>::try_from(Arc::new(large) as ArrayRef).unwrap();
 /// assert_eq!(column.value(0).collect::<Vec<_>>(), [7]);
@@ -56,7 +55,7 @@ pub struct AnyList<L> {
 
 /// The validated representation of an [`AnyList`] column: one of the per-encoding
 /// typed representations.
-pub enum AnyTypedList<L: Datatype> {
+pub enum AnyTypedList<L: LogicalType> {
     List(TypedList<L>),
     LargeList(TypedLargeList<L>),
     ListView(TypedListView<L>),
@@ -70,7 +69,7 @@ pub enum AnyTypedList<L: Datatype> {
 // Hand-written (not derived): `#[derive(Clone)]` would add a spurious `L: Clone`
 // bound, but only `L::Typed: Clone` is needed — the markers (`Utf8`, …) are not
 // `Clone`. Same reason `TypedList` & co. hand-write it.
-impl<L: Datatype> Clone for AnyTypedList<L> {
+impl<L: LogicalType> Clone for AnyTypedList<L> {
     fn clone(&self) -> Self {
         match self {
             Self::List(typed) => Self::List(typed.clone()),
@@ -85,7 +84,7 @@ impl<L: Datatype> Clone for AnyTypedList<L> {
     }
 }
 
-impl<L: Datatype + 'static> Datatype for AnyList<L> {
+impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
     type Typed = AnyTypedList<L>;
     type Value<'a>
         = ListValue<'a, L>
@@ -93,18 +92,16 @@ impl<L: Datatype + 'static> Datatype for AnyList<L> {
         Self: 'a;
     type Owned = Vec<L::Owned>;
 
-    fn datatype() -> DataType {
-        // The canonical encoding, reported in datatype-mismatch errors and used
-        // when building. `matches` accepts the other four as well.
-        List::<L>::datatype()
-    }
-
     fn matches(actual: &DataType) -> bool {
         List::<L>::matches(actual)
             || LargeList::<L>::matches(actual)
             || ListView::<L>::matches(actual)
             || LargeListView::<L>::matches(actual)
             || matches!(actual, DataType::FixedSizeList(item, _) if L::matches(item.data_type()))
+    }
+
+    fn expected_datatype() -> String {
+        format!("any list of {}", L::expected_datatype())
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -127,7 +124,7 @@ impl<L: Datatype + 'static> Datatype for AnyList<L> {
                 Ok(AnyTypedList::FixedSizeList { array, values })
             }
             actual => Err(ColumnError::WrongDatatype {
-                expected: Self::datatype(),
+                expected: Self::expected_datatype(),
                 actual: actual.clone(),
             }),
         }
@@ -157,14 +154,12 @@ impl<L: Datatype + 'static> Datatype for AnyList<L> {
         }
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
-        // Emit the canonical encoding.
-        List::<L>::build(values)
-    }
-
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         value.map(L::to_owned_value).collect()
     }
 }
 
-impl<L: InfallibleBuild + 'static> InfallibleBuild for AnyList<L> {}
+// NOTE: `AnyList` deliberately does *not* implement `ConcreteType`: it accepts
+// several arrow encodings, so it has no single `datatype()` to report or build.
+// It is parse-only — read via `LogicalType`, but no `from_values`/`Default`/schema.
+// To build, pick a concrete encoding such as `Column<List<L>>`.

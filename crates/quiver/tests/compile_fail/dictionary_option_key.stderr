@@ -15,9 +15,9 @@ error[E0277]: `Option<i32>` cannot be used as a dictionary key type
             u32
             u64
             u8
-  = note: required for `quiver::Dictionary<Option<i32>, quiver::Utf8>` to implement `Datatype`
+  = note: required for `quiver::Dictionary<Option<i32>, quiver::Utf8>` to implement `LogicalType`
 note: required by a bound in `assert_datatype`
  --> tests/compile_fail/dictionary_option_key.rs:6:23
   |
-6 | fn assert_datatype<L: Datatype>() {}
-  |                       ^^^^^^^^ required by this bound in `assert_datatype`
+6 | fn assert_datatype<L: LogicalType>() {}
+  |                       ^^^^^^^^^^^ required by this bound in `assert_datatype`

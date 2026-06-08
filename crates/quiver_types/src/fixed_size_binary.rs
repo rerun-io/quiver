@@ -10,7 +10,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::datatype::{
-    ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, downcast_array,
+    ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
 };
 
 /// Marker for an arrow `FixedSizeBinary(N)` column, e.g. `FixedSizeBinary<16>`
@@ -29,17 +29,17 @@ use crate::datatype::{
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct FixedSizeBinary<const N: usize>;
 
-impl<const N: usize> Datatype for FixedSizeBinary<N> {
+impl<const N: usize> LogicalType for FixedSizeBinary<N> {
     type Typed = arrow::array::FixedSizeBinaryArray;
     type Value<'a> = &'a [u8; N];
     type Owned = [u8; N];
 
-    fn datatype() -> DataType {
-        const {
-            assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
-        }
-        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        DataType::FixedSizeBinary(N as i32)
+    fn matches(actual: &DataType) -> bool {
+        matches!(actual, DataType::FixedSizeBinary(n) if usize::try_from(*n) == Ok(N))
+    }
+
+    fn expected_datatype() -> String {
+        format!("FixedSizeBinary({N})")
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -57,6 +57,20 @@ impl<const N: usize> Datatype for FixedSizeBinary<N> {
             .expect("The length is guaranteed by the validated datatype")
     }
 
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        *value
+    }
+}
+
+impl<const N: usize> crate::ConcreteType for FixedSizeBinary<N> {
+    fn datatype() -> DataType {
+        const {
+            assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
+        }
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        DataType::FixedSizeBinary(N as i32)
+    }
+
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         const {
             assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
@@ -67,17 +81,13 @@ impl<const N: usize> Datatype for FixedSizeBinary<N> {
                 .map_err(ColumnError::Build)?; // Cannot happen: the values all have the same size
         Ok(std::sync::Arc::new(array))
     }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        *value
-    }
 }
 
 impl<const N: usize> InfallibleBuild for FixedSizeBinary<N> {}
 
 /// Enables the bulk zero-copy [`Column::as_slice`](crate::Column::as_slice):
 /// `&[[u8; N]]` for a `Column<FixedSizeBinary<N>>`.
-impl<const N: usize> PrimitiveDatatype for FixedSizeBinary<N> {
+impl<const N: usize> PrimitiveType for FixedSizeBinary<N> {
     type Native = [u8; N];
 
     fn values(typed: &Self::Typed) -> &[Self::Native] {
@@ -96,7 +106,7 @@ impl<const N: usize> PrimitiveDatatype for FixedSizeBinary<N> {
     }
 }
 
-impl<const N: usize> RefDatatype for FixedSizeBinary<N> {
+impl<const N: usize> RefType for FixedSizeBinary<N> {
     type Ref = [u8; N];
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &[u8; N] {
