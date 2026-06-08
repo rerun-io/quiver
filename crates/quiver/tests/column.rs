@@ -913,6 +913,79 @@ fn large_list_columns() {
 }
 
 #[test]
+fn list_view_columns() {
+    use quiver::arrow::array::{Int64Array, ListViewArray};
+    use quiver::arrow::buffer::ScalarBuffer;
+    use quiver::{LargeListView, ListView};
+
+    let column = Column::<ListView<i64>>::from_values([vec![1_i64, 2], vec![3]]);
+    assert_eq!(
+        Column::<ListView<i64>>::datatype(),
+        DataType::ListView(Arc::new(Field::new("item", DataType::Int64, false)))
+    );
+    let lists: Vec<Vec<i64>> = column.to_vec();
+    assert_eq!(lists, [vec![1, 2], vec![3]]);
+    let first: Vec<i64> = column.value(0).collect();
+    assert_eq!(first, [1, 2]);
+
+    // List ≠ ListView: the layout is part of the type:
+    let result = Column::<List<i64>>::try_from(Arc::clone(column.as_arrow()));
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // The distinguishing feature of list-views: ranges may overlap and appear
+    // out of order. Parse such an externally built array:
+    let values = Arc::new(Int64Array::from(vec![10, 20, 30]));
+    let field = Arc::new(Field::new("item", DataType::Int64, false));
+    let array = ListViewArray::new(
+        field,
+        ScalarBuffer::from(vec![1_i32, 0]), // row 1 starts *before* row 0
+        ScalarBuffer::from(vec![2_i32, 2]), // both length 2, overlapping
+        values,
+        None,
+    );
+    let column = Column::<ListView<i64>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    let lists: Vec<Vec<i64>> = column.to_vec();
+    assert_eq!(lists, [vec![20, 30], vec![10, 20]]);
+
+    // A reachable null item at a non-nullable level is rejected:
+    let values = Arc::new(Int64Array::from(vec![Some(1), None]));
+    let field = Arc::new(Field::new("item", DataType::Int64, true));
+    let array = ListViewArray::new(
+        field,
+        ScalarBuffer::from(vec![0_i32]),
+        ScalarBuffer::from(vec![2_i32]),
+        values,
+        None,
+    );
+    let result = Column::<ListView<i64>>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Nullable items and nullable rows:
+    let column = Column::<ListView<Option<i64>>>::from_values([vec![Some(1), None]]);
+    let lists: Vec<Vec<Option<i64>>> = column.iter().map(Iterator::collect).collect();
+    assert_eq!(lists, [vec![Some(1), None]]);
+
+    let column =
+        Column::<Option<LargeListView<i64>>>::from_nullable_values([Some(vec![1_i64]), None]);
+    let lists: Vec<Option<Vec<i64>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(lists, [Some(vec![1]), None]);
+
+    // LargeListView round-trips too:
+    let column = Column::<LargeListView<i64>>::from_values([vec![1_i64, 2], vec![3]]);
+    assert_eq!(
+        Column::<LargeListView<i64>>::datatype(),
+        DataType::LargeListView(Arc::new(Field::new("item", DataType::Int64, false)))
+    );
+    assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
+}
+
+#[test]
 fn map_columns() {
     use quiver::Map;
     use quiver::arrow::array::{Int64Builder, MapBuilder, StringBuilder};
