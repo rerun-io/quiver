@@ -41,6 +41,7 @@ pub use self::duration::{
     Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
 };
 pub use self::error::{Error, ErrorKind};
+pub use self::fixed_size_binary::FixedSizeBinary;
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
 pub use self::large_list::{LargeList, TypedLargeList};
 pub use self::list::{List, ListValue, TypedList};

@@ -97,7 +97,7 @@ pub trait Datatype {
 /// Implemented by the primitive types except `bool` (arrow bit-packs it),
 /// by the primitive-backed marker types
 /// ([`Date32`](crate::Date32), [`Timestamp`](crate::Timestamp), …),
-/// and by `[u8; N]` (fixed-size binary, stored contiguously).
+/// and by [`FixedSizeBinary<N>`](crate::FixedSizeBinary) (stored contiguously).
 pub trait PrimitiveDatatype: Datatype {
     /// The in-memory element type: `f32` for `f32`, `i64` for `Timestamp<…>`,
     /// `[u8; N]` for `[u8; N]`, etc.

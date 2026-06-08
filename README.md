@@ -195,7 +195,7 @@ The supported logical types:
 |----------------------------------------------|------------------------------|---------------------------|
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
 | `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
-| `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
+| `FixedSizeBinary<N>`                         | `FixedSizeBinary(N)`         | `&[u8; N]`                |
 | `Binary`, `LargeBinary`, `BinaryView`        | The same                     | `&[u8]`                   |
 | `Date32`, `Date64`                           | `Date32`, `Date64`           | `i32` days / `i64` ms     |
 | `Time32Second` … `Time64Nanosecond`          | `Time32(…)`, `Time64(…)`     | `i32` / `i64`             |

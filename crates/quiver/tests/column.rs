@@ -10,7 +10,8 @@ use quiver::arrow::array::{
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
 use quiver::arrow::error::ArrowError;
 use quiver::{
-    Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
+    Column, ColumnError, Duration, FixedSizeBinary, List, Millisecond, Nanosecond, Second,
+    Timestamp, Utc, Utf8,
 };
 
 #[test]
@@ -111,7 +112,7 @@ fn standalone_fixed_size_binary_column() {
     );
 
     // Wrong size is rejected:
-    let result = Column::<[u8; 8]>::try_from(Arc::clone(&dynamic_array));
+    let result = Column::<FixedSizeBinary<8>>::try_from(Arc::clone(&dynamic_array));
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
@@ -121,7 +122,7 @@ fn standalone_fixed_size_binary_column() {
     ));
 
     // Matching size:
-    let column = Column::<[u8; 16]>::try_from(dynamic_array).unwrap();
+    let column = Column::<FixedSizeBinary<16>>::try_from(dynamic_array).unwrap();
     assert_eq!(column.value(0), &[1_u8; 16]);
     let values: Vec<&[u8; 16]> = column.iter().collect();
     assert_eq!(values, [&[1_u8; 16], &[2; 16]]);
@@ -138,14 +139,14 @@ fn standalone_nullable_fixed_size_binary_column() {
     );
 
     // Non-nullable logical type rejects the nulls:
-    let result = Column::<[u8; 4]>::try_from(Arc::clone(&dynamic_array));
+    let result = Column::<FixedSizeBinary<4>>::try_from(Arc::clone(&dynamic_array));
     assert!(matches!(
         result,
         Err(ColumnError::UnexpectedNulls { null_count: 1 })
     ));
 
     // Nullable logical type accepts them:
-    let column = Column::<Option<[u8; 4]>>::try_from(dynamic_array).unwrap();
+    let column = Column::<Option<FixedSizeBinary<4>>>::try_from(dynamic_array).unwrap();
     let values: Vec<Option<&[u8; 4]>> = column.iter().collect();
     assert_eq!(values, [Some(&[1_u8; 4]), None]);
 }
@@ -252,7 +253,7 @@ fn default_column_is_empty() {
     let column = Column::<Timestamp<Nanosecond, Utc>>::default();
     assert!(column.is_empty());
 
-    let column = Column::<[u8; 16]>::default();
+    let column = Column::<FixedSizeBinary<16>>::default();
     assert_eq!(
         column.as_arrow().data_type(),
         &DataType::FixedSizeBinary(16)
@@ -309,7 +310,7 @@ fn convenience_constructors() {
     assert_eq!(values, [Some(vec![Some(1), None]), None]);
 
     // Fixed-size binary:
-    let column = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    let column = Column::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
     assert_eq!(column.value(1), &[5, 6, 7, 8]);
 
     // Timestamps get the declared timezone:
@@ -357,7 +358,7 @@ fn to_vec_and_iter_owned() {
     let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
     assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
 
-    let column = Column::<[u8; 2]>::from_values([[1_u8, 2], [3, 4]]);
+    let column = Column::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4]]);
     assert_eq!(column.to_vec(), [[1_u8, 2], [3, 4]]);
 
     let total: i64 = Column::<i64>::from_values([1, 2, 3]).iter_owned().sum();
@@ -391,18 +392,18 @@ fn as_slice() {
 #[test]
 fn as_slice_fixed_size_binary() {
     // Bulk zero-copy read of fixed-size binary columns:
-    let column = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    let column = Column::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
     assert_eq!(column.as_slice(), &[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
 
     // Also when parsed from a raw arrow array:
     let array: ArrayRef = Arc::new(
         FixedSizeBinaryArray::try_from_iter(vec![[1_u8; 16], [2; 16]].into_iter()).unwrap(),
     );
-    let column = Column::<[u8; 16]>::try_from(array).unwrap();
+    let column = Column::<FixedSizeBinary<16>>::try_from(array).unwrap();
     assert_eq!(column.as_slice(), &[[1_u8; 16], [2; 16]]);
 
     // Empty:
-    let column = Column::<[u8; 4]>::default();
+    let column = Column::<FixedSizeBinary<4>>::default();
     assert_eq!(column.as_slice(), &[] as &[[u8; 4]]);
 }
 
@@ -413,7 +414,7 @@ fn as_slice_respects_offset() {
     assert_eq!(sliced.as_slice(), &[2, 3, 4]);
 
     // Fixed-size binary too — the byte window must follow the slice:
-    let column = Column::<[u8; 2]>::from_values([[1_u8, 2], [3, 4], [5, 6], [7, 8]]);
+    let column = Column::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4], [5, 6], [7, 8]]);
     let sliced = column.slice(1, 2);
     assert_eq!(sliced.as_slice(), &[[3_u8, 4], [5, 6]]);
 }
@@ -430,7 +431,7 @@ fn index() {
     let binary = Column::<quiver::Binary>::from_values([vec![1_u8, 2], vec![3]]);
     assert_eq!(&binary[1], [3_u8]);
 
-    let uuids = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4]]);
+    let uuids = Column::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4]]);
     assert_eq!(uuids[0], [1_u8, 2, 3, 4]);
 
     let timestamps = Column::<Timestamp<Nanosecond, Utc>>::from_values([10_i64, 20]);
@@ -1084,7 +1085,7 @@ impl From<ChunkId> for [u8; 16] {
     }
 }
 
-quiver::newtype_datatype!(ChunkId, [u8; 16], primitive);
+quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
 
 /// A `bool`-backed newtype: `bool` has no `RefDatatype` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.
