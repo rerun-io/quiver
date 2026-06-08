@@ -157,7 +157,7 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
 impl<L: InfallibleBuild + 'static, const N: usize> InfallibleBuild for FixedSizeList<L, N> {}
 
 /// Counts the nulls among the *reachable* items: items of valid (non-null) rows.
-fn logical_item_null_count(list: &arrow::array::FixedSizeListArray) -> usize {
+pub(crate) fn logical_item_null_count(list: &arrow::array::FixedSizeListArray) -> usize {
     let Some(item_nulls) = list.values().nulls() else {
         return 0;
     };

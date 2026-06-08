@@ -206,6 +206,7 @@ The supported logical types:
 | `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
 | `ListView<L>`, `LargeListView<L>`            | `ListView(…)`/`LargeListView(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
+| `AnyList<L>`                                 | *any* list encoding above    | An iterator over the items |
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 

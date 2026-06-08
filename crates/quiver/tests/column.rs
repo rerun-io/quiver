@@ -986,6 +986,63 @@ fn list_view_columns() {
 }
 
 #[test]
+fn any_list_columns() {
+    use quiver::{AnyList, FixedSizeList, LargeList, LargeListView, ListView};
+
+    // Building emits the canonical `List` encoding:
+    let column = Column::<AnyList<i64>>::from_values([vec![1_i64, 2], vec![3]]);
+    assert_eq!(
+        Column::<AnyList<i64>>::datatype(),
+        Column::<List<i64>>::datatype()
+    );
+    assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
+
+    // …but `try_from` accepts every variable-length encoding, read uniformly:
+    let encodings = [
+        Column::<List<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+        Column::<LargeList<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+        Column::<ListView<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+        Column::<LargeListView<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+    ];
+    for array in encodings {
+        let column = Column::<AnyList<i64>>::try_from(array).unwrap();
+        assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
+    }
+
+    // …including `FixedSizeList` (fixed cardinality, read at runtime):
+    let fixed = Column::<FixedSizeList<i64, 2>>::from_values([[1_i64, 2], [3, 4]]).into_arrow();
+    let column = Column::<AnyList<i64>>::try_from(fixed).unwrap();
+    assert_eq!(column.to_vec(), [vec![1, 2], vec![3, 4]]);
+
+    // A non-list array is rejected:
+    let ints = Column::<i64>::from_values([1, 2]).into_arrow();
+    assert!(matches!(
+        Column::<AnyList<i64>>::try_from(ints),
+        Err(ColumnError::WrongDatatype { .. })
+    ));
+
+    // Item nullability is enforced regardless of encoding:
+    let nullable = Column::<ListView<Option<i64>>>::from_values([vec![Some(1), None]]).into_arrow();
+    assert!(matches!(
+        Column::<AnyList<i64>>::try_from(Arc::clone(&nullable)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    let column = Column::<AnyList<Option<i64>>>::try_from(nullable).unwrap();
+    let items: Vec<Option<i64>> = column.value(0).collect();
+    assert_eq!(items, [Some(1), None]);
+
+    // Null rows via the column-level `Option`:
+    let array =
+        Column::<Option<List<i64>>>::from_nullable_values([Some(vec![1_i64]), None]).into_arrow();
+    let column = Column::<Option<AnyList<i64>>>::try_from(array).unwrap();
+    let rows: Vec<Option<Vec<i64>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(rows, [Some(vec![1]), None]);
+}
+
+#[test]
 fn map_columns() {
     use quiver::Map;
     use quiver::arrow::array::{Int64Builder, MapBuilder, StringBuilder};
