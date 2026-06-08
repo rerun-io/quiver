@@ -7,6 +7,8 @@
 //!
 //! This works at every nesting level, e.g. `List<Option<Utf8>>` for a list
 //! column whose *items* may be null.
+//!
+//! See [`Datatype`] for a usage example.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;

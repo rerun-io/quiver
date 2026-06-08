@@ -499,7 +499,7 @@ fn typed_column_validates_inner_list_type() {
 
 #[derive(Quiver)]
 struct Uuids {
-    uuid: quiver::Column<[u8; 16]>,
+    uuid: quiver::Column<quiver::FixedSizeBinary<16>>,
 }
 
 #[test]
@@ -822,7 +822,7 @@ fn exhaustive_rejects_unknown_columns() {
 #[derive(Quiver)]
 struct Annotated {
     #[quiver(metadata("meta:kind" = "control"))]
-    chunk_id: quiver::Column<[u8; 16]>,
+    chunk_id: quiver::Column<quiver::FixedSizeBinary<16>>,
 
     #[quiver(
         metadata("meta:kind" = "index", "meta:index_marker" = "start"),

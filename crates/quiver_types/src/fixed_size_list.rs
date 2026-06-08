@@ -21,6 +21,16 @@ use crate::list::ListValue;
 /// `N` items of logical type `L`, e.g. `FixedSizeList<f32, 3>` for 3D positions.
 ///
 /// Item nullability: `FixedSizeList<Option<L>, N>`.
+///
+/// ```
+/// use quiver::{Column, FixedSizeList};
+///
+/// // 3D positions:
+/// let column = Column::<FixedSizeList<f32, 3>>::from_values([[1.0, 2.0, 3.0]]);
+/// let first: Vec<f32> = column.value(0).collect();
+/// assert_eq!(first, [1.0, 2.0, 3.0]);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct FixedSizeList<L, const N: usize> {
     _marker: PhantomData<fn() -> L>,

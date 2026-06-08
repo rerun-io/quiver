@@ -10,7 +10,8 @@ use quiver::arrow::array::{
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
 use quiver::arrow::error::ArrowError;
 use quiver::{
-    Column, ColumnError, Duration, List, Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
+    Column, ColumnError, Duration, FixedSizeBinary, List, Millisecond, Nanosecond, Second,
+    Timestamp, Utc, Utf8,
 };
 
 #[test]
@@ -111,7 +112,7 @@ fn standalone_fixed_size_binary_column() {
     );
 
     // Wrong size is rejected:
-    let result = Column::<[u8; 8]>::try_from(Arc::clone(&dynamic_array));
+    let result = Column::<FixedSizeBinary<8>>::try_from(Arc::clone(&dynamic_array));
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
@@ -121,7 +122,7 @@ fn standalone_fixed_size_binary_column() {
     ));
 
     // Matching size:
-    let column = Column::<[u8; 16]>::try_from(dynamic_array).unwrap();
+    let column = Column::<FixedSizeBinary<16>>::try_from(dynamic_array).unwrap();
     assert_eq!(column.value(0), &[1_u8; 16]);
     let values: Vec<&[u8; 16]> = column.iter().collect();
     assert_eq!(values, [&[1_u8; 16], &[2; 16]]);
@@ -138,14 +139,14 @@ fn standalone_nullable_fixed_size_binary_column() {
     );
 
     // Non-nullable logical type rejects the nulls:
-    let result = Column::<[u8; 4]>::try_from(Arc::clone(&dynamic_array));
+    let result = Column::<FixedSizeBinary<4>>::try_from(Arc::clone(&dynamic_array));
     assert!(matches!(
         result,
         Err(ColumnError::UnexpectedNulls { null_count: 1 })
     ));
 
     // Nullable logical type accepts them:
-    let column = Column::<Option<[u8; 4]>>::try_from(dynamic_array).unwrap();
+    let column = Column::<Option<FixedSizeBinary<4>>>::try_from(dynamic_array).unwrap();
     let values: Vec<Option<&[u8; 4]>> = column.iter().collect();
     assert_eq!(values, [Some(&[1_u8; 4]), None]);
 }
@@ -252,7 +253,7 @@ fn default_column_is_empty() {
     let column = Column::<Timestamp<Nanosecond, Utc>>::default();
     assert!(column.is_empty());
 
-    let column = Column::<[u8; 16]>::default();
+    let column = Column::<FixedSizeBinary<16>>::default();
     assert_eq!(
         column.as_arrow().data_type(),
         &DataType::FixedSizeBinary(16)
@@ -309,7 +310,7 @@ fn convenience_constructors() {
     assert_eq!(values, [Some(vec![Some(1), None]), None]);
 
     // Fixed-size binary:
-    let column = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    let column = Column::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
     assert_eq!(column.value(1), &[5, 6, 7, 8]);
 
     // Timestamps get the declared timezone:
@@ -357,7 +358,7 @@ fn to_vec_and_iter_owned() {
     let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
     assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
 
-    let column = Column::<[u8; 2]>::from_values([[1_u8, 2], [3, 4]]);
+    let column = Column::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4]]);
     assert_eq!(column.to_vec(), [[1_u8, 2], [3, 4]]);
 
     let total: i64 = Column::<i64>::from_values([1, 2, 3]).iter_owned().sum();
@@ -391,18 +392,18 @@ fn as_slice() {
 #[test]
 fn as_slice_fixed_size_binary() {
     // Bulk zero-copy read of fixed-size binary columns:
-    let column = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    let column = Column::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
     assert_eq!(column.as_slice(), &[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
 
     // Also when parsed from a raw arrow array:
     let array: ArrayRef = Arc::new(
         FixedSizeBinaryArray::try_from_iter(vec![[1_u8; 16], [2; 16]].into_iter()).unwrap(),
     );
-    let column = Column::<[u8; 16]>::try_from(array).unwrap();
+    let column = Column::<FixedSizeBinary<16>>::try_from(array).unwrap();
     assert_eq!(column.as_slice(), &[[1_u8; 16], [2; 16]]);
 
     // Empty:
-    let column = Column::<[u8; 4]>::default();
+    let column = Column::<FixedSizeBinary<4>>::default();
     assert_eq!(column.as_slice(), &[] as &[[u8; 4]]);
 }
 
@@ -413,7 +414,7 @@ fn as_slice_respects_offset() {
     assert_eq!(sliced.as_slice(), &[2, 3, 4]);
 
     // Fixed-size binary too — the byte window must follow the slice:
-    let column = Column::<[u8; 2]>::from_values([[1_u8, 2], [3, 4], [5, 6], [7, 8]]);
+    let column = Column::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4], [5, 6], [7, 8]]);
     let sliced = column.slice(1, 2);
     assert_eq!(sliced.as_slice(), &[[3_u8, 4], [5, 6]]);
 }
@@ -430,7 +431,7 @@ fn index() {
     let binary = Column::<quiver::Binary>::from_values([vec![1_u8, 2], vec![3]]);
     assert_eq!(&binary[1], [3_u8]);
 
-    let uuids = Column::<[u8; 4]>::from_values([[1_u8, 2, 3, 4]]);
+    let uuids = Column::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4]]);
     assert_eq!(uuids[0], [1_u8, 2, 3, 4]);
 
     let timestamps = Column::<Timestamp<Nanosecond, Utc>>::from_values([10_i64, 20]);
@@ -565,6 +566,48 @@ fn binary_columns() {
     let column = Column::<List<Binary>>::from_values([vec![b"a".to_vec(), b"b".to_vec()]]);
     let lists: Vec<Vec<Vec<u8>>> = column.to_vec();
     assert_eq!(lists, [vec![b"a".to_vec(), b"b".to_vec()]]);
+}
+
+#[test]
+fn binary_view_columns() {
+    use quiver::arrow::array::BinaryViewArray;
+    use quiver::{Binary, BinaryView};
+
+    let column = Column::<BinaryView>::from_values([b"abc".to_vec(), vec![0_u8, 1]]);
+    assert_eq!(column.value(0), b"abc");
+    assert_eq!(&column[1], &[0_u8, 1]);
+    assert_eq!(column.to_vec(), [b"abc".to_vec(), vec![0_u8, 1]]);
+    assert_eq!(Column::<BinaryView>::datatype(), DataType::BinaryView);
+
+    // BinaryView ≠ Binary:
+    let result = Column::<Binary>::try_from(column.into_arrow());
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nullable:
+    let column = Column::<Option<BinaryView>>::from_nullable_values([Some(b"abc".to_vec()), None]);
+    assert_eq!(column.to_vec(), [Some(b"abc".to_vec()), None]);
+
+    // Parsing an externally built array:
+    let array = BinaryViewArray::from_iter_values([b"x".as_slice(), b"yz"]);
+    let column = Column::<BinaryView>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.value(1), b"yz");
+
+    // A null at a non-nullable level is rejected:
+    let array = BinaryViewArray::from_iter([Some(b"x".as_slice()), None]);
+    let result = Column::<BinaryView>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Values longer than 12 bytes don't fit inline in the view and spill into a
+    // separate data buffer (referenced by offset) — exercise that path:
+    let short = b"short".to_vec(); // <= 12 bytes: stored inline
+    let long = b"a value well over twelve bytes".to_vec(); // > 12 bytes: in a buffer
+    let column = Column::<BinaryView>::from_values([short.clone(), long.clone()]);
+    assert_eq!(column.value(0), short.as_slice());
+    assert_eq!(column.value(1), long.as_slice());
+    assert_eq!(column.to_vec(), [short, long]);
 }
 
 #[test]
@@ -820,6 +863,205 @@ fn fixed_size_list_columns() {
     assert_eq!(sliced.to_vec(), [[3, 4], [5, 6]]);
 }
 
+#[test]
+fn large_list_columns() {
+    use quiver::LargeList;
+    use quiver::arrow::array::LargeListArray;
+
+    let column = Column::<LargeList<i64>>::from_values([vec![1_i64, 2], vec![3]]);
+    assert_eq!(
+        Column::<LargeList<i64>>::datatype(),
+        DataType::LargeList(Arc::new(Field::new("item", DataType::Int64, false)))
+    );
+    let lists: Vec<Vec<i64>> = column.to_vec();
+    assert_eq!(lists, [vec![1, 2], vec![3]]);
+
+    // Iteration is zero-copy, like List:
+    let first: Vec<i64> = column.value(0).collect();
+    assert_eq!(first, [1, 2]);
+
+    // List ≠ LargeList: the offset width is part of the type:
+    let result = Column::<List<i64>>::try_from(Arc::clone(column.as_arrow()));
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nullable items:
+    let column = Column::<LargeList<Option<i64>>>::from_values([vec![Some(1), None]]);
+    let lists: Vec<Vec<Option<i64>>> = column.iter().map(Iterator::collect).collect();
+    assert_eq!(lists, [vec![Some(1), None]]);
+
+    // A reachable null item at a non-nullable level is rejected:
+    let array = LargeListArray::from_iter_primitive::<Int64Type, _, _>(vec![Some(vec![None])]);
+    let result = Column::<LargeList<i64>>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Nullable rows:
+    let array =
+        LargeListArray::from_iter_primitive::<Int64Type, _, _>(vec![Some(vec![Some(1)]), None]);
+    let column = Column::<Option<LargeList<i64>>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    let lists: Vec<Option<Vec<i64>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(lists, [Some(vec![1]), None]);
+
+    // Nested in a List:
+    let column = Column::<LargeList<List<Utf8>>>::from_values([vec![vec!["a".to_owned()]]]);
+    assert_eq!(column.len(), 1);
+}
+
+#[test]
+fn map_columns() {
+    use quiver::Map;
+    use quiver::arrow::array::{Int64Builder, MapBuilder, StringBuilder};
+
+    // Build from owned (key, value) pairs:
+    let column = Column::<Map<Utf8, i64>>::from_values([
+        vec![("a".to_owned(), 1_i64), ("b".to_owned(), 2)],
+        vec![],
+        vec![("c".to_owned(), 3)],
+    ]);
+    assert_eq!(
+        Column::<Map<Utf8, i64>>::datatype(),
+        DataType::Map(
+            Arc::new(Field::new(
+                "entries",
+                DataType::Struct(
+                    vec![
+                        Field::new("keys", DataType::Utf8, false),
+                        Field::new("values", DataType::Int64, false),
+                    ]
+                    .into()
+                ),
+                false,
+            )),
+            false,
+        )
+    );
+
+    // Each row reads back as its (key, value) pairs:
+    let rows: Vec<Vec<(String, i64)>> = column.to_vec();
+    assert_eq!(
+        rows,
+        [
+            vec![("a".to_owned(), 1), ("b".to_owned(), 2)],
+            vec![],
+            vec![("c".to_owned(), 3)],
+        ]
+    );
+
+    // Zero-copy iteration over one row's pairs:
+    let first: Vec<(&str, i64)> = column.value(0).collect();
+    assert_eq!(first, [("a", 1), ("b", 2)]);
+
+    // Parsing an externally built (arrow `MapBuilder`) map array:
+    let mut builder = MapBuilder::new(None, StringBuilder::new(), Int64Builder::new());
+    builder.keys().append_value("x");
+    builder.values().append_value(10);
+    builder.append(true).unwrap();
+    builder.append(true).unwrap(); // empty map
+    let array = builder.finish();
+    let column = Column::<Map<Utf8, i64>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.value_owned(0), [("x".to_owned(), 10)]);
+    assert_eq!(column.value_owned(1), []);
+
+    // Nullable values:
+    let column = Column::<Map<Utf8, Option<i64>>>::from_values([vec![
+        ("a".to_owned(), Some(1_i64)),
+        ("b".to_owned(), None),
+    ]]);
+    let rows: Vec<Vec<(String, Option<i64>)>> = column.to_vec();
+    assert_eq!(
+        rows,
+        [vec![("a".to_owned(), Some(1)), ("b".to_owned(), None)]]
+    );
+
+    // A null value at a non-nullable level is rejected:
+    let mut builder = MapBuilder::new(None, StringBuilder::new(), Int64Builder::new());
+    builder.keys().append_value("a");
+    builder.values().append_null();
+    builder.append(true).unwrap();
+    let array = builder.finish();
+    let result = Column::<Map<Utf8, i64>>::try_from(Arc::new(array) as ArrayRef);
+    assert!(matches!(
+        result,
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // Whole-row (map) nullability:
+    let column = Column::<Option<Map<Utf8, i64>>>::from_nullable_values([
+        Some(vec![("a".to_owned(), 1_i64)]),
+        None,
+    ]);
+    let rows: Vec<Option<Vec<(&str, i64)>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(rows, [Some(vec![("a", 1)]), None]);
+}
+
+#[test]
+fn run_columns() {
+    use quiver::Run;
+    use quiver::arrow::array::{Int32Array, RunArray, StringArray};
+    use quiver::arrow::datatypes::Int32Type;
+
+    // Building run-end-encodes the values (consecutive duplicates collapse):
+    let column = Column::<Run<i32, Utf8>>::try_from_values(["a", "a", "a", "b", "b"]).unwrap();
+    assert_eq!(
+        Column::<Run<i32, Utf8>>::datatype(),
+        DataType::RunEndEncoded(
+            Arc::new(Field::new("run_ends", DataType::Int32, false)),
+            Arc::new(Field::new("values", DataType::Utf8, false)),
+        )
+    );
+
+    // The encoding is transparent: values read as if it were a plain column:
+    let values: Vec<&str> = column.iter().collect();
+    assert_eq!(values, ["a", "a", "a", "b", "b"]);
+    assert_eq!(column.value(3), "b");
+    assert_eq!(&column[0], "a"); // `RefDatatype`, looked up through the run ends
+
+    // Parsing an externally built run array:
+    let run_ends = Int32Array::from(vec![2, 5, 6]); // runs end at logical 2, 5, 6
+    let run_values = StringArray::from(vec!["x", "y", "z"]);
+    let array = RunArray::<Int32Type>::try_new(&run_ends, &run_values).unwrap();
+    let column = Column::<Run<i32, Utf8>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    assert_eq!(column.to_vec(), ["x", "x", "y", "y", "y", "z"]);
+
+    // The run-end index type is part of the type:
+    let result = Column::<Run<i64, Utf8>>::try_from(Arc::clone(column.as_arrow()));
+    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+
+    // Nulls live in the values, so nullability is `Run<R, Option<V>>`:
+    let run_ends = Int32Array::from(vec![1, 2]);
+    let run_values = StringArray::from(vec![Some("x"), None]);
+    let array = RunArray::<Int32Type>::try_new(&run_ends, &run_values).unwrap();
+    let array = Arc::new(array) as ArrayRef;
+
+    // …a null at a non-nullable level is rejected:
+    assert!(matches!(
+        Column::<Run<i32, Utf8>>::try_from(Arc::clone(&array)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // …but `Run<i32, Option<Utf8>>` accepts it:
+    let column = Column::<Run<i32, Option<Utf8>>>::try_from(array).unwrap();
+    let values: Vec<Option<&str>> = column.iter().collect();
+    assert_eq!(values, [Some("x"), None]);
+
+    // Run-end overflow propagates as an error (more rows than `i16` can index):
+    let many: Vec<String> = (0..40_000).map(|i| i.to_string()).collect();
+    let result = Column::<Run<i16, Utf8>>::try_from_values(many.clone());
+    assert!(matches!(result, Err(ColumnError::Build(_))));
+
+    // …but `i32` indices fit:
+    let column = Column::<Run<i32, Utf8>>::try_from_values(many).unwrap();
+    assert_eq!(column.len(), 40_000);
+}
+
 /// Domain newtypes via `newtype_datatype!`.
 #[derive(Debug, PartialEq)]
 struct SensorName(String);
@@ -852,7 +1094,7 @@ impl From<ChunkId> for [u8; 16] {
     }
 }
 
-quiver::newtype_datatype!(ChunkId, [u8; 16], primitive);
+quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
 
 /// A `bool`-backed newtype: `bool` has no `RefDatatype` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.

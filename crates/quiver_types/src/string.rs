@@ -19,6 +19,13 @@ use crate::datatype::{ColumnError, Datatype, RefDatatype, impl_marker_datatype};
 
 /// UTF-8 text: an arrow [`DataType::Utf8`] column with `String` values.
 ///
+/// ```
+/// use quiver::{Column, Utf8};
+///
+/// let column = Column::<Utf8>::from_values(["alice", "bob"]);
+/// assert_eq!(column.value(0), "alice"); // borrowed `&str`, zero-copy
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Utf8;
 
@@ -32,6 +39,13 @@ impl_marker_datatype!(
 
 /// Like [`Utf8`], with 64-bit offsets
 /// (for single columns holding more than 2 `GiB` of text in total).
+///
+/// ```
+/// use quiver::{Column, LargeUtf8};
+///
+/// let column = Column::<LargeUtf8>::from_values(["alice", "bob"]);
+/// assert_eq!(column.value(1), "bob");
+/// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct LargeUtf8;
@@ -47,6 +61,13 @@ impl_marker_datatype!(
 /// Like [`Utf8`], in the newer "view" encoding
 /// ([`arrow::array::StringViewArray`]), optimized for comparisons
 /// and out-of-order writes.
+///
+/// ```
+/// use quiver::{Column, Utf8View};
+///
+/// let column = Column::<Utf8View>::from_values(["alice", "bob"]);
+/// assert_eq!(column.value(0), "alice");
+/// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Utf8View;

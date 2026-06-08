@@ -22,12 +22,15 @@
 /// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
 ///
 /// For representations that implement [`PrimitiveDatatype`]
-/// (primitives, `[u8; N]`), add a trailing `primitive` to also enable the bulk
-/// zero-copy [`Column::as_slice`](crate::Column::as_slice) — which, like
+/// (primitives, [`FixedSizeBinary<N>`](crate::FixedSizeBinary)), add a trailing
+/// `primitive` to also enable the bulk zero-copy
+/// [`Column::as_slice`](crate::Column::as_slice) — which, like
 /// reading, yields the *representation's* values
-/// (e.g. `&[[u8; 16]]` for a `[u8; 16]`-backed newtype):
+/// (e.g. `&[[u8; 16]]` for a `FixedSizeBinary<16>`-backed newtype):
 ///
 /// ```
+/// use quiver::FixedSizeBinary;
+///
 /// #[derive(Debug, PartialEq)]
 /// struct Uuid([u8; 16]);
 ///
@@ -42,7 +45,7 @@
 ///     }
 /// }
 ///
-/// quiver::newtype_datatype!(Uuid, [u8; 16], primitive);
+/// quiver::newtype_datatype!(Uuid, FixedSizeBinary<16>, primitive);
 ///
 /// let column = quiver::Column::<Uuid>::from_values([Uuid([7; 16])]);
 /// assert_eq!(column.as_slice(), &[[7_u8; 16]]); // bulk, zero-copy

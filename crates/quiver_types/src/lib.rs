@@ -17,16 +17,19 @@ mod duration;
 mod error;
 mod fixed_size_binary;
 mod fixed_size_list;
+mod large_list;
 mod list;
+mod map;
 mod newtype;
 mod option;
 mod primitive;
+mod run;
 mod string;
 mod time;
 mod timestamp;
 mod typed_array;
 
-pub use self::binary::{Binary, LargeBinary};
+pub use self::binary::{Binary, BinaryView, LargeBinary};
 pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{
@@ -38,9 +41,13 @@ pub use self::duration::{
     Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
 };
 pub use self::error::{Error, ErrorKind};
+pub use self::fixed_size_binary::FixedSizeBinary;
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
+pub use self::large_list::{LargeList, TypedLargeList};
 pub use self::list::{List, ListValue, TypedList};
+pub use self::map::{Map, MapValue, TypedMap};
 pub use self::newtype::As;
+pub use self::run::{Run, RunEndType, TypedRun};
 pub use self::string::{LargeUtf8, Utf8, Utf8View};
 pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
 pub use self::timestamp::{

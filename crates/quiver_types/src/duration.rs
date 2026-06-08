@@ -18,6 +18,13 @@ use std::marker::PhantomData;
 ///
 /// The values are raw `i64` ticks in the given [`TimeUnitSpec`].
 ///
+/// ```
+/// use quiver::{Column, Duration, Millisecond};
+///
+/// let column = Column::<Duration<Millisecond>>::from_values([10, 20]);
+/// assert_eq!(column.value(1), 20); // elapsed milliseconds
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Duration<U> {
     _marker: PhantomData<fn() -> U>,

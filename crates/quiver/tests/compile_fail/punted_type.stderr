@@ -1,5 +1,5 @@
-error: `MapArray` is explicitly not supported (yet)
- --> tests/compile_fail/punted_type.rs:7:10
+error: `UnionArray` is explicitly not supported (yet)
+ --> tests/compile_fail/punted_type.rs:7:12
   |
-7 |     map: MapArray,
-  |          ^^^^^^^^
+7 |     onion: UnionArray,
+  |            ^^^^^^^^^^

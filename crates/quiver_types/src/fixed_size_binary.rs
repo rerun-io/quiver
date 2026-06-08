@@ -1,10 +1,10 @@
-//! `[u8; N]`: a logical type for columns of fixed-size byte arrays.
+//! [`FixedSizeBinary<N>`]: a logical type for columns of fixed-size byte arrays.
 //!
-//! A `Column<[u8; 16]>` is a column where every element is exactly 16 bytes
-//! (e.g. UUIDs or hashes), stored as an [`arrow::array::FixedSizeBinaryArray`]
-//! ([`DataType::FixedSizeBinary`]).
+//! A `Column<FixedSizeBinary<16>>` is a column where every element is exactly
+//! 16 bytes (e.g. UUIDs or hashes), stored as an
+//! [`arrow::array::FixedSizeBinaryArray`] ([`DataType::FixedSizeBinary`]).
 //! The size is part of the type, checked at the parse boundary;
-//! the element values are `&[u8; N]`.
+//! the element values are `&[u8; N]` and the owned values are `[u8; N]`.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
@@ -13,8 +13,23 @@ use crate::datatype::{
     ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, downcast_array,
 };
 
-/// `[u8; N]`: an arrow `FixedSizeBinary(N)` column, e.g. `[u8; 16]` for UUIDs.
-impl<const N: usize> Datatype for [u8; N] {
+/// Marker for an arrow `FixedSizeBinary(N)` column, e.g. `FixedSizeBinary<16>`
+/// for UUIDs.
+///
+/// The element values are `&[u8; N]`; the owned values are `[u8; N]`.
+///
+/// ```
+/// use quiver::{Column, FixedSizeBinary};
+///
+/// let column = Column::<FixedSizeBinary<4>>::from_values([[1, 2, 3, 4], [5, 6, 7, 8]]);
+/// assert_eq!(column.value(0), &[1, 2, 3, 4]);
+/// assert_eq!(column.as_slice(), &[[1, 2, 3, 4], [5, 6, 7, 8]]); // bulk, zero-copy
+/// ```
+///
+/// This type is never instantiated — it only appears as a type parameter.
+pub struct FixedSizeBinary<const N: usize>;
+
+impl<const N: usize> Datatype for FixedSizeBinary<N> {
     type Typed = arrow::array::FixedSizeBinaryArray;
     type Value<'a> = &'a [u8; N];
     type Owned = [u8; N];
@@ -49,7 +64,7 @@ impl<const N: usize> Datatype for [u8; N] {
         #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let array =
             arrow::array::FixedSizeBinaryArray::try_from_sparse_iter_with_size(values, N as i32)
-                .map_err(ColumnError::Build)?; // Cannot happen: `[u8; N]` values all have the same size
+                .map_err(ColumnError::Build)?; // Cannot happen: the values all have the same size
         Ok(std::sync::Arc::new(array))
     }
 
@@ -58,16 +73,19 @@ impl<const N: usize> Datatype for [u8; N] {
     }
 }
 
-impl<const N: usize> InfallibleBuild for [u8; N] {}
+impl<const N: usize> InfallibleBuild for FixedSizeBinary<N> {}
 
 /// Enables the bulk zero-copy [`Column::as_slice`](crate::Column::as_slice):
-/// `&[[u8; N]]` for a `Column<[u8; N]>`.
-impl<const N: usize> PrimitiveDatatype for [u8; N] {
+/// `&[[u8; N]]` for a `Column<FixedSizeBinary<N>>`.
+impl<const N: usize> PrimitiveDatatype for FixedSizeBinary<N> {
     type Native = [u8; N];
 
     fn values(typed: &Self::Typed) -> &[Self::Native] {
         const {
-            assert!(0 < N, "as_slice() is not available for [u8; 0] columns");
+            assert!(
+                0 < N,
+                "as_slice() is not available for FixedSizeBinary<0> columns"
+            );
         }
         // The buffer of a `FixedSizeBinaryArray` is normalized on construction
         // and slicing: `value_data()` is exactly the `len * N` bytes of the
@@ -78,7 +96,7 @@ impl<const N: usize> PrimitiveDatatype for [u8; N] {
     }
 }
 
-impl<const N: usize> RefDatatype for [u8; N] {
+impl<const N: usize> RefDatatype for FixedSizeBinary<N> {
     type Ref = [u8; N];
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &[u8; N] {

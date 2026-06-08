@@ -3,6 +3,7 @@
 Use `cargo semver-checks` to check if a new release can be a patch release.
 
 * [ ] Update `CHANGELOG.md` using `./scripts/generate_changelog.py --version 0.NEW.VERSION`
+* [ ] Improve the changelog and make sure each new feature and breaking change has its own line
 * [ ] Bump version numbers in `Cargo.toml` and run `cargo check`.
 * [ ] `git commit -m 'Release 0.x.0 - summary'`
 * [ ] `cargo publish --quiet -p quiver_types`

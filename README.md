@@ -173,8 +173,8 @@ More of the `Column` API:
 
 * Construction is infallible: `from_values`, `From<Vec<T>>`, `FromIterator`,
   `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty).
-  The one exception: building a `Dictionary` column can fail (key overflow),
-  so it uses `try_from_values` instead
+  The exceptions: building a `Dictionary` (key overflow) or `Run` (run-end
+  overflow) column can fail, so those use `try_from_values` instead
 * Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
 * Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
   and fixed-size binary non-nullable columns
@@ -195,32 +195,36 @@ The supported logical types:
 |----------------------------------------------|------------------------------|---------------------------|
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
 | `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
-| `[u8; N]`                                    | `FixedSizeBinary(N)`         | `&[u8; N]`                |
-| `Binary`, `LargeBinary`                      | `Binary`, `LargeBinary`      | `&[u8]`                   |
+| `FixedSizeBinary<N>`                         | `FixedSizeBinary(N)`         | `&[u8; N]`                |
+| `Binary`, `LargeBinary`, `BinaryView`        | The same                     | `&[u8]`                   |
 | `Date32`, `Date64`                           | `Date32`, `Date64`           | `i32` days / `i64` ms     |
 | `Time32Second` … `Time64Nanosecond`          | `Time32(…)`, `Time64(…)`     | `i32` / `i64`             |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
 | `DurationMillisecond`                        | `Duration(Millisecond)`      | `i64`                     |
 | `Dictionary<i32, Utf8>`                      | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
-| `List<L>`                                    | `List(…)`, recursively       | An iterator over the items |
+| `Run<i32, Utf8>`                             | `RunEndEncoded(Int32, Utf8)` | Transparent: `&str`       |
+| `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
+| `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
-Not *yet* supported as logical types:
+### What is *not* supported
 
-* `Struct` (parked; investigated 2026-06-04 — moderate effort: a new derive generating
+These datatypes have no logical type yet, so there is no `Column<L>` for them:
+
+* `Struct` — but usable as a raw, downcast-only `arrow` field (`StructArray`).
+  (Parked; investigated 2026-06-04 — moderate effort: a new derive generating
   per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
-  by the parent validity, on both parse and build)
-* The string/binary *view* types
-* `LargeList`
+  by the parent validity, on both parse and build.)
+* `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
+* `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)
+* `Union`
+* The list-view types (`ListView`, `LargeListView`)
 
-Most of these can still be used as raw, downcast-only arrow array fields
-(`StructArray`, `DictionaryArray`, `LargeListArray`, …).
-The difficult and exotic datatypes — `Decimal`, `Map`, `Union`, `Interval`,
-and run-end arrays — are explicitly unsupported even as raw fields,
-with a clear compile error.
+Everything except `Struct` is rejected with a clear compile error even as a raw
+`arrow` field; `Struct` is the one that still works as a raw downcast-only field.
 
 Timezones are matched as exact strings: `Timestamp<Nanosecond, Utc>` ("UTC") will
 not accept an array with the equivalent timezone `"+00:00"`.

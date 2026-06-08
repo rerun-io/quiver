@@ -215,17 +215,17 @@ impl<L: RefDatatype> std::ops::Index<usize> for Column<L> {
 impl<L: PrimitiveDatatype> Column<L> {
     /// The values as a contiguous zero-copy slice,
     /// e.g. `&[f32]` for a `Column<f32>`,
-    /// or `&[[u8; 16]]` for a `Column<[u8; 16]>` (fixed-size binary).
+    /// or `&[[u8; 16]]` for a `Column<FixedSizeBinary<16>>`.
     ///
     /// Only available for primitive and fixed-size binary non-nullable columns
     /// (`bool` is excluded: arrow bit-packs it).
     ///
     /// ```
-    /// # use quiver::Column;
+    /// # use quiver::{Column, FixedSizeBinary};
     /// let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);
     /// assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);
     ///
-    /// let hashes = Column::<[u8; 4]>::from_values([[1, 2, 3, 4], [5, 6, 7, 8]]);
+    /// let hashes = Column::<FixedSizeBinary<4>>::from_values([[1, 2, 3, 4], [5, 6, 7, 8]]);
     /// assert_eq!(hashes.as_slice(), &[[1, 2, 3, 4], [5, 6, 7, 8]]);
     /// ```
     #[must_use]
