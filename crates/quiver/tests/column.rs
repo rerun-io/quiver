@@ -599,6 +599,15 @@ fn binary_view_columns() {
         result,
         Err(ColumnError::UnexpectedNulls { null_count: 1 })
     ));
+
+    // Values longer than 12 bytes don't fit inline in the view and spill into a
+    // separate data buffer (referenced by offset) — exercise that path:
+    let short = b"short".to_vec(); // <= 12 bytes: stored inline
+    let long = b"a value well over twelve bytes".to_vec(); // > 12 bytes: in a buffer
+    let column = Column::<BinaryView>::from_values([short.clone(), long.clone()]);
+    assert_eq!(column.value(0), short.as_slice());
+    assert_eq!(column.value(1), long.as_slice());
+    assert_eq!(column.to_vec(), [short, long]);
 }
 
 #[test]
