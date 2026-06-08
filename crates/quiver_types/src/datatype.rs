@@ -292,7 +292,9 @@ pub(crate) use impl_primitive_datatype;
 pub fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
     match (actual, declared) {
         (DataType::List(actual), DataType::List(declared))
-        | (DataType::LargeList(actual), DataType::LargeList(declared)) => {
+        | (DataType::LargeList(actual), DataType::LargeList(declared))
+        | (DataType::ListView(actual), DataType::ListView(declared))
+        | (DataType::LargeListView(actual), DataType::LargeListView(declared)) => {
             datatypes_compatible(actual.data_type(), declared.data_type())
         }
         (

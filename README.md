@@ -204,6 +204,7 @@ The supported logical types:
 | `Dictionary<i32, Utf8>`                      | `Dictionary(Int32, Utf8)`    | Transparent: `&str`       |
 | `Run<i32, Utf8>`                             | `RunEndEncoded(Int32, Utf8)` | Transparent: `&str`       |
 | `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
+| `ListView<L>`, `LargeListView<L>`            | `ListView(…)`/`LargeListView(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
@@ -221,7 +222,6 @@ These datatypes have no logical type yet, so there is no `Column<L>` for them:
 * `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
 * `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)
 * `Union`
-* The list-view types (`ListView`, `LargeListView`)
 
 Everything except `Struct` is rejected with a clear compile error even as a raw
 `arrow` field; `Struct` is the one that still works as a raw downcast-only field.
