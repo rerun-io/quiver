@@ -194,7 +194,8 @@ impl<'a, L: Datatype + 'a> Iterator for ListValue<'a, L> {
 
 impl<'a, L: Datatype + 'a> ExactSizeIterator for ListValue<'a, L> {}
 
-/// Counts the nulls among the *reachable* items of a (large) list array:
+/// Counts the nulls among the *reachable* items of a list array (`List` or
+/// `LargeList` — it is generic over the offset width):
 /// items inside the ranges of valid (non-null) rows.
 ///
 /// This is the logical count: physical nulls outside the slice window,
