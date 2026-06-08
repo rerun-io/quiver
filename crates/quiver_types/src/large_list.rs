@@ -5,7 +5,7 @@
 //! offsets are `i64` instead of `i32`, so the flattened items may exceed
 //! what a 32-bit offset can address (more than ~2 billion items in one column).
 //! Reading is zero-copy: each element is an iterator
-//! ([`ListValue`](crate::ListValue)) over the items.
+//! ([`ListValue`]) over the items.
 
 use std::marker::PhantomData;
 

@@ -6,7 +6,7 @@
 //! `f16` comes from the [`half`] crate (re-exported as [`crate::half`]),
 //! matching its use in [`arrow::array::Float16Array`].
 //!
-//! See [`Datatype`](crate::Datatype) for a usage example.
+//! See [`Datatype`] for a usage example.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
