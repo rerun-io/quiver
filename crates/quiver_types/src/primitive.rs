@@ -6,13 +6,7 @@
 //! `f16` comes from the [`half`] crate (re-exported as [`crate::half`]),
 //! matching its use in [`arrow::array::Float16Array`].
 //!
-//! ```
-//! use quiver::Column;
-//!
-//! let column = Column::<i64>::from_values([1, 2, 3]);
-//! assert_eq!(column.value(0), 1);
-//! assert_eq!(column.as_slice(), &[1, 2, 3]); // bulk, zero-copy (not for `bool`)
-//! ```
+//! See [`Datatype`](crate::Datatype) for a usage example.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;

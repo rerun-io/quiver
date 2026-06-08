@@ -9,6 +9,20 @@ use crate::ErrorKind;
 /// A logical column type, e.g. `Utf8`, `Option<i64>`, or `List<Utf8>`.
 ///
 /// `Option<L>` means the values at this nesting level may be null.
+///
+/// The primitive Rust types implement it directly, and `Option<L>` adds
+/// nullability at any nesting level:
+///
+/// ```
+/// use quiver::Column;
+///
+/// let numbers = Column::<i64>::from_values([1, 2, 3]);
+/// assert_eq!(numbers.value(0), 1);
+/// assert_eq!(numbers.as_slice(), &[1, 2, 3]); // bulk, zero-copy (not for `bool`)
+///
+/// let maybe = Column::<Option<i64>>::from_values([Some(1), None]);
+/// assert_eq!(maybe.value(1), None);
+/// ```
 pub trait Datatype {
     /// May the values at this level be null? (`true` only for `Option<…>`)
     const NULLABLE: bool = false;
