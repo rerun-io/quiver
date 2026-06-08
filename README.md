@@ -210,24 +210,21 @@ The supported logical types:
 
 ### What is *not* supported
 
-There are two tiers of "not supported", and they behave very differently.
+These datatypes have no logical type yet, so there is no `Column<L>` for them:
 
-**1. No strongly-typed `Column<L>` yet — but fine as raw, downcast-only `arrow` fields.**
-These have no logical type, so you cannot write `Column<Struct>`, but you *can* hold them
-as a raw `arrow` array field (`StructArray`, …), validated by downcast only:
-
-* `Struct` (parked; investigated 2026-06-04 — moderate effort: a new derive generating
+* `Struct` — but usable as a raw, downcast-only `arrow` field (`StructArray`).
+  (Parked; investigated 2026-06-04 — moderate effort: a new derive generating
   per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
-  by the parent validity, on both parse and build)
-
-**2. Explicitly unsupported, even as raw `arrow` fields — these give a clear compile error.**
-Some types are not yet supported:
-
+  by the parent validity, on both parse and build.)
 * `Decimal` (`Decimal32`/`Decimal64`/`Decimal128`/`Decimal256`)
 * `Interval` (`IntervalDayTime`/`IntervalMonthDayNano`/`IntervalYearMonth`)
 * `Union`
+* The list-view types (`ListView`, `LargeListView`)
+
+Everything except `Struct` is rejected with a clear compile error even as a raw
+`arrow` field; `Struct` is the one that still works as a raw downcast-only field.
 
 Timezones are matched as exact strings: `Timestamp<Nanosecond, Utc>` ("UTC") will
 not accept an array with the equivalent timezone `"+00:00"`.
