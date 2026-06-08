@@ -27,6 +27,15 @@ use crate::datatype::{ColumnError, Datatype, RefDatatype, downcast_array};
 /// So nullable rows are `Run<R, Option<V>>` (a null run value is a null row) —
 /// `Option<Run<R, V>>` is not the way to express it.
 ///
+/// ```
+/// use quiver::{Column, Run, Utf8};
+///
+/// // Consecutive duplicates collapse into runs (building can fail on overflow):
+/// let column = Column::<Run<i32, Utf8>>::try_from_values(["a", "a", "a", "b"]).unwrap();
+/// assert_eq!(column.value(0), "a");
+/// assert_eq!(column.to_vec(), ["a", "a", "a", "b"]);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Run<R, V> {
     _marker: PhantomData<fn() -> (R, V)>,

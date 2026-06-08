@@ -21,10 +21,24 @@ use crate::datatype::{ColumnError, Datatype, InfallibleBuild, RefDatatype, downc
 /// (A plain Rust type like `Vec<u8>` would be ambiguous here:
 /// arrow distinguishes `Binary` from `List(UInt8)`.)
 ///
+/// ```
+/// use quiver::{Binary, Column};
+///
+/// let column = Column::<Binary>::from_values([b"abc".to_vec(), vec![0, 1]]);
+/// assert_eq!(column.value(0), b"abc"); // borrowed `&[u8]`, zero-copy
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Binary;
 
 /// Marker for an arrow `LargeBinary` column: like [`Binary`], with 64-bit offsets.
+///
+/// ```
+/// use quiver::{Column, LargeBinary};
+///
+/// let column = Column::<LargeBinary>::from_values([b"abc".to_vec()]);
+/// assert_eq!(column.value(0), b"abc");
+/// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct LargeBinary;
@@ -32,6 +46,13 @@ pub struct LargeBinary;
 /// Marker for an arrow `BinaryView` column: like [`Binary`], in the newer "view"
 /// encoding ([`arrow::array::BinaryViewArray`]), optimized for comparisons
 /// and out-of-order writes.
+///
+/// ```
+/// use quiver::{BinaryView, Column};
+///
+/// let column = Column::<BinaryView>::from_values([b"abc".to_vec()]);
+/// assert_eq!(column.value(0), b"abc");
+/// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct BinaryView;

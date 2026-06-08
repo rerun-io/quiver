@@ -33,6 +33,15 @@ use crate::datatype::{ColumnError, Datatype, RefDatatype, downcast_array};
 /// so a valid key can point at a null. That (rare) case is `Dictionary<K, Option<V>>`.
 /// `Column<Dictionary<K, V>>` (no `Option` anywhere) guarantees the absence of both.
 ///
+/// ```
+/// use quiver::{Column, Dictionary, Utf8};
+///
+/// // Building dictionary-encodes the values (can fail on key overflow):
+/// let column = Column::<Dictionary<i32, Utf8>>::try_from_values(["a", "b", "a"]).unwrap();
+/// assert_eq!(column.value(2), "a"); // transparent: reads like a plain column
+/// assert_eq!(column.to_vec(), ["a", "b", "a"]);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Dictionary<K, V> {
     _marker: PhantomData<fn() -> (K, V)>,

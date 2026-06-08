@@ -25,6 +25,15 @@ use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 /// Marker for an arrow `List` column with items of logical type `L`.
 ///
 /// Item nullability: `List<Option<L>>`.
+///
+/// ```
+/// use quiver::{Column, List};
+///
+/// let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
+/// let first: Vec<i64> = column.value(0).collect();
+/// assert_eq!(first, [1, 2]);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct List<L> {
     _marker: PhantomData<fn() -> L>,

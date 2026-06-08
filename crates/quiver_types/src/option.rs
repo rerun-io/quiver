@@ -7,6 +7,14 @@
 //!
 //! This works at every nesting level, e.g. `List<Option<Utf8>>` for a list
 //! column whose *items* may be null.
+//!
+//! ```
+//! use quiver::{Column, Utf8};
+//!
+//! let column = Column::<Option<Utf8>>::from_nullable_values([Some("a"), None]);
+//! assert_eq!(column.value(0), Some("a"));
+//! assert_eq!(column.value(1), None);
+//! ```
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;

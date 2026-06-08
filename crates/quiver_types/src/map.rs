@@ -26,6 +26,17 @@ use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
 /// Value nullability: `Map<K, Option<V>>`. Whole-row nullability:
 /// `Option<Map<K, V>>`. Arrow map keys are never null, so `K` is non-`Option`.
 ///
+/// ```
+/// use quiver::{Column, Map, Utf8};
+///
+/// let column = Column::<Map<Utf8, i64>>::from_values([vec![
+///     ("a".to_owned(), 1),
+///     ("b".to_owned(), 2),
+/// ]]);
+/// let pairs: Vec<(&str, i64)> = column.value(0).collect();
+/// assert_eq!(pairs, [("a", 1), ("b", 2)]);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Map<K, V> {
     _marker: PhantomData<fn() -> (K, V)>,

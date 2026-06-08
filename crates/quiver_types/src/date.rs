@@ -15,11 +15,25 @@ use crate::datatype::{ColumnError, Datatype, impl_marker_datatype, impl_primitiv
 
 /// Days since the Unix epoch, as an `i32`.
 ///
+/// ```
+/// use quiver::{Column, Date32};
+///
+/// let column = Column::<Date32>::from_values([19_876, 19_877]); // days since 1970-01-01
+/// assert_eq!(column.value(0), 19_876);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Date32;
 
 /// Milliseconds since the Unix epoch, as an `i64`
 /// (expected to be a multiple of a day; not validated).
+///
+/// ```
+/// use quiver::{Column, Date64};
+///
+/// let column = Column::<Date64>::from_values([1_717_200_000_000_i64]); // ms since 1970-01-01
+/// assert_eq!(column.value(0), 1_717_200_000_000);
+/// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Date64;

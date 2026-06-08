@@ -26,6 +26,13 @@ use crate::datatype::{
 /// *exactly*: a column declared `Timestamp<Nanosecond, Utc>` ("UTC") will not
 /// accept an array with the timezone "+00:00".
 ///
+/// ```
+/// use quiver::{Column, Nanosecond, Timestamp, Utc};
+///
+/// let column = Column::<Timestamp<Nanosecond, Utc>>::from_values([1, 2, 3]);
+/// assert_eq!(column.value(0), 1); // raw `i64` ticks since the epoch
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Timestamp<U, Z = NoTimezone> {
     _marker: PhantomData<fn() -> (U, Z)>,

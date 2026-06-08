@@ -20,6 +20,15 @@ use crate::list::{ListValue, impl_list_datatype, logical_item_null_count};
 /// like [`List`](crate::List), with 64-bit offsets.
 ///
 /// Item nullability: `LargeList<Option<L>>`.
+///
+/// ```
+/// use quiver::{Column, LargeList};
+///
+/// let column = Column::<LargeList<i64>>::from_values([vec![1, 2], vec![3]]);
+/// let second: Vec<i64> = column.value(1).collect();
+/// assert_eq!(second, [3]);
+/// ```
+///
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct LargeList<L> {
     _marker: PhantomData<fn() -> L>,
