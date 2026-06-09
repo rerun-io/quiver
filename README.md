@@ -212,7 +212,7 @@ The supported logical types:
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
-### `AnyList<L>`: one logical type for any list encoding
+### Semi-dynamic logical types
 
 Arrow has five physically different ways to store the same logical thing — a
 column of lists of `L`: `List`, `LargeList`, `ListView`, `LargeListView`, and
