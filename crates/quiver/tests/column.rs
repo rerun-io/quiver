@@ -1519,3 +1519,59 @@ fn utf8_string_encodings() {
     let values: Vec<Option<&str>> = nullable.iter().collect();
     assert_eq!(values, [Some("a"), None]);
 }
+
+#[test]
+fn list_value_column_like_api() {
+    // A `ListValue` (one list element) mirrors `Column`'s read API.
+    let column = Column::<List<i64>>::from_values([vec![10, 20, 30], vec![]]);
+
+    let first = column.value(0);
+    assert_eq!(first.len(), 3);
+    assert!(!first.is_empty());
+
+    // Random access by item index:
+    assert_eq!(first.value(0), 10);
+    assert_eq!(first.value(2), 30);
+    assert_eq!(first.get(1), Some(20));
+    assert_eq!(first.get(3), None);
+
+    // `list[i]` borrows from the array (primitive items):
+    assert_eq!(first[1], 20);
+
+    // Bulk zero-copy slice, and owned copies:
+    assert_eq!(first.as_slice(), &[10, 20, 30]);
+    assert_eq!(first.to_vec(), vec![10, 20, 30]);
+
+    // `iter` does not consume the view; the struct is `Copy`:
+    let sum: i64 = first.iter().sum();
+    assert_eq!(sum, 60);
+    let sum_again: i64 = first.iter().sum();
+    assert_eq!(sum_again, 60);
+
+    // Iterating still works directly (it is an `Iterator`):
+    let collected: Vec<i64> = first.collect();
+    assert_eq!(collected, [10, 20, 30]);
+
+    // Empty element:
+    let second = column.value(1);
+    assert!(second.is_empty());
+    assert_eq!(second.len(), 0);
+    assert_eq!(second.get(0), None);
+    assert_eq!(second.as_slice(), &[] as &[i64]);
+
+    // String items: owned access and indexing.
+    let strings = Column::<List<Utf8>>::from_values([vec!["a".to_owned(), "b".to_owned()]]);
+    let row = strings.value(0);
+    assert_eq!(&row[0], "a");
+    assert_eq!(row.value_owned(1), "b".to_owned());
+    assert_eq!(row.get_owned(0), Some("a".to_owned()));
+    assert_eq!(row.to_vec(), vec!["a".to_owned(), "b".to_owned()]);
+}
+
+#[test]
+#[should_panic(expected = "out of bounds for length 2")]
+fn list_value_index_out_of_bounds() {
+    let column = Column::<List<i64>>::from_values([vec![1, 2]]);
+    let value: i64 = column.value(0).value(2);
+    assert_eq!(value, 0); // unreachable: the line above panics
+}
