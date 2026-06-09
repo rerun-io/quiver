@@ -106,8 +106,8 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
         crate::datatype::datatypes_compatible(actual, &<Self as crate::ConcreteType>::datatype())
     }
 
-    fn expected_datatype() -> String {
-        format!("{:?}", <Self as crate::ConcreteType>::datatype())
+    fn supported_datatypes() -> Vec<DataType> {
+        vec![<Self as crate::ConcreteType>::datatype()]
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

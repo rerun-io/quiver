@@ -137,10 +137,10 @@ fn wrong_datatype() {
             record_type: "Strict",
             kind: ErrorKind::WrongDatatype {
                 column,
-                expected,
+                supported,
                 actual: DataType::Int64,
             },
-        }) if column == "name" && expected == "Utf8"
+        }) if column == "name" && supported == [DataType::Utf8]
     ));
 }
 

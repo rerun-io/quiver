@@ -72,9 +72,9 @@ fn standalone_wrong_datatype() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            expected,
+            supported,
             actual: DataType::Int64,
-        }) if expected == "Utf8"
+        }) if supported == [DataType::Utf8]
     ));
 }
 
@@ -116,9 +116,9 @@ fn standalone_fixed_size_binary_column() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            expected,
+            supported,
             actual: DataType::FixedSizeBinary(16),
-        }) if expected == "FixedSizeBinary(8)"
+        }) if supported == [DataType::FixedSizeBinary(8)]
     ));
 
     // Matching size:
@@ -1325,8 +1325,8 @@ impl quiver::LogicalType for AnyInt {
         matches!(actual, DataType::Int32 | DataType::Int64)
     }
 
-    fn expected_datatype() -> String {
-        "Int32 or Int64".to_owned()
+    fn supported_datatypes() -> Vec<DataType> {
+        vec![DataType::Int32, DataType::Int64]
     }
 
     fn downcast(

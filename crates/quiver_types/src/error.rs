@@ -19,12 +19,15 @@ pub enum ErrorKind {
     )]
     MissingColumn { column: String },
 
-    #[error("Column {column:?}: expected {expected}, found {actual:?}")]
+    #[error(
+        "Column {column:?}: expected {}, found {actual:?}",
+        crate::datatype::describe_datatypes(supported)
+    )]
     WrongDatatype {
         column: String,
 
-        /// A human description of the expected datatype(s).
-        expected: String,
+        /// The datatype(s) the logical type accepts.
+        supported: Vec<DataType>,
 
         actual: DataType,
     },

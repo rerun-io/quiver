@@ -69,8 +69,17 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
         }
     }
 
-    fn expected_datatype() -> String {
-        format!("FixedSizeList({}, {N})", L::expected_datatype())
+    fn supported_datatypes() -> Vec<DataType> {
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        L::supported_datatypes()
+            .into_iter()
+            .map(|inner| {
+                DataType::FixedSizeList(
+                    std::sync::Arc::new(arrow::datatypes::Field::new("item", inner, L::NULLABLE)),
+                    N as i32,
+                )
+            })
+            .collect()
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

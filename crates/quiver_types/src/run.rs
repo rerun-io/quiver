@@ -93,12 +93,16 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         }
     }
 
-    fn expected_datatype() -> String {
-        format!(
-            "RunEndEncoded({}, {})",
-            R::expected_datatype(),
-            V::expected_datatype()
-        )
+    fn supported_datatypes() -> Vec<DataType> {
+        V::supported_datatypes()
+            .into_iter()
+            .map(|value| {
+                DataType::RunEndEncoded(
+                    std::sync::Arc::new(Field::new("run_ends", R::datatype(), false)),
+                    std::sync::Arc::new(Field::new("values", value, V::NULLABLE)),
+                )
+            })
+            .collect()
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

@@ -98,8 +98,17 @@ macro_rules! impl_list_view_datatype {
                 }
             }
 
-            fn expected_datatype() -> String {
-                format!("{}({})", stringify!($variant), L::expected_datatype())
+            fn supported_datatypes() -> Vec<DataType> {
+                L::supported_datatypes()
+                    .into_iter()
+                    .map(|inner| {
+                        DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
+                            "item",
+                            inner,
+                            L::NULLABLE,
+                        )))
+                    })
+                    .collect()
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

@@ -38,8 +38,8 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         matches!(actual, DataType::FixedSizeBinary(n) if usize::try_from(*n) == Ok(N))
     }
 
-    fn expected_datatype() -> String {
-        format!("FixedSizeBinary({N})")
+    fn supported_datatypes() -> Vec<DataType> {
+        vec![<Self as crate::ConcreteType>::datatype()]
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

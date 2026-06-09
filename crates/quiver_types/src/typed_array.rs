@@ -31,7 +31,7 @@ impl<L: LogicalType> TypedArray<L> {
         let actual = array.data_type();
         if !L::matches(actual) {
             return Err(ColumnError::WrongDatatype {
-                expected: L::expected_datatype(),
+                supported: L::supported_datatypes(),
                 actual: actual.clone(),
             });
         }

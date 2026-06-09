@@ -68,8 +68,8 @@ macro_rules! impl_binary_datatype {
                 crate::datatype::datatypes_compatible(actual, &$datatype)
             }
 
-            fn expected_datatype() -> String {
-                format!("{:?}", $datatype)
+            fn supported_datatypes() -> Vec<DataType> {
+                vec![$datatype]
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

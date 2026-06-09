@@ -76,12 +76,21 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
         Self: 'a;
     type Owned = Vec<(K::Owned, V::Owned)>;
 
-    fn expected_datatype() -> String {
-        format!(
-            "Map({}, {})",
-            K::expected_datatype(),
-            V::expected_datatype()
-        )
+    fn supported_datatypes() -> Vec<DataType> {
+        let mut out = Vec::new();
+        for key in K::supported_datatypes() {
+            for value in V::supported_datatypes() {
+                let fields = Fields::from(vec![
+                    Field::new("keys", key.clone(), false),
+                    Field::new("values", value, V::NULLABLE),
+                ]);
+                out.push(DataType::Map(
+                    std::sync::Arc::new(Field::new("entries", DataType::Struct(fields), false)),
+                    false,
+                ));
+            }
+        }
+        out
     }
 
     fn matches(actual: &DataType) -> bool {

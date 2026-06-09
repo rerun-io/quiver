@@ -63,13 +63,18 @@ pub trait LogicalType {
     /// can handle.
     fn matches(actual: &DataType) -> bool;
 
-    /// A human description of the datatype(s) this logical type accepts,
-    /// reported as the "expected" type in [`ColumnError::WrongDatatype`].
+    /// The arrow datatype(s) this logical type accepts, reported as the
+    /// "expected" type(s) in [`ColumnError::WrongDatatype`].
     ///
-    /// Defaults to a generic phrase; [`ConcreteType`] types override it with
-    /// their exact datatype.
-    fn expected_datatype() -> String {
-        "a compatible datatype".to_owned()
+    /// A [`ConcreteType`] returns its single [`datatype`](ConcreteType::datatype);
+    /// multi-encoding types like [`AnyList`](crate::AnyList) return several.
+    /// May be incomplete for families that can't be finitely enumerated (e.g.
+    /// `AnyList` also accepts a `FixedSizeList` of *any* size) — it is only used
+    /// for error messages, not for matching (that is [`Self::matches`]).
+    ///
+    /// Defaults to empty (no specific datatype to name).
+    fn supported_datatypes() -> Vec<DataType> {
+        Vec::new()
     }
 
     /// Recursively downcasts the array, checking the nulls of all *children*.
@@ -173,11 +178,11 @@ pub trait InfallibleBuild: ConcreteType {}
 /// Does not know which column it concerns — see [`ColumnError::for_column`].
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
-    #[error("Expected {expected}, found {actual:?}")]
+    #[error("Expected {}, found {actual:?}", describe_datatypes(supported))]
     WrongDatatype {
-        /// A human description of the expected datatype(s)
-        /// (see [`LogicalType::expected_datatype`]).
-        expected: String,
+        /// The datatype(s) the logical type accepts
+        /// (see [`LogicalType::supported_datatypes`]).
+        supported: Vec<DataType>,
         actual: DataType,
     },
 
@@ -194,9 +199,9 @@ impl ColumnError {
     /// Attach the column name, producing an [`ErrorKind`].
     pub fn for_column(self, column: String) -> ErrorKind {
         match self {
-            Self::WrongDatatype { expected, actual } => ErrorKind::WrongDatatype {
+            Self::WrongDatatype { supported, actual } => ErrorKind::WrongDatatype {
                 column,
-                expected,
+                supported,
                 actual,
             },
             Self::UnexpectedNulls { null_count } => {
@@ -204,6 +209,15 @@ impl ColumnError {
             }
             Self::Build(err) => ErrorKind::BuildRecordBatch(err),
         }
+    }
+}
+
+/// Formats the accepted datatype(s) for a [`ColumnError::WrongDatatype`] message.
+pub(crate) fn describe_datatypes(supported: &[DataType]) -> String {
+    match supported {
+        [] => "a different datatype".to_owned(),
+        [one] => format!("{one:?}"),
+        many => format!("one of {many:?}"),
     }
 }
 
@@ -229,7 +243,7 @@ pub(crate) fn downcast_array<A: Array + Clone + 'static>(
         .downcast_ref::<A>()
         .cloned()
         .ok_or_else(|| ColumnError::WrongDatatype {
-            expected: "<unknown>".to_owned(), // unreachable; see docstring
+            supported: Vec::new(), // unreachable; see docstring
             actual: array.data_type().clone(),
         })
 }
@@ -245,8 +259,8 @@ macro_rules! impl_flat_datatype {
                 crate::datatype::datatypes_compatible(actual, &$datatype)
             }
 
-            fn expected_datatype() -> String {
-                format!("{:?}", $datatype)
+            fn supported_datatypes() -> Vec<DataType> {
+                vec![$datatype]
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -356,8 +370,8 @@ macro_rules! impl_marker_datatype {
                 crate::datatype::datatypes_compatible(actual, &$datatype)
             }
 
-            fn expected_datatype() -> String {
-                format!("{:?}", $datatype)
+            fn supported_datatypes() -> Vec<DataType> {
+                vec![$datatype]
             }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

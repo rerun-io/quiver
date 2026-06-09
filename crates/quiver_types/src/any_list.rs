@@ -100,8 +100,22 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
             || matches!(actual, DataType::FixedSizeList(item, _) if L::matches(item.data_type()))
     }
 
-    fn expected_datatype() -> String {
-        format!("any list of {}", L::expected_datatype())
+    fn supported_datatypes() -> Vec<DataType> {
+        // The four offset-based encodings. `FixedSizeList` is also accepted (see
+        // `matches`), but takes *any* size, so it can't be enumerated here.
+        L::supported_datatypes()
+            .into_iter()
+            .flat_map(|inner| {
+                let field =
+                    std::sync::Arc::new(arrow::datatypes::Field::new("item", inner, L::NULLABLE));
+                [
+                    DataType::List(std::sync::Arc::clone(&field)),
+                    DataType::LargeList(std::sync::Arc::clone(&field)),
+                    DataType::ListView(std::sync::Arc::clone(&field)),
+                    DataType::LargeListView(field),
+                ]
+            })
+            .collect()
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
@@ -124,7 +138,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                 Ok(AnyTypedList::FixedSizeList { array, values })
             }
             actual => Err(ColumnError::WrongDatatype {
-                expected: Self::expected_datatype(),
+                supported: Self::supported_datatypes(),
                 actual: actual.clone(),
             }),
         }

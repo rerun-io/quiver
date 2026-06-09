@@ -115,8 +115,8 @@ macro_rules! newtype_datatype {
                 <$repr as $crate::LogicalType>::matches(actual)
             }
 
-            fn expected_datatype() -> ::std::string::String {
-                <$repr as $crate::LogicalType>::expected_datatype()
+            fn supported_datatypes() -> ::std::vec::Vec<$crate::arrow::datatypes::DataType> {
+                <$repr as $crate::LogicalType>::supported_datatypes()
             }
 
             fn downcast(
@@ -208,8 +208,8 @@ where
         Repr::matches(actual)
     }
 
-    fn expected_datatype() -> String {
-        Repr::expected_datatype()
+    fn supported_datatypes() -> Vec<arrow::datatypes::DataType> {
+        Repr::supported_datatypes()
     }
 
     fn downcast(array: &dyn arrow::array::Array) -> Result<Self::Typed, ColumnError> {

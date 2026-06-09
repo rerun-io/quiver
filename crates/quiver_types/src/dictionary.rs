@@ -103,12 +103,11 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
         }
     }
 
-    fn expected_datatype() -> String {
-        format!(
-            "Dictionary({}, {})",
-            K::expected_datatype(),
-            V::expected_datatype()
-        )
+    fn supported_datatypes() -> Vec<DataType> {
+        V::supported_datatypes()
+            .into_iter()
+            .map(|value| DataType::Dictionary(Box::new(K::datatype()), Box::new(value)))
+            .collect()
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {

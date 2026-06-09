@@ -31,8 +31,8 @@ impl<L: LogicalType> LogicalType for Option<L> {
         L::matches(actual)
     }
 
-    fn expected_datatype() -> String {
-        L::expected_datatype()
+    fn supported_datatypes() -> Vec<DataType> {
+        L::supported_datatypes()
     }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
