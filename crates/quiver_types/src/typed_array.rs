@@ -28,6 +28,19 @@ impl<L: LogicalType> TypedArray<L> {
     /// # Errors
     /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
+        // `matches` and `downcast` are complementary — both are needed:
+        //
+        // * `matches` checks the *arrow datatype*, including the parameters that
+        //   are not encoded in the concrete array's Rust type and so are
+        //   invisible to `downcast`: a `FixedSizeBinary`/`FixedSizeList` size, a
+        //   timestamp's timezone, etc. (`FixedSizeBinaryArray` is one Rust type
+        //   for every size.) Skipping it would let those mismatches through —
+        //   into wrong reads or panics (e.g. `first_chunk::<N>` on a too-short
+        //   element). It also produces the good "expected vs found" error.
+        //
+        // * `downcast` then assumes the datatype is already valid (see its
+        //   contract): it just performs the zero-copy downcasts and validates
+        //   *nulls* at every non-`Option` nesting level.
         let actual = array.data_type();
         if !L::matches(actual) {
             return Err(ColumnError::WrongDatatype {
@@ -36,6 +49,7 @@ impl<L: LogicalType> TypedArray<L> {
             });
         }
 
+        // Top-level nulls; child-level nulls are checked inside `downcast`.
         if !L::NULLABLE && 0 < array.null_count() {
             return Err(ColumnError::UnexpectedNulls {
                 null_count: array.null_count(),
