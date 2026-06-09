@@ -137,10 +137,9 @@ fn wrong_datatype() {
             record_type: "Strict",
             kind: ErrorKind::WrongDatatype {
                 column,
-                supported,
                 actual: DataType::Int64,
             },
-        }) if column == "name" && supported == [DataType::Utf8]
+        }) if column == "name"
     ));
 }
 
@@ -352,7 +351,7 @@ fn error_messages() {
     .unwrap();
     assert_eq!(
         err.to_string(),
-        "Thing: Column \"name\": expected Utf8, found Int64"
+        "Thing: Column \"name\": unexpected datatype Int64"
     );
 
     let err = Strict::try_from(batch_of(&[

@@ -37,7 +37,6 @@ pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{
     ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveType, RefType,
-    datatypes_compatible,
 };
 pub use self::date::{Date32, Date64};
 pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};

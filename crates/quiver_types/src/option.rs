@@ -27,14 +27,6 @@ impl<L: LogicalType> LogicalType for Option<L> {
         Self: 'a;
     type Owned = Option<L::Owned>;
 
-    fn matches(actual: &DataType) -> bool {
-        L::matches(actual)
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        L::supported_datatypes()
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         L::downcast(array)
     }

@@ -34,15 +34,16 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
     type Value<'a> = &'a [u8; N];
     type Owned = [u8; N];
 
-    fn matches(actual: &DataType) -> bool {
-        matches!(actual, DataType::FixedSizeBinary(n) if usize::try_from(*n) == Ok(N))
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        vec![<Self as crate::ConcreteType>::datatype()]
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        // The element width is not in `FixedSizeBinaryArray`'s Rust type, so
+        // check it here (a `FixedSizeBinary(8)` would otherwise read as `<16>`
+        // and panic in `value`).
+        if !matches!(array.data_type(), DataType::FixedSizeBinary(n) if usize::try_from(*n) == Ok(N))
+        {
+            return Err(ColumnError::WrongDatatype {
+                actual: array.data_type().clone(),
+            });
+        }
         downcast_array::<arrow::array::FixedSizeBinaryArray>(array)
     }
 

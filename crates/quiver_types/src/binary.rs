@@ -64,14 +64,6 @@ macro_rules! impl_binary_datatype {
             type Value<'a> = &'a [u8];
             type Owned = Vec<u8>;
 
-            fn matches(actual: &DataType) -> bool {
-                crate::datatype::datatypes_compatible(actual, &$datatype)
-            }
-
-            fn supported_datatypes() -> Vec<DataType> {
-                vec![$datatype]
-            }
-
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 downcast_array::<$array>(array)
             }

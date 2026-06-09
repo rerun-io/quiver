@@ -96,20 +96,6 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
 
-    fn matches(actual: &DataType) -> bool {
-        match actual {
-            DataType::Dictionary(key, value) => K::matches(key) && V::matches(value),
-            _ => false,
-        }
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        V::supported_datatypes()
-            .into_iter()
-            .map(|value| DataType::Dictionary(Box::new(K::datatype()), Box::new(value)))
-            .collect()
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let dictionary = downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array)?;
         if !V::NULLABLE && 0 < dictionary.values().null_count() {

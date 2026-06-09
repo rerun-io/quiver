@@ -84,28 +84,10 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
 
-    fn matches(actual: &DataType) -> bool {
-        match actual {
-            DataType::RunEndEncoded(run_ends, values) => {
-                R::matches(run_ends.data_type()) && V::matches(values.data_type())
-            }
-            _ => false,
-        }
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        V::supported_datatypes()
-            .into_iter()
-            .map(|value| {
-                DataType::RunEndEncoded(
-                    std::sync::Arc::new(Field::new("run_ends", R::datatype(), false)),
-                    std::sync::Arc::new(Field::new("values", value, V::NULLABLE)),
-                )
-            })
-            .collect()
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        // `downcast_array` checks the run-end index type (it's part of
+        // `RunArray<R::ArrowRunType>`'s Rust type); the value type is validated
+        // below by recursing into `V`.
         let run = downcast_array::<RunArray<R::ArrowRunType>>(array)?;
         if !V::NULLABLE {
             // `logical_nulls` expands the runs to logical positions and counts

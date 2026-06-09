@@ -19,18 +19,8 @@ pub enum ErrorKind {
     )]
     MissingColumn { column: String },
 
-    #[error(
-        "Column {column:?}: expected {}, found {actual:?}",
-        crate::datatype::describe_datatypes(supported)
-    )]
-    WrongDatatype {
-        column: String,
-
-        /// The datatype(s) the logical type accepts.
-        supported: Vec<DataType>,
-
-        actual: DataType,
-    },
+    #[error("Column {column:?}: unexpected datatype {actual:?}")]
+    WrongDatatype { column: String, actual: DataType },
 
     #[error(
         "Unexpected column {column:?}. Either add it to the struct, or accept unknown columns with a `#[quiver(extra_columns)]` field"

@@ -38,15 +38,9 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
         Self: 'a;
     type Owned = i64;
 
-    fn matches(actual: &DataType) -> bool {
-        crate::datatype::datatypes_compatible(actual, &<Self as crate::ConcreteType>::datatype())
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        vec![<Self as crate::ConcreteType>::datatype()]
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        // The unit is part of `Self::Typed`'s Rust type, so `downcast_array`
+        // already rejects the wrong unit.
         downcast_array::<Self::Typed>(array)
     }
 

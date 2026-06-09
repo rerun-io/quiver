@@ -41,52 +41,29 @@ pub trait LogicalType {
     /// `String` for `Utf8`, `Option<i64>` for `Option<i64>`, `Vec<…>` for `List<…>`, etc.
     type Owned;
 
-    /// Does this logical type accept arrow arrays of datatype `actual`?
+    /// Validates that `array` has an acceptable datatype, then recursively
+    /// downcasts it — checking the nulls of all *children* along the way.
     ///
-    /// This is the datatype-matching hook, called once per column at the
-    /// validation boundary ([`Column::try_new`](crate::Column::try_new)).
+    /// This is the single validation+downcast hook, called once per column at the
+    /// boundary ([`Column::try_new`](crate::Column::try_new)). It must reject any
+    /// `array` whose datatype this logical type does not accept (returning
+    /// [`ColumnError::WrongDatatype`]), *including* datatype parameters not
+    /// encoded in the concrete arrow array's Rust type — a
+    /// [`FixedSizeBinary`](crate::FixedSizeBinary) / [`FixedSizeList`](crate::FixedSizeList)
+    /// size, a [`Timestamp`](crate::Timestamp) timezone, etc. The leaf type check
+    /// comes from the concrete-array downcast; nested element types are
+    /// validated by recursing into the children's `downcast`.
     ///
-    /// Types with a single concrete datatype ([`ConcreteType`]) typically
-    /// implement it as `datatypes_compatible(actual, &Self::datatype())`:
-    /// like equality, except that the inner [`arrow::datatypes::Field`]s of
-    /// nested datatypes are compared *structurally* — their names, nullability
-    /// flags, and metadata are ignored.
-    ///
-    /// Container types ([`List`](crate::List), [`FixedSizeList`](crate::FixedSizeList),
-    /// [`Dictionary`](crate::Dictionary), `Option<…>`) forward to the `matches`
-    /// of their inner types, so an override applies at any nesting depth.
-    /// Multi-encoding types like [`AnyList`](crate::AnyList) accept *several*
-    /// datatypes — which is exactly why matching lives here, on the read-only
-    /// [`LogicalType`], rather than on [`ConcreteType`].
-    ///
-    /// Contract: `matches` must accept only datatypes that [`Self::downcast`]
-    /// can handle.
-    fn matches(actual: &DataType) -> bool;
-
-    /// The arrow datatype(s) this logical type accepts, reported as the
-    /// "expected" type(s) in [`ColumnError::WrongDatatype`].
-    ///
-    /// A [`ConcreteType`] returns its single [`datatype`](ConcreteType::datatype);
-    /// multi-encoding types like [`AnyList`](crate::AnyList) return several.
-    /// May be incomplete for families that can't be finitely enumerated (e.g.
-    /// `AnyList` also accepts a `FixedSizeList` of *any* size) — it is only used
-    /// for error messages, not for matching (that is [`Self::matches`]).
-    ///
-    /// Defaults to empty (no specific datatype to name).
-    fn supported_datatypes() -> Vec<DataType> {
-        Vec::new()
-    }
-
-    /// Recursively downcasts the array, checking the nulls of all *children*.
+    /// Multi-encoding types like [`AnyList`](crate::AnyList) inspect
+    /// `array.data_type()` and dispatch to the matching encoding.
     ///
     /// Nulls at the level of `array` itself are the responsibility of the caller
-    /// (the parent datatype, or [`Column::try_new`](crate::Column::try_new) at the top level),
-    /// because only the caller knows if this level is wrapped in an `Option`.
+    /// (the parent datatype, or [`Column::try_new`](crate::Column::try_new) at the
+    /// top level), because only the caller knows if this level is wrapped in an
+    /// `Option`.
     ///
     /// # Errors
-    /// Errors on unexpected nulls in children.
-    /// The datatype is assumed to have already been checked (see [`Column::try_new`](crate::Column::try_new)),
-    /// making the downcasts themselves infallible.
+    /// Errors on a datatype mismatch, or on unexpected nulls in children.
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError>;
 
     /// Is the value at `index` null?
@@ -178,11 +155,10 @@ pub trait InfallibleBuild: ConcreteType {}
 /// Does not know which column it concerns — see [`ColumnError::for_column`].
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
-    #[error("Expected {}, found {actual:?}", describe_datatypes(supported))]
+    #[error("Unexpected datatype {actual:?}")]
     WrongDatatype {
-        /// The datatype(s) the logical type accepts
-        /// (see [`LogicalType::supported_datatypes`]).
-        supported: Vec<DataType>,
+        /// The datatype found (the logical type expected by the column is the
+        /// caller's `L`, known from context).
         actual: DataType,
     },
 
@@ -199,25 +175,12 @@ impl ColumnError {
     /// Attach the column name, producing an [`ErrorKind`].
     pub fn for_column(self, column: String) -> ErrorKind {
         match self {
-            Self::WrongDatatype { supported, actual } => ErrorKind::WrongDatatype {
-                column,
-                supported,
-                actual,
-            },
+            Self::WrongDatatype { actual } => ErrorKind::WrongDatatype { column, actual },
             Self::UnexpectedNulls { null_count } => {
                 ErrorKind::UnexpectedNulls { column, null_count }
             }
             Self::Build(err) => ErrorKind::BuildRecordBatch(err),
         }
-    }
-}
-
-/// Formats the accepted datatype(s) for a [`ColumnError::WrongDatatype`] message.
-pub(crate) fn describe_datatypes(supported: &[DataType]) -> String {
-    match supported {
-        [] => "a different datatype".to_owned(),
-        [one] => format!("{one:?}"),
-        many => format!("one of {many:?}"),
     }
 }
 
@@ -231,10 +194,13 @@ impl From<ColumnError> for arrow::error::ArrowError {
     }
 }
 
-/// Downcasts and clones (cheaply) a typed arrow array.
+/// Downcasts and clones (cheaply) a typed arrow array, validating the array's
+/// concrete type in the process.
 ///
-/// The datatype has already been validated, so a failure here is a bug —
-/// but we return an error instead of panicking, to be safe.
+/// This is the leaf datatype check: a wrong array type yields
+/// [`ColumnError::WrongDatatype`]. Datatype *parameters* not encoded in the Rust
+/// type (a fixed size, a timestamp timezone) must be checked separately by the
+/// caller — see [`LogicalType::downcast`].
 pub(crate) fn downcast_array<A: Array + Clone + 'static>(
     array: &dyn Array,
 ) -> Result<A, ColumnError> {
@@ -243,7 +209,6 @@ pub(crate) fn downcast_array<A: Array + Clone + 'static>(
         .downcast_ref::<A>()
         .cloned()
         .ok_or_else(|| ColumnError::WrongDatatype {
-            supported: Vec::new(), // unreachable; see docstring
             actual: array.data_type().clone(),
         })
 }
@@ -254,14 +219,6 @@ macro_rules! impl_flat_datatype {
             type Typed = $array;
             type Value<'a> = $value;
             type Owned = $rust;
-
-            fn matches(actual: &DataType) -> bool {
-                crate::datatype::datatypes_compatible(actual, &$datatype)
-            }
-
-            fn supported_datatypes() -> Vec<DataType> {
-                vec![$datatype]
-            }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 downcast_array::<$array>(array)
@@ -322,41 +279,6 @@ macro_rules! impl_primitive_datatype {
 
 pub(crate) use impl_primitive_datatype;
 
-/// Are arrow arrays of datatype `actual` acceptable where `declared` is expected?
-///
-/// Like equality, except that the inner [`arrow::datatypes::Field`]s of nested
-/// datatypes are compared *structurally*: their names (`"item"` vs `"element"`),
-/// nullability flags, and metadata are ignored.
-/// Actual nullability is enforced separately, by counting logical nulls.
-///
-/// This is the default implementation of [`LogicalType::matches`];
-/// it is public so that custom `matches` overrides can fall back on it.
-pub fn datatypes_compatible(actual: &DataType, declared: &DataType) -> bool {
-    match (actual, declared) {
-        (DataType::List(actual), DataType::List(declared))
-        | (DataType::LargeList(actual), DataType::LargeList(declared))
-        | (DataType::ListView(actual), DataType::ListView(declared))
-        | (DataType::LargeListView(actual), DataType::LargeListView(declared)) => {
-            datatypes_compatible(actual.data_type(), declared.data_type())
-        }
-        (
-            DataType::FixedSizeList(actual, actual_size),
-            DataType::FixedSizeList(declared, declared_size),
-        ) => {
-            actual_size == declared_size
-                && datatypes_compatible(actual.data_type(), declared.data_type())
-        }
-        (
-            DataType::Dictionary(actual_key, actual_value),
-            DataType::Dictionary(declared_key, declared_value),
-        ) => {
-            datatypes_compatible(actual_key, declared_key)
-                && datatypes_compatible(actual_value, declared_value)
-        }
-        _ => actual == declared,
-    }
-}
-
 /// Implements [`LogicalType`] for a marker type whose owned value differs from the
 /// marker itself (e.g. the marker `Date32` has `i32` values).
 macro_rules! impl_marker_datatype {
@@ -365,14 +287,6 @@ macro_rules! impl_marker_datatype {
             type Typed = $array;
             type Value<'a> = $value;
             type Owned = $owned;
-
-            fn matches(actual: &DataType) -> bool {
-                crate::datatype::datatypes_compatible(actual, &$datatype)
-            }
-
-            fn supported_datatypes() -> Vec<DataType> {
-                vec![$datatype]
-            }
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 crate::datatype::downcast_array::<$array>(array)

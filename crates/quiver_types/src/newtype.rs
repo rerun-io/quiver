@@ -111,14 +111,6 @@ macro_rules! newtype_datatype {
                 Self: 'a;
             type Owned = $newtype;
 
-            fn matches(actual: &$crate::arrow::datatypes::DataType) -> bool {
-                <$repr as $crate::LogicalType>::matches(actual)
-            }
-
-            fn supported_datatypes() -> ::std::vec::Vec<$crate::arrow::datatypes::DataType> {
-                <$repr as $crate::LogicalType>::supported_datatypes()
-            }
-
             fn downcast(
                 array: &dyn $crate::arrow::array::Array,
             ) -> ::core::result::Result<Self::Typed, $crate::ColumnError> {
@@ -203,14 +195,6 @@ where
     where
         Self: 'a;
     type Owned = T;
-
-    fn matches(actual: &arrow::datatypes::DataType) -> bool {
-        Repr::matches(actual)
-    }
-
-    fn supported_datatypes() -> Vec<arrow::datatypes::DataType> {
-        Repr::supported_datatypes()
-    }
 
     fn downcast(array: &dyn arrow::array::Array) -> Result<Self::Typed, ColumnError> {
         Repr::downcast(array)

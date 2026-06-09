@@ -76,39 +76,10 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
         Self: 'a;
     type Owned = Vec<(K::Owned, V::Owned)>;
 
-    fn supported_datatypes() -> Vec<DataType> {
-        let mut out = Vec::new();
-        for key in K::supported_datatypes() {
-            for value in V::supported_datatypes() {
-                let fields = Fields::from(vec![
-                    Field::new("keys", key.clone(), false),
-                    Field::new("values", value, V::NULLABLE),
-                ]);
-                out.push(DataType::Map(
-                    std::sync::Arc::new(Field::new("entries", DataType::Struct(fields), false)),
-                    false,
-                ));
-            }
-        }
-        out
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        let DataType::Map(entries, _ordered) = actual else {
-            return false;
-        };
-        // The entries field name, the `{key, value}` field names, the
-        // nullability flags, and the `ordered` flag are all ignored: only the
-        // key and value datatypes are compared (structurally, recursively).
-        match entries.data_type() {
-            DataType::Struct(fields) if fields.len() == 2 => {
-                K::matches(fields[0].data_type()) && V::matches(fields[1].data_type())
-            }
-            _ => false,
-        }
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        // `downcast_array` checks it's a `MapArray` (whose entries are, by arrow
+        // invariant, a 2-field `{keys, values}` struct); the key and value
+        // datatypes are validated below by recursing into `K`/`V`.
         let map = downcast_array::<MapArray>(array)?;
 
         // Keys are never null in a valid arrow map, but a sliced or null-row map

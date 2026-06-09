@@ -102,15 +102,14 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
         Self: 'a;
     type Owned = i64;
 
-    fn matches(actual: &DataType) -> bool {
-        crate::datatype::datatypes_compatible(actual, &<Self as crate::ConcreteType>::datatype())
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        vec![<Self as crate::ConcreteType>::datatype()]
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        // The timezone is not in the array's Rust type (only the unit is), so
+        // check the full datatype here — timezones are matched exactly.
+        if array.data_type() != &<Self as crate::ConcreteType>::datatype() {
+            return Err(ColumnError::WrongDatatype {
+                actual: array.data_type().clone(),
+            });
+        }
         downcast_array::<Self::Typed>(array)
     }
 

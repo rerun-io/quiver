@@ -72,9 +72,8 @@ fn standalone_wrong_datatype() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            supported,
             actual: DataType::Int64,
-        }) if supported == [DataType::Utf8]
+        })
     ));
 }
 
@@ -116,9 +115,8 @@ fn standalone_fixed_size_binary_column() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            supported,
             actual: DataType::FixedSizeBinary(16),
-        }) if supported == [DataType::FixedSizeBinary(8)]
+        })
     ));
 
     // Matching size:
@@ -271,7 +269,7 @@ fn errors_convert_to_arrow_error() {
         .err()
         .unwrap();
     assert!(matches!(err, ArrowError::ExternalError(_)));
-    assert!(err.to_string().contains("Expected Int64"));
+    assert!(err.to_string().contains("Unexpected datatype Utf8"));
 }
 
 #[test]
@@ -1312,8 +1310,8 @@ fn as_adapter_for_foreign_types() {
     assert_eq!(column.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
 }
 
-/// A custom logical type that overrides [`quiver::LogicalType::matches`]:
-/// it accepts both `Int32` and `Int64` arrays, reading every value as `i64`.
+/// A custom logical type whose `downcast` accepts *several* datatypes:
+/// both `Int32` and `Int64` arrays, reading every value as `i64`.
 struct AnyInt;
 
 impl quiver::LogicalType for AnyInt {
@@ -1321,17 +1319,15 @@ impl quiver::LogicalType for AnyInt {
     type Value<'a> = i64;
     type Owned = i64;
 
-    fn matches(actual: &DataType) -> bool {
-        matches!(actual, DataType::Int32 | DataType::Int64)
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        vec![DataType::Int32, DataType::Int64]
-    }
-
     fn downcast(
         array: &dyn quiver::arrow::array::Array,
     ) -> Result<Self::Typed, quiver::ColumnError> {
+        // `downcast` is the validator: accept both integer widths, reject the rest.
+        if !matches!(array.data_type(), DataType::Int32 | DataType::Int64) {
+            return Err(quiver::ColumnError::WrongDatatype {
+                actual: array.data_type().clone(),
+            });
+        }
         Ok(quiver::arrow::array::make_array(array.to_data()))
     }
 
@@ -1344,7 +1340,7 @@ impl quiver::LogicalType for AnyInt {
         match typed.data_type() {
             DataType::Int32 => i64::from(typed.as_primitive::<Int32Type>().value(index)),
             DataType::Int64 => typed.as_primitive::<Int64Type>().value(index),
-            _ => unreachable!("`matches` only accepts Int32 and Int64"),
+            _ => unreachable!("`downcast` only accepts Int32 and Int64"),
         }
     }
 
@@ -1365,10 +1361,10 @@ impl quiver::ConcreteType for AnyInt {
 }
 
 #[test]
-fn custom_matches_hook() {
+fn custom_multi_datatype() {
     use quiver::arrow::array::Int32Array;
 
-    // The override accepts both integer widths:
+    // The custom `downcast` accepts both integer widths:
     let from_i32 = Column::<AnyInt>::try_new(Arc::new(Int32Array::from(vec![1, 2]))).unwrap();
     let from_i64 = Column::<AnyInt>::try_new(Arc::new(Int64Array::from(vec![3]))).unwrap();
     assert_eq!(from_i32.to_vec(), [1, 2]);

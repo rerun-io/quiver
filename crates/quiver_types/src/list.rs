@@ -67,26 +67,6 @@ macro_rules! impl_list_datatype {
                 Self: 'a;
             type Owned = Vec<L::Owned>;
 
-            fn matches(actual: &DataType) -> bool {
-                match actual {
-                    DataType::$variant(item) => L::matches(item.data_type()),
-                    _ => false,
-                }
-            }
-
-            fn supported_datatypes() -> Vec<DataType> {
-                L::supported_datatypes()
-                    .into_iter()
-                    .map(|inner| {
-                        DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
-                            "item",
-                            inner,
-                            L::NULLABLE,
-                        )))
-                    })
-                    .collect()
-            }
-
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 let list = downcast_array::<$array>(array)?;
                 if !L::NULLABLE {

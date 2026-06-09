@@ -60,30 +60,16 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
         Self: 'a;
     type Owned = [L::Owned; N];
 
-    fn matches(actual: &DataType) -> bool {
-        match actual {
-            DataType::FixedSizeList(item, size) => {
-                *size as usize == N && L::matches(item.data_type())
-            }
-            _ => false,
-        }
-    }
-
-    fn supported_datatypes() -> Vec<DataType> {
-        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        L::supported_datatypes()
-            .into_iter()
-            .map(|inner| {
-                DataType::FixedSizeList(
-                    std::sync::Arc::new(arrow::datatypes::Field::new("item", inner, L::NULLABLE)),
-                    N as i32,
-                )
-            })
-            .collect()
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let list = downcast_array::<arrow::array::FixedSizeListArray>(array)?;
+        // The list size is not in `FixedSizeListArray`'s Rust type, so check it
+        // here. (The element type is validated below by recursing into `L`.)
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        if list.value_length() != N as i32 {
+            return Err(ColumnError::WrongDatatype {
+                actual: array.data_type().clone(),
+            });
+        }
         if !L::NULLABLE {
             // Only count *logical* nulls: items reachable through valid rows.
             // (Null rows have placeholder item slots; slicing leaves items
