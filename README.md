@@ -195,6 +195,7 @@ The supported logical types:
 |----------------------------------------------|------------------------------|---------------------------|
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
 | `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
+| `AnyUtf8`                                    | *any* UTF-8 encoding above   | `&str`                    |
 | `FixedSizeBinary<N>`                         | `FixedSizeBinary(N)`         | `&[u8; N]`                |
 | `Binary`, `LargeBinary`, `BinaryView`        | The same                     | `&[u8]`                   |
 | `AnyBinary`                                  | *any* binary encoding (incl. `FixedSizeBinary`) | `&[u8]`        |
@@ -211,7 +212,7 @@ The supported logical types:
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
-### `AnyList<L>`: one logical type for any list encoding
+### Semi-dynamic logical types
 
 Arrow has five physically different ways to store the same logical thing — a
 column of lists of `L`: `List`, `LargeList`, `ListView`, `LargeListView`, and
@@ -243,7 +244,8 @@ pick a concrete encoding such as `Column<List<L>>`.
 
 `AnyBinary` is the same idea for byte strings: it accepts any of `Binary`,
 `LargeBinary`, `BinaryView`, or `FixedSizeBinary` (any size) and reads them all
-as `&[u8]`. Also parse-only.
+as `&[u8]`. `AnyUtf8` likewise accepts any of `Utf8`, `LargeUtf8`, or `Utf8View`
+and reads them as `&str`. Both are also parse-only.
 
 ### What is *not* supported
 

@@ -11,11 +11,14 @@
 //!
 //! All three are markers: the owned values are `String`s, and reading is
 //! zero-copy — the element values are `&str` borrows into the array.
+//!
+//! [`AnyUtf8`] accepts *any* of those three encodings (they all read as `&str`),
+//! for when the encoding is decided at runtime.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, LogicalType, RefType, impl_marker_datatype};
+use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array, impl_marker_datatype};
 
 /// UTF-8 text: an arrow [`DataType::Utf8`] column with `String` values.
 ///
@@ -101,5 +104,91 @@ impl RefType for Utf8View {
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &str {
         typed.value(index)
+    }
+}
+
+/// Marker for a UTF-8 column in *any* of arrow's string encodings.
+///
+/// Accepts [`Utf8`], [`LargeUtf8`], or [`Utf8View`] — they all read as `&str`.
+///
+/// Like [`AnyList`](crate::AnyList), this is a quiver-only logical type with no
+/// single arrow datatype: `Column<AnyUtf8>` accepts whichever encoding it is
+/// handed and reads them all uniformly. It is *parse-only* — it implements
+/// [`LogicalType`] (so `try_from`/reading work) but not
+/// [`ConcreteType`](crate::ConcreteType), so there is no `from_values`/`Default`/
+/// schema; to build, pick a concrete encoding such as `Column<Utf8>`.
+///
+/// ```
+/// use quiver::{AnyUtf8, Column};
+/// use quiver::arrow::array::{ArrayRef, LargeStringArray};
+/// # use std::sync::Arc;
+///
+/// // `array` may be a Utf8 / LargeUtf8 / Utf8View:
+/// let array: ArrayRef = Arc::new(LargeStringArray::from(vec!["alice", "bob"]));
+/// let column = Column::<AnyUtf8>::try_from(array).unwrap();
+/// assert_eq!(column.value(0), "alice");
+/// ```
+///
+/// This type is never instantiated — it only appears as a type parameter.
+pub struct AnyUtf8;
+
+/// The validated representation of an [`AnyUtf8`] column: one of the
+/// per-encoding string arrays.
+#[derive(Clone)]
+pub enum AnyTypedUtf8 {
+    Utf8(arrow::array::StringArray),
+    LargeUtf8(arrow::array::LargeStringArray),
+    Utf8View(arrow::array::StringViewArray),
+}
+
+impl LogicalType for AnyUtf8 {
+    type Typed = AnyTypedUtf8;
+    type Value<'a> = &'a str;
+    type Owned = String;
+
+    fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
+        match array.data_type() {
+            DataType::Utf8 => Ok(AnyTypedUtf8::Utf8(downcast_array(array, || {
+                "Utf8".to_owned()
+            })?)),
+            DataType::LargeUtf8 => Ok(AnyTypedUtf8::LargeUtf8(downcast_array(array, || {
+                "LargeUtf8".to_owned()
+            })?)),
+            DataType::Utf8View => Ok(AnyTypedUtf8::Utf8View(downcast_array(array, || {
+                "Utf8View".to_owned()
+            })?)),
+            actual => Err(ColumnError::WrongDatatype {
+                expected: "a string array (Utf8/LargeUtf8/Utf8View)".to_owned(),
+                actual: actual.clone(),
+            }),
+        }
+    }
+
+    fn is_null(typed: &Self::Typed, index: usize) -> bool {
+        match typed {
+            AnyTypedUtf8::Utf8(array) => array.is_null(index),
+            AnyTypedUtf8::LargeUtf8(array) => array.is_null(index),
+            AnyTypedUtf8::Utf8View(array) => array.is_null(index),
+        }
+    }
+
+    fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        match typed {
+            AnyTypedUtf8::Utf8(array) => array.value(index),
+            AnyTypedUtf8::LargeUtf8(array) => array.value(index),
+            AnyTypedUtf8::Utf8View(array) => array.value(index),
+        }
+    }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value.to_owned()
+    }
+}
+
+impl RefType for AnyUtf8 {
+    type Ref = str;
+
+    fn value_ref(typed: &Self::Typed, index: usize) -> &str {
+        Self::value(typed, index)
     }
 }
