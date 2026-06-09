@@ -76,6 +76,18 @@ fn standalone_wrong_datatype() {
             actual: DataType::Int64,
         }) if expected == "Utf8"
     ));
+
+    // A wrong datatype that *also* has nulls reports the datatype mismatch,
+    // not `UnexpectedNulls` — the datatype check wins.
+    let nullable: ArrayRef = Arc::new(StringArray::from(vec![Some("a"), None]));
+    let result = Column::<i64>::try_from(nullable);
+    assert!(matches!(
+        result,
+        Err(ColumnError::WrongDatatype {
+            actual: DataType::Utf8,
+            ..
+        })
+    ));
 }
 
 #[test]

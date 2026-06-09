@@ -28,17 +28,19 @@ impl<L: LogicalType> TypedArray<L> {
     /// # Errors
     /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
-        // Top-level nulls; the datatype and all child-level nulls are validated
-        // inside `downcast` (which rejects a wrong datatype, including parameters
-        // like a fixed size or a timestamp timezone that the concrete arrow array
-        // type doesn't encode).
+        // Validate (and downcast) the datatype first — `downcast` rejects a wrong
+        // datatype, including parameters the concrete arrow array type doesn't
+        // encode (a fixed size, a timestamp timezone), and checks all child-level
+        // nulls. Doing it before the top-level null check means a datatype
+        // mismatch is reported as `WrongDatatype`, not masked by `UnexpectedNulls`.
+        let typed = L::downcast(&*array)?;
+
         if !L::NULLABLE && 0 < array.null_count() {
             return Err(ColumnError::UnexpectedNulls {
                 null_count: array.null_count(),
             });
         }
 
-        let typed = L::downcast(&*array)?;
         Ok(Self { array, typed })
     }
 
