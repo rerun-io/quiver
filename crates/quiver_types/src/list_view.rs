@@ -17,7 +17,7 @@ use arrow::array::{Array, ArrayRef, OffsetSizeTrait};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 use crate::list::ListValue;
 
 /// Marker for an arrow `ListView` column with items of logical type `L`:
@@ -40,7 +40,7 @@ pub struct ListView<L> {
 
 /// The validated representation of a `ListView` column:
 /// the list-view array plus its downcast values.
-pub struct TypedListView<L: Datatype> {
+pub struct TypedListView<L: LogicalType> {
     list: arrow::array::ListViewArray,
     values: L::Typed,
 }
@@ -65,16 +65,16 @@ pub struct LargeListView<L> {
 
 /// The validated representation of a `LargeListView` column:
 /// the list-view array plus its downcast values.
-pub struct TypedLargeListView<L: Datatype> {
+pub struct TypedLargeListView<L: LogicalType> {
     list: arrow::array::LargeListViewArray,
     values: L::Typed,
 }
 
-/// Generates the [`Datatype`] (and friends) impl for a list-view logical type:
+/// Generates the [`LogicalType`] (and friends) impl for a list-view logical type:
 /// shared by [`ListView`] (32-bit) and [`LargeListView`] (64-bit).
 macro_rules! impl_list_view_datatype {
     ($marker:ident, $typed:ident, $array:ty, $variant:ident, $offset:ty) => {
-        impl<L: Datatype> Clone for $typed<L> {
+        impl<L: LogicalType> Clone for $typed<L> {
             fn clone(&self) -> Self {
                 Self {
                     list: self.list.clone(),
@@ -83,7 +83,7 @@ macro_rules! impl_list_view_datatype {
             }
         }
 
-        impl<L: Datatype + 'static> Datatype for $marker<L> {
+        impl<L: LogicalType + 'static> LogicalType for $marker<L> {
             type Typed = $typed<L>;
             type Value<'a>
                 = ListValue<'a, L>
@@ -91,23 +91,9 @@ macro_rules! impl_list_view_datatype {
                 Self: 'a;
             type Owned = Vec<L::Owned>;
 
-            fn datatype() -> DataType {
-                DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
-                    "item",
-                    L::datatype(),
-                    L::NULLABLE,
-                )))
-            }
-
-            fn matches(actual: &DataType) -> bool {
-                match actual {
-                    DataType::$variant(item) => L::matches(item.data_type()),
-                    _ => false,
-                }
-            }
-
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                let list = downcast_array::<$array>(array)?;
+                let list =
+                    downcast_array::<$array>(array, || format!("{}(…)", stringify!($variant)))?;
                 if !L::NULLABLE {
                     // Only count *logical* nulls: items reachable through some
                     // valid row. List-view ranges can overlap or be unordered,
@@ -129,6 +115,20 @@ macro_rules! impl_list_view_datatype {
                 let start = typed.list.value_offset(index).as_usize();
                 let size = typed.list.value_size(index).as_usize();
                 ListValue::new(&typed.values, start, start + size)
+            }
+
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                value.map(L::to_owned_value).collect()
+            }
+        }
+
+        impl<L: crate::ConcreteType + 'static> crate::ConcreteType for $marker<L> {
+            fn datatype() -> DataType {
+                DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
+                    "item",
+                    L::datatype(),
+                    L::NULLABLE,
+                )))
             }
 
             fn build(
@@ -179,10 +179,6 @@ macro_rules! impl_list_view_datatype {
                 )
                 .map_err(ColumnError::Build)?;
                 Ok(std::sync::Arc::new(list))
-            }
-
-            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-                value.map(L::to_owned_value).collect()
             }
         }
 

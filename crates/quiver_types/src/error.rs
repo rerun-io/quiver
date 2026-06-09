@@ -19,10 +19,13 @@ pub enum ErrorKind {
     )]
     MissingColumn { column: String },
 
-    #[error("Column {column:?}: expected datatype {expected:?}, found {actual:?}")]
+    #[error("Column {column:?}: expected {expected}, found {actual:?}")]
     WrongDatatype {
         column: String,
-        expected: DataType,
+
+        /// A description of the expected datatype, e.g. `"Utf8"` or `"List(…)"`.
+        expected: String,
+
         actual: DataType,
     },
 

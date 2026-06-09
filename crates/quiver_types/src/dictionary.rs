@@ -12,7 +12,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, RefDatatype, downcast_array};
+use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array};
 
 /// Marker for an arrow `Dictionary` column, e.g. `Dictionary<i32, Utf8>`.
 ///
@@ -53,7 +53,7 @@ pub struct Dictionary<K, V> {
     label = "dictionary keys must be one of `i8`–`i64`, `u8`–`u64`",
     note = "for nullable dictionary rows, use `Option<Dictionary<K, V>>` instead of `Dictionary<Option<K>, V>` — the keys are storage indices, not readable values"
 )]
-pub trait DictionaryKey: Datatype {
+pub trait DictionaryKey: crate::ConcreteType {
     /// The corresponding arrow key type, e.g. `Int32Type`.
     type ArrowKeyType: arrow::datatypes::ArrowDictionaryKeyType;
 }
@@ -77,12 +77,12 @@ impl_dictionary_key!(u64, arrow::datatypes::UInt64Type);
 
 /// The validated representation of a `Dictionary` column:
 /// the dictionary array plus its downcast values.
-pub struct TypedDictionary<K: DictionaryKey, V: Datatype> {
+pub struct TypedDictionary<K: DictionaryKey, V: LogicalType> {
     dictionary: arrow::array::DictionaryArray<K::ArrowKeyType>,
     values: V::Typed,
 }
 
-impl<K: DictionaryKey, V: Datatype> Clone for TypedDictionary<K, V> {
+impl<K: DictionaryKey, V: LogicalType> Clone for TypedDictionary<K, V> {
     fn clone(&self) -> Self {
         Self {
             dictionary: self.dictionary.clone(),
@@ -91,24 +91,16 @@ impl<K: DictionaryKey, V: Datatype> Clone for TypedDictionary<K, V> {
     }
 }
 
-impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<K, V> {
+impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dictionary<K, V> {
     type Typed = TypedDictionary<K, V>;
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
 
-    fn datatype() -> DataType {
-        DataType::Dictionary(Box::new(K::datatype()), Box::new(V::datatype()))
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        match actual {
-            DataType::Dictionary(key, value) => K::matches(key) && V::matches(value),
-            _ => false,
-        }
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        let dictionary = downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array)?;
+        let dictionary =
+            downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array, || {
+                format!("Dictionary({:?}, …)", K::datatype())
+            })?;
         if !V::NULLABLE && 0 < dictionary.values().null_count() {
             // Only count *logical* nulls: null entries in the value table that
             // some key actually references. Unreferenced null entries are fine.
@@ -139,20 +131,28 @@ impl<K: DictionaryKey + 'static, V: Datatype + 'static> Datatype for Dictionary<
         V::value(&typed.values, key)
     }
 
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        V::to_owned_value(value)
+    }
+}
+
+impl<K: DictionaryKey + 'static, V: crate::ConcreteType + 'static> crate::ConcreteType
+    for Dictionary<K, V>
+{
+    fn datatype() -> DataType {
+        DataType::Dictionary(Box::new(K::datatype()), Box::new(V::datatype()))
+    }
+
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let plain = V::build(values)?;
         // This can fail on key overflow: too many distinct values for `K`
         // (e.g. more than 127 for `i8`). Hence `Dictionary` is NOT `InfallibleBuild`.
         arrow::compute::cast(&plain, &Self::datatype()).map_err(ColumnError::Build)
     }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        V::to_owned_value(value)
-    }
 }
 
-/// References are looked up through the dictionary keys, like [`Datatype::value`].
-impl<K: DictionaryKey + 'static, V: RefDatatype + 'static> RefDatatype for Dictionary<K, V> {
+/// References are looked up through the dictionary keys, like [`LogicalType::value`].
+impl<K: DictionaryKey + 'static, V: RefType + 'static> RefType for Dictionary<K, V> {
     type Ref = V::Ref;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
@@ -166,7 +166,7 @@ impl<K: DictionaryKey + 'static, V: RefDatatype + 'static> RefDatatype for Dicti
 impl<K, V, T> TryFrom<Vec<T>> for crate::Column<Dictionary<K, V>>
 where
     K: DictionaryKey + 'static,
-    V: Datatype + 'static,
+    V: crate::ConcreteType + 'static,
     T: Into<V::Owned>,
 {
     type Error = ColumnError;

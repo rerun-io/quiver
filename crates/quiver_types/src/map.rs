@@ -18,7 +18,7 @@ use arrow::array::{Array, ArrayRef, MapArray, StructArray};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::{DataType, Field, Fields};
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 
 /// Marker for an arrow `Map` column from keys `K` to values `V`,
 /// e.g. `Map<Utf8, i64>`.
@@ -44,13 +44,13 @@ pub struct Map<K, V> {
 
 /// The validated representation of a `Map` column:
 /// the map array plus its downcast keys and values.
-pub struct TypedMap<K: Datatype, V: Datatype> {
+pub struct TypedMap<K: LogicalType, V: LogicalType> {
     map: MapArray,
     keys: K::Typed,
     values: V::Typed,
 }
 
-impl<K: Datatype, V: Datatype> Clone for TypedMap<K, V> {
+impl<K: LogicalType, V: LogicalType> Clone for TypedMap<K, V> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
@@ -61,14 +61,14 @@ impl<K: Datatype, V: Datatype> Clone for TypedMap<K, V> {
 }
 
 /// The arrow `Field`s of a map's `{key, value}` struct entries.
-fn entry_fields<K: Datatype, V: Datatype>() -> Fields {
+fn entry_fields<K: crate::ConcreteType, V: crate::ConcreteType>() -> Fields {
     Fields::from(vec![
         Field::new("keys", K::datatype(), false),
         Field::new("values", V::datatype(), V::NULLABLE),
     ])
 }
 
-impl<K: Datatype + 'static, V: Datatype + 'static> Datatype for Map<K, V> {
+impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, V> {
     type Typed = TypedMap<K, V>;
     type Value<'a>
         = MapValue<'a, K, V>
@@ -76,34 +76,11 @@ impl<K: Datatype + 'static, V: Datatype + 'static> Datatype for Map<K, V> {
         Self: 'a;
     type Owned = Vec<(K::Owned, V::Owned)>;
 
-    fn datatype() -> DataType {
-        DataType::Map(
-            std::sync::Arc::new(Field::new(
-                "entries",
-                DataType::Struct(entry_fields::<K, V>()),
-                false,
-            )),
-            false,
-        )
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        let DataType::Map(entries, _ordered) = actual else {
-            return false;
-        };
-        // The entries field name, the `{key, value}` field names, the
-        // nullability flags, and the `ordered` flag are all ignored: only the
-        // key and value datatypes are compared (structurally, recursively).
-        match entries.data_type() {
-            DataType::Struct(fields) if fields.len() == 2 => {
-                K::matches(fields[0].data_type()) && V::matches(fields[1].data_type())
-            }
-            _ => false,
-        }
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        let map = downcast_array::<MapArray>(array)?;
+        // `downcast_array` checks it's a `MapArray` (whose entries are, by arrow
+        // invariant, a 2-field `{keys, values}` struct); the key and value
+        // datatypes are validated below by recursing into `K`/`V`.
+        let map = downcast_array::<MapArray>(array, || "Map(…)".to_owned())?;
 
         // Keys are never null in a valid arrow map, but a sliced or null-row map
         // may carry physical nulls; only *reachable* nulls would be a real error.
@@ -137,6 +114,27 @@ impl<K: Datatype + 'static, V: Datatype + 'static> Datatype for Map<K, V> {
             index: offsets[index].as_usize(),
             end: offsets[index + 1].as_usize(),
         }
+    }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value
+            .map(|(key, val)| (K::to_owned_value(key), V::to_owned_value(val)))
+            .collect()
+    }
+}
+
+impl<K: crate::ConcreteType + 'static, V: crate::ConcreteType + 'static> crate::ConcreteType
+    for Map<K, V>
+{
+    fn datatype() -> DataType {
+        DataType::Map(
+            std::sync::Arc::new(Field::new(
+                "entries",
+                DataType::Struct(entry_fields::<K, V>()),
+                false,
+            )),
+            false,
+        )
     }
 
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
@@ -175,26 +173,20 @@ impl<K: Datatype + 'static, V: Datatype + 'static> Datatype for Map<K, V> {
             .map_err(ColumnError::Build)?;
         Ok(std::sync::Arc::new(map))
     }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        value
-            .map(|(key, val)| (K::to_owned_value(key), V::to_owned_value(val)))
-            .collect()
-    }
 }
 
 impl<K: InfallibleBuild + 'static, V: InfallibleBuild + 'static> InfallibleBuild for Map<K, V> {}
 
 /// One map element of a `Column<Map<K, V>>`:
 /// an iterator over the typed `(key, value)` pairs.
-pub struct MapValue<'a, K: Datatype, V: Datatype> {
+pub struct MapValue<'a, K: LogicalType, V: LogicalType> {
     keys: &'a K::Typed,
     values: &'a V::Typed,
     index: usize,
     end: usize,
 }
 
-impl<'a, K: Datatype + 'a, V: Datatype + 'a> Iterator for MapValue<'a, K, V> {
+impl<'a, K: LogicalType + 'a, V: LogicalType + 'a> Iterator for MapValue<'a, K, V> {
     type Item = (K::Value<'a>, V::Value<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -216,7 +208,7 @@ impl<'a, K: Datatype + 'a, V: Datatype + 'a> Iterator for MapValue<'a, K, V> {
     }
 }
 
-impl<'a, K: Datatype + 'a, V: Datatype + 'a> ExactSizeIterator for MapValue<'a, K, V> {}
+impl<'a, K: LogicalType + 'a, V: LogicalType + 'a> ExactSizeIterator for MapValue<'a, K, V> {}
 
 /// Counts the nulls among the *reachable* entries of a map's `child` array
 /// (its keys or values): entries inside the ranges of valid (non-null) rows.

@@ -72,8 +72,20 @@ fn standalone_wrong_datatype() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            expected: DataType::Utf8,
+            expected,
             actual: DataType::Int64,
+        }) if expected == "Utf8"
+    ));
+
+    // A wrong datatype that *also* has nulls reports the datatype mismatch,
+    // not `UnexpectedNulls` — the datatype check wins.
+    let nullable: ArrayRef = Arc::new(StringArray::from(vec![Some("a"), None]));
+    let result = Column::<i64>::try_from(nullable);
+    assert!(matches!(
+        result,
+        Err(ColumnError::WrongDatatype {
+            actual: DataType::Utf8,
+            ..
         })
     ));
 }
@@ -116,9 +128,9 @@ fn standalone_fixed_size_binary_column() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
-            expected: DataType::FixedSizeBinary(8),
+            expected,
             actual: DataType::FixedSizeBinary(16),
-        })
+        }) if expected == "FixedSizeBinary(8)"
     ));
 
     // Matching size:
@@ -271,7 +283,7 @@ fn errors_convert_to_arrow_error() {
         .err()
         .unwrap();
     assert!(matches!(err, ArrowError::ExternalError(_)));
-    assert!(err.to_string().contains("Expected datatype"));
+    assert!(err.to_string().contains("Expected Int64, found Utf8"));
 }
 
 #[test]
@@ -986,6 +998,56 @@ fn list_view_columns() {
 }
 
 #[test]
+fn any_list_columns() {
+    use quiver::{AnyList, FixedSizeList, LargeList, LargeListView, ListView};
+
+    // `AnyList` is parse-only (no single datatype to build): `try_from` accepts
+    // every variable-length encoding, read uniformly:
+    let encodings = [
+        Column::<List<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+        Column::<LargeList<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+        Column::<ListView<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+        Column::<LargeListView<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
+    ];
+    for array in encodings {
+        let column = Column::<AnyList<i64>>::try_from(array).unwrap();
+        assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
+    }
+
+    // …including `FixedSizeList` (fixed cardinality, read at runtime):
+    let fixed = Column::<FixedSizeList<i64, 2>>::from_values([[1_i64, 2], [3, 4]]).into_arrow();
+    let column = Column::<AnyList<i64>>::try_from(fixed).unwrap();
+    assert_eq!(column.to_vec(), [vec![1, 2], vec![3, 4]]);
+
+    // A non-list array is rejected:
+    let ints = Column::<i64>::from_values([1, 2]).into_arrow();
+    assert!(matches!(
+        Column::<AnyList<i64>>::try_from(ints),
+        Err(ColumnError::WrongDatatype { .. })
+    ));
+
+    // Item nullability is enforced regardless of encoding:
+    let nullable = Column::<ListView<Option<i64>>>::from_values([vec![Some(1), None]]).into_arrow();
+    assert!(matches!(
+        Column::<AnyList<i64>>::try_from(Arc::clone(&nullable)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    let column = Column::<AnyList<Option<i64>>>::try_from(nullable).unwrap();
+    let items: Vec<Option<i64>> = column.value(0).collect();
+    assert_eq!(items, [Some(1), None]);
+
+    // Null rows via the column-level `Option`:
+    let array =
+        Column::<Option<List<i64>>>::from_nullable_values([Some(vec![1_i64]), None]).into_arrow();
+    let column = Column::<Option<AnyList<i64>>>::try_from(array).unwrap();
+    let rows: Vec<Option<Vec<i64>>> = column
+        .iter()
+        .map(|row| row.map(Iterator::collect))
+        .collect();
+    assert_eq!(rows, [Some(vec![1]), None]);
+}
+
+#[test]
 fn map_columns() {
     use quiver::Map;
     use quiver::arrow::array::{Int64Builder, MapBuilder, StringBuilder};
@@ -1095,7 +1157,7 @@ fn run_columns() {
     let values: Vec<&str> = column.iter().collect();
     assert_eq!(values, ["a", "a", "a", "b", "b"]);
     assert_eq!(column.value(3), "b");
-    assert_eq!(&column[0], "a"); // `RefDatatype`, looked up through the run ends
+    assert_eq!(&column[0], "a"); // `RefType`, looked up through the run ends
 
     // Parsing an externally built run array:
     let run_ends = Int32Array::from(vec![2, 5, 6]); // runs end at logical 2, 5, 6
@@ -1169,7 +1231,7 @@ impl From<ChunkId> for [u8; 16] {
 
 quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
 
-/// A `bool`-backed newtype: `bool` has no `RefDatatype` (bit-packed),
+/// A `bool`-backed newtype: `bool` has no `RefType` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct IsActive(bool);
@@ -1262,27 +1324,25 @@ fn as_adapter_for_foreign_types() {
     assert_eq!(column.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
 }
 
-/// A custom logical type that overrides [`quiver::Datatype::matches`]:
-/// it accepts both `Int32` and `Int64` arrays, reading every value as `i64`.
+/// A custom logical type whose `downcast` accepts *several* datatypes:
+/// both `Int32` and `Int64` arrays, reading every value as `i64`.
 struct AnyInt;
 
-impl quiver::Datatype for AnyInt {
+impl quiver::LogicalType for AnyInt {
     type Typed = ArrayRef;
     type Value<'a> = i64;
     type Owned = i64;
 
-    /// The canonical datatype: used when encoding, and in error messages.
-    fn datatype() -> DataType {
-        DataType::Int64
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        matches!(actual, DataType::Int32 | DataType::Int64)
-    }
-
     fn downcast(
         array: &dyn quiver::arrow::array::Array,
     ) -> Result<Self::Typed, quiver::ColumnError> {
+        // `downcast` is the validator: accept both integer widths, reject the rest.
+        if !matches!(array.data_type(), DataType::Int32 | DataType::Int64) {
+            return Err(quiver::ColumnError::WrongDatatype {
+                expected: "Int32 or Int64".to_owned(),
+                actual: array.data_type().clone(),
+            });
+        }
         Ok(quiver::arrow::array::make_array(array.to_data()))
     }
 
@@ -1295,12 +1355,8 @@ impl quiver::Datatype for AnyInt {
         match typed.data_type() {
             DataType::Int32 => i64::from(typed.as_primitive::<Int32Type>().value(index)),
             DataType::Int64 => typed.as_primitive::<Int64Type>().value(index),
-            _ => unreachable!("`matches` only accepts Int32 and Int64"),
+            _ => unreachable!("`downcast` only accepts Int32 and Int64"),
         }
-    }
-
-    fn build(values: impl Iterator<Item = Option<i64>>) -> Result<ArrayRef, quiver::ColumnError> {
-        Ok(Arc::new(values.collect::<Int64Array>()))
     }
 
     fn to_owned_value(value: i64) -> i64 {
@@ -1308,11 +1364,22 @@ impl quiver::Datatype for AnyInt {
     }
 }
 
+impl quiver::ConcreteType for AnyInt {
+    /// The canonical datatype: used when encoding, and in error messages.
+    fn datatype() -> DataType {
+        DataType::Int64
+    }
+
+    fn build(values: impl Iterator<Item = Option<i64>>) -> Result<ArrayRef, quiver::ColumnError> {
+        Ok(Arc::new(values.collect::<Int64Array>()))
+    }
+}
+
 #[test]
-fn custom_matches_hook() {
+fn custom_multi_datatype() {
     use quiver::arrow::array::Int32Array;
 
-    // The override accepts both integer widths:
+    // The custom `downcast` accepts both integer widths:
     let from_i32 = Column::<AnyInt>::try_new(Arc::new(Int32Array::from(vec![1, 2]))).unwrap();
     let from_i64 = Column::<AnyInt>::try_new(Arc::new(Int64Array::from(vec![3]))).unwrap();
     assert_eq!(from_i32.to_vec(), [1, 2]);

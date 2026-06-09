@@ -4,12 +4,12 @@
 //!   (must be invoked in the crate declaring the type, per the orphan rule).
 //! * For foreign types: the [`As`] adapter, e.g. `Column<As<Ipv4Addr, u32>>`.
 
-/// Implements [`Datatype`] for a domain newtype,
+/// Implements [`LogicalType`] for a domain newtype,
 /// making `Column<MyType>` work — including nesting (`List<MyType>`),
 /// the convenience constructors, and the derive.
 ///
 /// The newtype must convert to and from the representation's *owned value*
-/// ([`Datatype::Owned`], e.g. `String` for `Utf8`):
+/// ([`LogicalType::Owned`], e.g. `String` for `Utf8`):
 /// `impl From<MyType> for Owned` and `impl From<Owned> for MyType`.
 ///
 /// Reading stays zero-copy and yields the *representation's* borrowed value
@@ -18,10 +18,10 @@
 ///
 /// `column[index]` works too, borrowing through the representation.
 /// That requires the representation to implement
-/// [`RefDatatype`] — most do, but not e.g. `bool` or
+/// [`RefType`] — most do, but not e.g. `bool` or
 /// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
 ///
-/// For representations that implement [`PrimitiveDatatype`]
+/// For representations that implement [`PrimitiveType`]
 /// (primitives, [`FixedSizeBinary<N>`](crate::FixedSizeBinary)), add a trailing
 /// `primitive` to also enable the bulk zero-copy
 /// [`Column::as_slice`](crate::Column::as_slice) — which, like
@@ -80,11 +80,11 @@ macro_rules! newtype_datatype {
     ($newtype:ty, $repr:ty) => {
         $crate::newtype_datatype!($newtype, $repr, noref);
 
-        impl $crate::RefDatatype for $newtype {
-            type Ref = <$repr as $crate::RefDatatype>::Ref;
+        impl $crate::RefType for $newtype {
+            type Ref = <$repr as $crate::RefType>::Ref;
 
             fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
-                <$repr as $crate::RefDatatype>::value_ref(typed, index)
+                <$repr as $crate::RefType>::value_ref(typed, index)
             }
         }
     };
@@ -92,57 +92,58 @@ macro_rules! newtype_datatype {
     ($newtype:ty, $repr:ty, primitive) => {
         $crate::newtype_datatype!($newtype, $repr);
 
-        impl $crate::PrimitiveDatatype for $newtype {
-            type Native = <$repr as $crate::PrimitiveDatatype>::Native;
+        impl $crate::PrimitiveType for $newtype {
+            type Native = <$repr as $crate::PrimitiveType>::Native;
 
             fn values(typed: &Self::Typed) -> &[Self::Native] {
-                <$repr as $crate::PrimitiveDatatype>::values(typed)
+                <$repr as $crate::PrimitiveType>::values(typed)
             }
         }
     };
 
     ($newtype:ty, $repr:ty, noref) => {
-        impl $crate::Datatype for $newtype {
-            const NULLABLE: bool = <$repr as $crate::Datatype>::NULLABLE;
-            type Typed = <$repr as $crate::Datatype>::Typed;
+        impl $crate::LogicalType for $newtype {
+            const NULLABLE: bool = <$repr as $crate::LogicalType>::NULLABLE;
+            type Typed = <$repr as $crate::LogicalType>::Typed;
             type Value<'a>
-                = <$repr as $crate::Datatype>::Value<'a>
+                = <$repr as $crate::LogicalType>::Value<'a>
             where
                 Self: 'a;
             type Owned = $newtype;
 
-            fn datatype() -> $crate::arrow::datatypes::DataType {
-                <$repr as $crate::Datatype>::datatype()
-            }
-
-            fn matches(actual: &$crate::arrow::datatypes::DataType) -> bool {
-                <$repr as $crate::Datatype>::matches(actual)
-            }
-
             fn downcast(
                 array: &dyn $crate::arrow::array::Array,
             ) -> ::core::result::Result<Self::Typed, $crate::ColumnError> {
-                <$repr as $crate::Datatype>::downcast(array)
+                <$repr as $crate::LogicalType>::downcast(array)
             }
 
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
-                <$repr as $crate::Datatype>::is_null(typed, index)
+                <$repr as $crate::LogicalType>::is_null(typed, index)
             }
 
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
-                <$repr as $crate::Datatype>::value(typed, index)
+                <$repr as $crate::LogicalType>::value(typed, index)
+            }
+
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                ::core::convert::From::from(<$repr as $crate::LogicalType>::to_owned_value(value))
+            }
+        }
+
+        impl $crate::ConcreteType for $newtype
+        where
+            $repr: $crate::ConcreteType,
+        {
+            fn datatype() -> $crate::arrow::datatypes::DataType {
+                <$repr as $crate::ConcreteType>::datatype()
             }
 
             fn build(
                 values: impl ::core::iter::Iterator<Item = ::core::option::Option<Self::Owned>>,
             ) -> ::core::result::Result<$crate::arrow::array::ArrayRef, $crate::ColumnError> {
-                <$repr as $crate::Datatype>::build(
+                <$repr as $crate::ConcreteType>::build(
                     values.map(|value| value.map(::core::convert::Into::into)),
                 )
-            }
-
-            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-                ::core::convert::From::from(<$repr as $crate::Datatype>::to_owned_value(value))
             }
         }
 
@@ -152,7 +153,7 @@ macro_rules! newtype_datatype {
 
 use std::marker::PhantomData;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType};
 
 /// Adapter for using a *foreign* type (one you don't own, so
 /// [`newtype_datatype!`](crate::newtype_datatype) is off-limits by the orphan rule)
@@ -180,10 +181,10 @@ pub struct As<T, Repr> {
     _marker: PhantomData<fn() -> (T, Repr)>,
 }
 
-impl<T, Repr> Datatype for As<T, Repr>
+impl<T, Repr> LogicalType for As<T, Repr>
 where
     T: 'static,
-    Repr: Datatype + 'static,
+    Repr: LogicalType + 'static,
     T: From<Repr::Owned>,
     Repr::Owned: From<T>,
 {
@@ -194,14 +195,6 @@ where
     where
         Self: 'a;
     type Owned = T;
-
-    fn datatype() -> arrow::datatypes::DataType {
-        Repr::datatype()
-    }
-
-    fn matches(actual: &arrow::datatypes::DataType) -> bool {
-        Repr::matches(actual)
-    }
 
     fn downcast(array: &dyn arrow::array::Array) -> Result<Self::Typed, ColumnError> {
         Repr::downcast(array)
@@ -215,31 +208,43 @@ where
         Repr::value(typed, index)
     }
 
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        T::from(Repr::to_owned_value(value))
+    }
+}
+
+impl<T, Repr> crate::ConcreteType for As<T, Repr>
+where
+    T: 'static,
+    Repr: crate::ConcreteType + 'static,
+    T: From<Repr::Owned>,
+    Repr::Owned: From<T>,
+{
+    fn datatype() -> arrow::datatypes::DataType {
+        Repr::datatype()
+    }
+
     fn build(
         values: impl Iterator<Item = Option<Self::Owned>>,
     ) -> Result<arrow::array::ArrayRef, ColumnError> {
         Repr::build(values.map(|value| value.map(Repr::Owned::from)))
-    }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        T::from(Repr::to_owned_value(value))
     }
 }
 
 impl<T, Repr> InfallibleBuild for As<T, Repr>
 where
     T: 'static,
-    Repr: Datatype + InfallibleBuild + 'static,
+    Repr: LogicalType + InfallibleBuild + 'static,
     T: From<Repr::Owned>,
     Repr::Owned: From<T>,
 {
 }
 
 /// Like reading, `column[index]` yields the *representation's* reference.
-impl<T, Repr> RefDatatype for As<T, Repr>
+impl<T, Repr> RefType for As<T, Repr>
 where
     T: 'static,
-    Repr: RefDatatype + 'static,
+    Repr: RefType + 'static,
     T: From<Repr::Owned>,
     Repr::Owned: From<T>,
 {
@@ -252,10 +257,10 @@ where
 
 /// Like reading, [`Column::as_slice`](crate::Column::as_slice) yields
 /// the *representation's* values.
-impl<T, Repr> PrimitiveDatatype for As<T, Repr>
+impl<T, Repr> PrimitiveType for As<T, Repr>
 where
     T: 'static,
-    Repr: PrimitiveDatatype + 'static,
+    Repr: PrimitiveType + 'static,
     T: From<Repr::Owned>,
     Repr::Owned: From<T>,
 {

@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef, RunArray};
 use arrow::datatypes::{DataType, Field};
 
-use crate::datatype::{ColumnError, Datatype, RefDatatype, downcast_array};
+use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array};
 
 /// Marker for an arrow run-end-encoded column, e.g. `Run<i32, Utf8>`.
 ///
@@ -46,7 +46,7 @@ pub struct Run<R, V> {
     message = "`{Self}` cannot be used as a run-end index type",
     label = "run-end indices must be one of `i16`, `i32`, `i64`"
 )]
-pub trait RunEndType: Datatype {
+pub trait RunEndType: crate::ConcreteType {
     /// The corresponding arrow run-end type, e.g. `Int32Type`.
     type ArrowRunType: arrow::datatypes::RunEndIndexType;
 }
@@ -65,12 +65,12 @@ impl_run_end_type!(i64, arrow::datatypes::Int64Type);
 
 /// The validated representation of a `Run` column:
 /// the run array plus its downcast values.
-pub struct TypedRun<R: RunEndType, V: Datatype> {
+pub struct TypedRun<R: RunEndType, V: LogicalType> {
     run: RunArray<R::ArrowRunType>,
     values: V::Typed,
 }
 
-impl<R: RunEndType, V: Datatype> Clone for TypedRun<R, V> {
+impl<R: RunEndType, V: LogicalType> Clone for TypedRun<R, V> {
     fn clone(&self) -> Self {
         Self {
             run: self.run.clone(),
@@ -79,29 +79,18 @@ impl<R: RunEndType, V: Datatype> Clone for TypedRun<R, V> {
     }
 }
 
-impl<R: RunEndType + 'static, V: Datatype + 'static> Datatype for Run<R, V> {
+impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V> {
     type Typed = TypedRun<R, V>;
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
 
-    fn datatype() -> DataType {
-        DataType::RunEndEncoded(
-            std::sync::Arc::new(Field::new("run_ends", R::datatype(), false)),
-            std::sync::Arc::new(Field::new("values", V::datatype(), V::NULLABLE)),
-        )
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        match actual {
-            DataType::RunEndEncoded(run_ends, values) => {
-                R::matches(run_ends.data_type()) && V::matches(values.data_type())
-            }
-            _ => false,
-        }
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        let run = downcast_array::<RunArray<R::ArrowRunType>>(array)?;
+        // `downcast_array` checks the run-end index type (it's part of
+        // `RunArray<R::ArrowRunType>`'s Rust type); the value type is validated
+        // below by recursing into `V`.
+        let run = downcast_array::<RunArray<R::ArrowRunType>>(array, || {
+            format!("RunEndEncoded({:?}, …)", R::datatype())
+        })?;
         if !V::NULLABLE {
             // `logical_nulls` expands the runs to logical positions and counts
             // only the *reachable* nulls (respecting any slice window), so this
@@ -125,20 +114,29 @@ impl<R: RunEndType + 'static, V: Datatype + 'static> Datatype for Run<R, V> {
         V::value(&typed.values, physical)
     }
 
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        V::to_owned_value(value)
+    }
+}
+
+impl<R: RunEndType + 'static, V: crate::ConcreteType + 'static> crate::ConcreteType for Run<R, V> {
+    fn datatype() -> DataType {
+        DataType::RunEndEncoded(
+            std::sync::Arc::new(Field::new("run_ends", R::datatype(), false)),
+            std::sync::Arc::new(Field::new("values", V::datatype(), V::NULLABLE)),
+        )
+    }
+
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let plain = V::build(values)?;
         // This can fail on run-end overflow: more logical rows than `R` can index
         // (e.g. more than 32767 for `i16`). Hence `Run` is NOT `InfallibleBuild`.
         arrow::compute::cast(&plain, &Self::datatype()).map_err(ColumnError::Build)
     }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        V::to_owned_value(value)
-    }
 }
 
-/// References are looked up through the run ends, like [`Datatype::value`].
-impl<R: RunEndType + 'static, V: RefDatatype + 'static> RefDatatype for Run<R, V> {
+/// References are looked up through the run ends, like [`LogicalType::value`].
+impl<R: RunEndType + 'static, V: RefType + 'static> RefType for Run<R, V> {
     type Ref = V::Ref;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
@@ -153,7 +151,7 @@ impl<R: RunEndType + 'static, V: RefDatatype + 'static> RefDatatype for Run<R, V
 impl<R, V, T> TryFrom<Vec<T>> for crate::Column<Run<R, V>>
 where
     R: RunEndType + 'static,
-    V: Datatype + 'static,
+    V: crate::ConcreteType + 'static,
     T: Into<V::Owned>,
 {
     type Error = ColumnError;

@@ -13,7 +13,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 use crate::list::{ListValue, impl_list_datatype, logical_item_null_count};
 
 /// Marker for an arrow `LargeList` column with items of logical type `L`:
@@ -36,7 +36,7 @@ pub struct LargeList<L> {
 
 /// The validated representation of a `LargeList` column:
 /// the list array plus its downcast values.
-pub struct TypedLargeList<L: Datatype> {
+pub struct TypedLargeList<L: LogicalType> {
     list: arrow::array::LargeListArray,
     values: L::Typed,
 }

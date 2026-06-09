@@ -14,7 +14,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::datatype::{
-    ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, downcast_array,
+    ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
 };
 
 /// Marker for an arrow `Timestamp` column, e.g. `Timestamp<Nanosecond, Utc>`.
@@ -94,7 +94,7 @@ impl TimezoneSpec for Utc {
     }
 }
 
-impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestamp<U, Z> {
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Timestamp<U, Z> {
     type Typed = arrow::array::PrimitiveArray<U::TimestampType>;
     type Value<'a>
         = i64
@@ -102,15 +102,17 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
         Self: 'a;
     type Owned = i64;
 
-    fn datatype() -> DataType {
-        DataType::Timestamp(
-            <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
-            Z::timezone(),
-        )
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        downcast_array::<Self::Typed>(array)
+        // The timezone is not in the array's Rust type (only the unit is), so
+        // check the full datatype here — timezones are matched exactly.
+        let expected = || format!("{:?}", <Self as crate::ConcreteType>::datatype());
+        if array.data_type() != &<Self as crate::ConcreteType>::datatype() {
+            return Err(ColumnError::WrongDatatype {
+                expected: expected(),
+                actual: array.data_type().clone(),
+            });
+        }
+        downcast_array::<Self::Typed>(array, expected)
     }
 
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
@@ -121,13 +123,22 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Datatype for Timestam
         typed.value(index)
     }
 
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value
+    }
+}
+
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> crate::ConcreteType for Timestamp<U, Z> {
+    fn datatype() -> DataType {
+        DataType::Timestamp(
+            <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
+            Z::timezone(),
+        )
+    }
+
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let array: arrow::array::PrimitiveArray<U::TimestampType> = values.collect();
         Ok(std::sync::Arc::new(array.with_timezone_opt(Z::timezone())))
-    }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        value
     }
 }
 
@@ -138,7 +149,7 @@ pub type TimestampNanosecond<Z = NoTimezone> = Timestamp<Nanosecond, Z>;
 
 impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> InfallibleBuild for Timestamp<U, Z> {}
 
-impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> PrimitiveDatatype for Timestamp<U, Z> {
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> PrimitiveType for Timestamp<U, Z> {
     type Native = i64;
 
     fn values(typed: &Self::Typed) -> &[i64] {
@@ -146,7 +157,7 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> PrimitiveDatatype for
     }
 }
 
-impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> RefDatatype for Timestamp<U, Z> {
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> RefType for Timestamp<U, Z> {
     type Ref = i64;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &i64 {

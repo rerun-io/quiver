@@ -8,16 +8,16 @@
 //! This works at every nesting level, e.g. `List<Option<Utf8>>` for a list
 //! column whose *items* may be null.
 //!
-//! See [`Datatype`] for a usage example.
+//! See [`LogicalType`] for a usage example.
 
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::datatype::InfallibleBuild;
-use crate::{ColumnError, Datatype};
+use crate::{ColumnError, LogicalType};
 
 /// `Option<L>`: the values at this level may be null.
-impl<L: Datatype> Datatype for Option<L> {
+impl<L: LogicalType> LogicalType for Option<L> {
     const NULLABLE: bool = true;
 
     type Typed = L::Typed;
@@ -26,14 +26,6 @@ impl<L: Datatype> Datatype for Option<L> {
     where
         Self: 'a;
     type Owned = Option<L::Owned>;
-
-    fn datatype() -> DataType {
-        L::datatype()
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        L::matches(actual)
-    }
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         L::downcast(array)
@@ -51,12 +43,18 @@ impl<L: Datatype> Datatype for Option<L> {
         }
     }
 
-    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
-        L::build(values.map(Option::flatten))
-    }
-
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         value.map(L::to_owned_value)
+    }
+}
+
+impl<L: crate::ConcreteType> crate::ConcreteType for Option<L> {
+    fn datatype() -> DataType {
+        L::datatype()
+    }
+
+    fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
+        L::build(values.map(Option::flatten))
     }
 }
 

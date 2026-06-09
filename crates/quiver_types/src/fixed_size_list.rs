@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, downcast_array};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 use crate::list::ListValue;
 
 /// Marker for an arrow `FixedSizeList` column: each element holds exactly
@@ -38,12 +38,12 @@ pub struct FixedSizeList<L, const N: usize> {
 
 /// The validated representation of a `FixedSizeList` column:
 /// the list array plus its downcast values.
-pub struct TypedFixedSizeList<L: Datatype> {
+pub struct TypedFixedSizeList<L: LogicalType> {
     list: arrow::array::FixedSizeListArray,
     values: L::Typed,
 }
 
-impl<L: Datatype> Clone for TypedFixedSizeList<L> {
+impl<L: LogicalType> Clone for TypedFixedSizeList<L> {
     fn clone(&self) -> Self {
         Self {
             list: self.list.clone(),
@@ -52,7 +52,7 @@ impl<L: Datatype> Clone for TypedFixedSizeList<L> {
     }
 }
 
-impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
+impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, N> {
     type Typed = TypedFixedSizeList<L>;
     type Value<'a>
         = ListValue<'a, L>
@@ -60,32 +60,19 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
         Self: 'a;
     type Owned = [L::Owned; N];
 
-    fn datatype() -> DataType {
-        const {
-            assert!(N <= i32::MAX as usize, "FixedSizeList size too large");
-        }
-        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        DataType::FixedSizeList(
-            std::sync::Arc::new(arrow::datatypes::Field::new(
-                "item",
-                L::datatype(),
-                L::NULLABLE,
-            )),
-            N as i32,
-        )
-    }
-
-    fn matches(actual: &DataType) -> bool {
-        match actual {
-            DataType::FixedSizeList(item, size) => {
-                *size as usize == N && L::matches(item.data_type())
-            }
-            _ => false,
-        }
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        let list = downcast_array::<arrow::array::FixedSizeListArray>(array)?;
+        let list = downcast_array::<arrow::array::FixedSizeListArray>(array, || {
+            format!("FixedSizeList(…, {N})")
+        })?;
+        // The list size is not in `FixedSizeListArray`'s Rust type, so check it
+        // here. (The element type is validated below by recursing into `L`.)
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        if list.value_length() != N as i32 {
+            return Err(ColumnError::WrongDatatype {
+                expected: format!("FixedSizeList(…, {N})"),
+                actual: array.data_type().clone(),
+            });
+        }
         if !L::NULLABLE {
             // Only count *logical* nulls: items reachable through valid rows.
             // (Null rows have placeholder item slots; slicing leaves items
@@ -107,6 +94,32 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
         #[expect(clippy::cast_sign_loss)]
         let start = typed.list.value_offset(index) as usize;
         ListValue::new(&typed.values, start, start + N)
+    }
+
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        let mut items = value.map(L::to_owned_value);
+        std::array::from_fn(|_| {
+            items
+                .next()
+                .expect("Cannot fail: the element holds exactly N items")
+        })
+    }
+}
+
+impl<L: crate::ConcreteType + 'static, const N: usize> crate::ConcreteType for FixedSizeList<L, N> {
+    fn datatype() -> DataType {
+        const {
+            assert!(N <= i32::MAX as usize, "FixedSizeList size too large");
+        }
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        DataType::FixedSizeList(
+            std::sync::Arc::new(arrow::datatypes::Field::new(
+                "item",
+                L::datatype(),
+                L::NULLABLE,
+            )),
+            N as i32,
+        )
     }
 
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
@@ -143,21 +156,12 @@ impl<L: Datatype + 'static, const N: usize> Datatype for FixedSizeList<L, N> {
             .map_err(ColumnError::Build)?;
         Ok(std::sync::Arc::new(list))
     }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        let mut items = value.map(L::to_owned_value);
-        std::array::from_fn(|_| {
-            items
-                .next()
-                .expect("Cannot fail: the element holds exactly N items")
-        })
-    }
 }
 
 impl<L: InfallibleBuild + 'static, const N: usize> InfallibleBuild for FixedSizeList<L, N> {}
 
 /// Counts the nulls among the *reachable* items: items of valid (non-null) rows.
-fn logical_item_null_count(list: &arrow::array::FixedSizeListArray) -> usize {
+pub(crate) fn logical_item_null_count(list: &arrow::array::FixedSizeListArray) -> usize {
     let Some(item_nulls) = list.values().nulls() else {
         return 0;
     };

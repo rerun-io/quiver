@@ -206,8 +206,39 @@ The supported logical types:
 | `List<L>`, `LargeList<L>`                    | `List(…)`/`LargeList(…)`, recursively | An iterator over the items |
 | `ListView<L>`, `LargeListView<L>`            | `ListView(…)`/`LargeListView(…)`, recursively | An iterator over the items |
 | `FixedSizeList<f32, 3>`                      | `FixedSizeList(Float32, 3)`  | An iterator over the items |
+| `AnyList<L>`                                 | *any* list encoding above    | An iterator over the items |
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
+
+### `AnyList<L>`: one logical type for any list encoding
+
+Arrow has five physically different ways to store the same logical thing — a
+column of lists of `L`: `List`, `LargeList`, `ListView`, `LargeListView`, and
+`FixedSizeList`. `AnyList<L>` is a quiver-only logical type (no single arrow
+datatype of its own) that **accepts whichever of those a column happens to use**
+and reads them all uniformly — handy when the encoding is decided at runtime
+(e.g. data from an external source).
+
+```rust
+# use std::sync::Arc;
+# use quiver::arrow::array::{ArrayRef, LargeListArray};
+# use quiver::arrow::datatypes::Int64Type;
+use quiver::{AnyList, Column};
+
+# let array: ArrayRef = Arc::new(LargeListArray::from_iter_primitive::<Int64Type, _, _>(
+#     vec![Some(vec![Some(1), Some(2)])],
+# ));
+// `array` may be a List / LargeList / ListView / LargeListView / FixedSizeList:
+let column = Column::<AnyList<i64>>::try_from(array).unwrap();
+for list in &column {
+    for _item in list { /* i64 */ }
+}
+```
+
+Because it has no single arrow datatype, `AnyList` is **parse-only**: it implements
+`LogicalType` (so `try_from`/reading work) but not `ConcreteType`, so it has no
+`datatype()`, `from_values`, `Default`, or schema generation. To *build* a column,
+pick a concrete encoding such as `Column<List<L>>`.
 
 ### What is *not* supported
 
@@ -215,7 +246,7 @@ These datatypes have no logical type yet, so there is no `Column<L>` for them:
 
 * `Struct` — but usable as a raw, downcast-only `arrow` field (`StructArray`).
   (Parked; investigated 2026-06-04 — moderate effort: a new derive generating
-  per-row view/owned/typed mirror structs; the `Datatype` trait needs no changes.
+  per-row view/owned/typed mirror structs; the `LogicalType` trait needs no changes.
   The one subtle part is hierarchical null masking: when a struct *row* is null,
   arrow leaves the child values undefined, so child null-validation must be masked
   by the parent validity, on both parse and build.)

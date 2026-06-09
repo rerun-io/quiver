@@ -3,8 +3,8 @@
 
 use arrow::array::{Array as _, ArrayRef};
 
-use crate::datatype::{PrimitiveDatatype, RefDatatype};
-use crate::{ColumnError, Datatype};
+use crate::datatype::{PrimitiveType, RefType};
+use crate::{ColumnError, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one arrow array:
 /// a [`Column`](crate::Column) minus the per-column metadata.
@@ -13,7 +13,7 @@ use crate::{ColumnError, Datatype};
 /// (exact datatype, including the inner types of nested arrays, plus nulls at
 /// every non-`Option` nesting level). After that, element access is infallible,
 /// fully typed, and zero-copy.
-pub(crate) struct TypedArray<L: Datatype> {
+pub(crate) struct TypedArray<L: LogicalType> {
     /// The original arrow array (kept for cheap conversion back to arrow).
     array: ArrayRef,
 
@@ -21,20 +21,19 @@ pub(crate) struct TypedArray<L: Datatype> {
     typed: L::Typed,
 }
 
-impl<L: Datatype> TypedArray<L> {
+impl<L: LogicalType> TypedArray<L> {
     /// Validates the array against the logical type `L` (datatype and nullability,
     /// recursively), then downcasts it (zero-copy).
     ///
     /// # Errors
     /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
-        let actual = array.data_type();
-        if !L::matches(actual) {
-            return Err(ColumnError::WrongDatatype {
-                expected: L::datatype(),
-                actual: actual.clone(),
-            });
-        }
+        // Validate (and downcast) the datatype first — `downcast` rejects a wrong
+        // datatype, including parameters the concrete arrow array type doesn't
+        // encode (a fixed size, a timestamp timezone), and checks all child-level
+        // nulls. Doing it before the top-level null check means a datatype
+        // mismatch is reported as `WrongDatatype`, not masked by `UnexpectedNulls`.
+        let typed = L::downcast(&*array)?;
 
         if !L::NULLABLE && 0 < array.null_count() {
             return Err(ColumnError::UnexpectedNulls {
@@ -42,7 +41,6 @@ impl<L: Datatype> TypedArray<L> {
             });
         }
 
-        let typed = L::downcast(&*array)?;
         Ok(Self { array, typed })
     }
 
@@ -76,7 +74,7 @@ impl<L: Datatype> TypedArray<L> {
     }
 }
 
-impl<L: RefDatatype> TypedArray<L> {
+impl<L: RefType> TypedArray<L> {
     /// Like [`TypedArray::value`], but borrows from the array.
     /// Panics if out of bounds.
     pub fn value_ref(&self, index: usize) -> &L::Ref {
@@ -85,7 +83,7 @@ impl<L: RefDatatype> TypedArray<L> {
     }
 }
 
-impl<L: PrimitiveDatatype> TypedArray<L> {
+impl<L: PrimitiveType> TypedArray<L> {
     /// The values as a contiguous zero-copy slice.
     pub fn values(&self) -> &[L::Native] {
         L::values(&self.typed)
@@ -93,13 +91,13 @@ impl<L: PrimitiveDatatype> TypedArray<L> {
 }
 
 /// Compares the data (like arrow array equality).
-impl<L: Datatype> PartialEq for TypedArray<L> {
+impl<L: LogicalType> PartialEq for TypedArray<L> {
     fn eq(&self, other: &Self) -> bool {
         self.array.as_ref() == other.array.as_ref()
     }
 }
 
-impl<L: Datatype> Clone for TypedArray<L> {
+impl<L: LogicalType> Clone for TypedArray<L> {
     fn clone(&self) -> Self {
         Self {
             array: ArrayRef::clone(&self.array),
@@ -108,7 +106,7 @@ impl<L: Datatype> Clone for TypedArray<L> {
     }
 }
 
-impl<L: Datatype> std::fmt::Debug for TypedArray<L> {
+impl<L: LogicalType> std::fmt::Debug for TypedArray<L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TypedArray")
             .field("array", &self.array)

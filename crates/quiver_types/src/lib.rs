@@ -7,6 +7,7 @@
 pub use arrow;
 pub use half;
 
+mod any_list;
 mod binary;
 mod column;
 mod column_desc;
@@ -30,11 +31,12 @@ mod time;
 mod timestamp;
 mod typed_array;
 
+pub use self::any_list::{AnyList, AnyTypedList};
 pub use self::binary::{Binary, BinaryView, LargeBinary};
 pub use self::column::{Column, ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{
-    ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, datatypes_compatible,
+    ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveType, RefType,
 };
 pub use self::date::{Date32, Date64};
 pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};

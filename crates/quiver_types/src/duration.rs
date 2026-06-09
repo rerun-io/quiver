@@ -9,7 +9,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::datatype::{
-    ColumnError, Datatype, InfallibleBuild, PrimitiveDatatype, RefDatatype, downcast_array,
+    ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
 };
 use crate::timestamp::{Microsecond, Millisecond, Nanosecond, Second, TimeUnitSpec};
 use std::marker::PhantomData;
@@ -30,7 +30,7 @@ pub struct Duration<U> {
     _marker: PhantomData<fn() -> U>,
 }
 
-impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
+impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
     type Typed = arrow::array::PrimitiveArray<U::DurationType>;
     type Value<'a>
         = i64
@@ -38,12 +38,12 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
         Self: 'a;
     type Owned = i64;
 
-    fn datatype() -> DataType {
-        DataType::Duration(<U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT)
-    }
-
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        downcast_array::<Self::Typed>(array)
+        // The unit is part of `Self::Typed`'s Rust type, so `downcast_array`
+        // already rejects the wrong unit.
+        downcast_array::<Self::Typed>(array, || {
+            format!("{:?}", <Self as crate::ConcreteType>::datatype())
+        })
     }
 
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
@@ -54,13 +54,19 @@ impl<U: TimeUnitSpec + 'static> Datatype for Duration<U> {
         typed.value(index)
     }
 
+    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+        value
+    }
+}
+
+impl<U: TimeUnitSpec + 'static> crate::ConcreteType for Duration<U> {
+    fn datatype() -> DataType {
+        DataType::Duration(<U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT)
+    }
+
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let array: arrow::array::PrimitiveArray<U::DurationType> = values.collect();
         Ok(std::sync::Arc::new(array))
-    }
-
-    fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
-        value
     }
 }
 
@@ -71,7 +77,7 @@ pub type DurationNanosecond = Duration<Nanosecond>;
 
 impl<U: TimeUnitSpec + 'static> InfallibleBuild for Duration<U> {}
 
-impl<U: TimeUnitSpec + 'static> PrimitiveDatatype for Duration<U> {
+impl<U: TimeUnitSpec + 'static> PrimitiveType for Duration<U> {
     type Native = i64;
 
     fn values(typed: &Self::Typed) -> &[i64] {
@@ -79,7 +85,7 @@ impl<U: TimeUnitSpec + 'static> PrimitiveDatatype for Duration<U> {
     }
 }
 
-impl<U: TimeUnitSpec + 'static> RefDatatype for Duration<U> {
+impl<U: TimeUnitSpec + 'static> RefType for Duration<U> {
     type Ref = i64;
 
     fn value_ref(typed: &Self::Typed, index: usize) -> &i64 {

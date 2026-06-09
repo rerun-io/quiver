@@ -13,7 +13,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, Datatype, InfallibleBuild, RefDatatype, downcast_array};
+use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, RefType, downcast_array};
 
 /// Marker for an arrow `Binary` column: variable-length byte strings.
 ///
@@ -59,17 +59,13 @@ pub struct BinaryView;
 
 macro_rules! impl_binary_datatype {
     ($marker:ty, $array:ty, $datatype:expr) => {
-        impl Datatype for $marker {
+        impl LogicalType for $marker {
             type Typed = $array;
             type Value<'a> = &'a [u8];
             type Owned = Vec<u8>;
 
-            fn datatype() -> DataType {
-                $datatype
-            }
-
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array)
+                downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
@@ -80,20 +76,26 @@ macro_rules! impl_binary_datatype {
                 typed.value(index)
             }
 
-            fn build(
-                values: impl Iterator<Item = Option<Self::Owned>>,
-            ) -> Result<ArrayRef, ColumnError> {
-                Ok(std::sync::Arc::new(<$array>::from_iter(values)))
-            }
-
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 value.to_vec()
             }
         }
 
+        impl crate::ConcreteType for $marker {
+            fn datatype() -> DataType {
+                $datatype
+            }
+
+            fn build(
+                values: impl Iterator<Item = Option<Self::Owned>>,
+            ) -> Result<ArrayRef, ColumnError> {
+                Ok(std::sync::Arc::new(<$array>::from_iter(values)))
+            }
+        }
+
         impl InfallibleBuild for $marker {}
 
-        impl RefDatatype for $marker {
+        impl RefType for $marker {
             type Ref = [u8];
 
             fn value_ref(typed: &Self::Typed, index: usize) -> &[u8] {
