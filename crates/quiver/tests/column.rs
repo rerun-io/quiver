@@ -623,6 +623,58 @@ fn binary_view_columns() {
 }
 
 #[test]
+fn any_binary_columns() {
+    use quiver::arrow::array::{BinaryViewArray, FixedSizeBinaryArray, LargeBinaryArray};
+    use quiver::{AnyBinary, Binary, BinaryView, FixedSizeBinary, LargeBinary};
+
+    // `try_from` accepts every byte-string encoding, read uniformly as `&[u8]`:
+    let encodings = [
+        Column::<Binary>::from_values([b"ab".to_vec(), vec![3_u8, 4]]).into_arrow(),
+        Column::<LargeBinary>::from_values([b"ab".to_vec(), vec![3_u8, 4]]).into_arrow(),
+        Column::<BinaryView>::from_values([b"ab".to_vec(), vec![3_u8, 4]]).into_arrow(),
+        // FixedSizeBinary too (any size) — its `&[u8; N]` reads here as `&[u8]`:
+        Column::<FixedSizeBinary<2>>::from_values([[b'a', b'b'], [3, 4]]).into_arrow(),
+    ];
+    for array in encodings {
+        let column = Column::<AnyBinary>::try_from(array).unwrap();
+        assert_eq!(column.value(0), b"ab");
+        assert_eq!(&column[1], &[3_u8, 4]); // `RefType` indexing
+        assert_eq!(column.to_vec(), [b"ab".to_vec(), vec![3, 4]]);
+    }
+
+    // A non-binary array is rejected:
+    let ints = Column::<i64>::from_values([1, 2]).into_arrow();
+    assert!(matches!(
+        Column::<AnyBinary>::try_from(ints),
+        Err(ColumnError::WrongDatatype { .. })
+    ));
+
+    // Nullable rows via the column-level `Option`:
+    let array = LargeBinaryArray::from_iter([Some(b"x".as_slice()), None]);
+    let column = Column::<Option<AnyBinary>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    let values: Vec<Option<&[u8]>> = column.iter().collect();
+    assert_eq!(values, [Some(b"x".as_slice()), None]);
+
+    // A null at a non-nullable level is rejected:
+    let array = BinaryViewArray::from_iter([Some(b"x".as_slice()), None]);
+    assert!(matches!(
+        Column::<AnyBinary>::try_from(Arc::new(array) as ArrayRef),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // A FixedSizeBinary with a null is also rejected when non-nullable:
+    let array = FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+        [Some([1_u8, 2]), None].into_iter(),
+        2,
+    )
+    .unwrap();
+    assert!(matches!(
+        Column::<AnyBinary>::try_from(Arc::new(array) as ArrayRef),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+}
+
+#[test]
 fn f16_column() {
     use quiver::half::f16;
 

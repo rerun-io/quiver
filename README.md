@@ -197,6 +197,7 @@ The supported logical types:
 | `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
 | `FixedSizeBinary<N>`                         | `FixedSizeBinary(N)`         | `&[u8; N]`                |
 | `Binary`, `LargeBinary`, `BinaryView`        | The same                     | `&[u8]`                   |
+| `AnyBinary`                                  | *any* binary encoding (incl. `FixedSizeBinary`) | `&[u8]`        |
 | `Date32`, `Date64`                           | `Date32`, `Date64`           | `i32` days / `i64` ms     |
 | `Time32Second` … `Time64Nanosecond`          | `Time32(…)`, `Time64(…)`     | `i32` / `i64`             |
 | `TimestampNanosecond<Utc>`                   | `Timestamp(Nanosecond, UTC)` | `i64`                     |
@@ -239,6 +240,10 @@ Because it has no single arrow datatype, `AnyList` is **parse-only**: it impleme
 `LogicalType` (so `try_from`/reading work) but not `ConcreteType`, so it has no
 `datatype()`, `from_values`, `Default`, or schema generation. To *build* a column,
 pick a concrete encoding such as `Column<List<L>>`.
+
+`AnyBinary` is the same idea for byte strings: it accepts any of `Binary`,
+`LargeBinary`, `BinaryView`, or `FixedSizeBinary` (any size) and reads them all
+as `&[u8]`. Also parse-only.
 
 ### What is *not* supported
 
