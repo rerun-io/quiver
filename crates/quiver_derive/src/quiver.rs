@@ -674,6 +674,7 @@ impl ColumnField {
                                 record_type: #record_type,
                                 kind: #krate::ErrorKind::WrongDatatype {
                                     column: #column_name.to_owned(),
+                                    expected: ::std::format!("{:?}", #datatype),
                                     actual: actual.clone(),
                                 },
                             });

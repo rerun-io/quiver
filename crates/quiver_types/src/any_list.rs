@@ -101,7 +101,8 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                 LargeListView::<L>::downcast(array)?,
             )),
             DataType::FixedSizeList(_, _) => {
-                let array = downcast_array::<FixedSizeListArray>(array)?;
+                let array =
+                    downcast_array::<FixedSizeListArray>(array, || "FixedSizeList(…)".to_owned())?;
                 if !L::NULLABLE {
                     let null_count = logical_item_null_count(&array);
                     if 0 < null_count {
@@ -112,6 +113,8 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                 Ok(AnyTypedList::FixedSizeList { array, values })
             }
             actual => Err(ColumnError::WrongDatatype {
+                expected: "a list array (List/LargeList/ListView/LargeListView/FixedSizeList)"
+                    .to_owned(),
                 actual: actual.clone(),
             }),
         }

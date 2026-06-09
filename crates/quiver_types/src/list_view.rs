@@ -92,7 +92,8 @@ macro_rules! impl_list_view_datatype {
             type Owned = Vec<L::Owned>;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                let list = downcast_array::<$array>(array)?;
+                let list =
+                    downcast_array::<$array>(array, || format!("{}(…)", stringify!($variant)))?;
                 if !L::NULLABLE {
                     // Only count *logical* nulls: items reachable through some
                     // valid row. List-view ranges can overlap or be unordered,

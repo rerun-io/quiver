@@ -38,13 +38,16 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         // The element width is not in `FixedSizeBinaryArray`'s Rust type, so
         // check it here (a `FixedSizeBinary(8)` would otherwise read as `<16>`
         // and panic in `value`).
-        if !matches!(array.data_type(), DataType::FixedSizeBinary(n) if usize::try_from(*n) == Ok(N))
+        let expected = || format!("FixedSizeBinary({N})");
+        if matches!(array.data_type(), DataType::FixedSizeBinary(n) if usize::try_from(*n) == Ok(N))
         {
-            return Err(ColumnError::WrongDatatype {
+            downcast_array::<arrow::array::FixedSizeBinaryArray>(array, expected)
+        } else {
+            Err(ColumnError::WrongDatatype {
+                expected: expected(),
                 actual: array.data_type().clone(),
-            });
+            })
         }
-        downcast_array::<arrow::array::FixedSizeBinaryArray>(array)
     }
 
     fn is_null(typed: &Self::Typed, index: usize) -> bool {

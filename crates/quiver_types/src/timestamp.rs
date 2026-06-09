@@ -105,12 +105,14 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // The timezone is not in the array's Rust type (only the unit is), so
         // check the full datatype here — timezones are matched exactly.
+        let expected = || format!("{:?}", <Self as crate::ConcreteType>::datatype());
         if array.data_type() != &<Self as crate::ConcreteType>::datatype() {
             return Err(ColumnError::WrongDatatype {
+                expected: expected(),
                 actual: array.data_type().clone(),
             });
         }
-        downcast_array::<Self::Typed>(array)
+        downcast_array::<Self::Typed>(array, expected)
     }
 
     fn is_null(typed: &Self::Typed, index: usize) -> bool {

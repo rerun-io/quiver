@@ -61,12 +61,15 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
     type Owned = [L::Owned; N];
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        let list = downcast_array::<arrow::array::FixedSizeListArray>(array)?;
+        let list = downcast_array::<arrow::array::FixedSizeListArray>(array, || {
+            format!("FixedSizeList(…, {N})")
+        })?;
         // The list size is not in `FixedSizeListArray`'s Rust type, so check it
         // here. (The element type is validated below by recursing into `L`.)
         #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         if list.value_length() != N as i32 {
             return Err(ColumnError::WrongDatatype {
+                expected: format!("FixedSizeList(…, {N})"),
                 actual: array.data_type().clone(),
             });
         }

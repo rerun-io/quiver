@@ -41,7 +41,9 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // The unit is part of `Self::Typed`'s Rust type, so `downcast_array`
         // already rejects the wrong unit.
-        downcast_array::<Self::Typed>(array)
+        downcast_array::<Self::Typed>(array, || {
+            format!("{:?}", <Self as crate::ConcreteType>::datatype())
+        })
     }
 
     fn is_null(typed: &Self::Typed, index: usize) -> bool {

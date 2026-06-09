@@ -65,7 +65,7 @@ macro_rules! impl_binary_datatype {
             type Owned = Vec<u8>;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array)
+                downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
             fn is_null(typed: &Self::Typed, index: usize) -> bool {

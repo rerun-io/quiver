@@ -155,10 +155,11 @@ pub trait InfallibleBuild: ConcreteType {}
 /// Does not know which column it concerns — see [`ColumnError::for_column`].
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
-    #[error("Unexpected datatype {actual:?}")]
+    #[error("Expected {expected}, found {actual:?}")]
     WrongDatatype {
-        /// The datatype found (the logical type expected by the column is the
-        /// caller's `L`, known from context).
+        /// A description of the datatype the logical type expected, produced by
+        /// the failing [`LogicalType::downcast`] (e.g. `"Utf8"`, `"List(…)"`).
+        expected: String,
         actual: DataType,
     },
 
@@ -175,7 +176,11 @@ impl ColumnError {
     /// Attach the column name, producing an [`ErrorKind`].
     pub fn for_column(self, column: String) -> ErrorKind {
         match self {
-            Self::WrongDatatype { actual } => ErrorKind::WrongDatatype { column, actual },
+            Self::WrongDatatype { expected, actual } => ErrorKind::WrongDatatype {
+                column,
+                expected,
+                actual,
+            },
             Self::UnexpectedNulls { null_count } => {
                 ErrorKind::UnexpectedNulls { column, null_count }
             }
@@ -203,12 +208,14 @@ impl From<ColumnError> for arrow::error::ArrowError {
 /// caller — see [`LogicalType::downcast`].
 pub(crate) fn downcast_array<A: Array + Clone + 'static>(
     array: &dyn Array,
+    expected: impl FnOnce() -> String,
 ) -> Result<A, ColumnError> {
     array
         .as_any()
         .downcast_ref::<A>()
         .cloned()
         .ok_or_else(|| ColumnError::WrongDatatype {
+            expected: expected(),
             actual: array.data_type().clone(),
         })
 }
@@ -221,7 +228,7 @@ macro_rules! impl_flat_datatype {
             type Owned = $rust;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array)
+                downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
@@ -289,7 +296,7 @@ macro_rules! impl_marker_datatype {
             type Owned = $owned;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                crate::datatype::downcast_array::<$array>(array)
+                crate::datatype::downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
             fn is_null(typed: &Self::Typed, index: usize) -> bool {

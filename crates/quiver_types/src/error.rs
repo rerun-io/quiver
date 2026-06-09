@@ -19,8 +19,15 @@ pub enum ErrorKind {
     )]
     MissingColumn { column: String },
 
-    #[error("Column {column:?}: unexpected datatype {actual:?}")]
-    WrongDatatype { column: String, actual: DataType },
+    #[error("Column {column:?}: expected {expected}, found {actual:?}")]
+    WrongDatatype {
+        column: String,
+
+        /// A description of the expected datatype, e.g. `"Utf8"` or `"List(…)"`.
+        expected: String,
+
+        actual: DataType,
+    },
 
     #[error(
         "Unexpected column {column:?}. Either add it to the struct, or accept unknown columns with a `#[quiver(extra_columns)]` field"

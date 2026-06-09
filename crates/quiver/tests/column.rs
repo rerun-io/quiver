@@ -72,8 +72,9 @@ fn standalone_wrong_datatype() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
+            expected,
             actual: DataType::Int64,
-        })
+        }) if expected == "Utf8"
     ));
 }
 
@@ -115,8 +116,9 @@ fn standalone_fixed_size_binary_column() {
     assert!(matches!(
         result,
         Err(ColumnError::WrongDatatype {
+            expected,
             actual: DataType::FixedSizeBinary(16),
-        })
+        }) if expected == "FixedSizeBinary(8)"
     ));
 
     // Matching size:
@@ -269,7 +271,7 @@ fn errors_convert_to_arrow_error() {
         .err()
         .unwrap();
     assert!(matches!(err, ArrowError::ExternalError(_)));
-    assert!(err.to_string().contains("Unexpected datatype Utf8"));
+    assert!(err.to_string().contains("Expected Int64, found Utf8"));
 }
 
 #[test]
@@ -1325,6 +1327,7 @@ impl quiver::LogicalType for AnyInt {
         // `downcast` is the validator: accept both integer widths, reject the rest.
         if !matches!(array.data_type(), DataType::Int32 | DataType::Int64) {
             return Err(quiver::ColumnError::WrongDatatype {
+                expected: "Int32 or Int64".to_owned(),
                 actual: array.data_type().clone(),
             });
         }

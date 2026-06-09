@@ -88,7 +88,9 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         // `downcast_array` checks the run-end index type (it's part of
         // `RunArray<R::ArrowRunType>`'s Rust type); the value type is validated
         // below by recursing into `V`.
-        let run = downcast_array::<RunArray<R::ArrowRunType>>(array)?;
+        let run = downcast_array::<RunArray<R::ArrowRunType>>(array, || {
+            format!("RunEndEncoded({:?}, …)", R::datatype())
+        })?;
         if !V::NULLABLE {
             // `logical_nulls` expands the runs to logical positions and counts
             // only the *reachable* nulls (respecting any slice window), so this

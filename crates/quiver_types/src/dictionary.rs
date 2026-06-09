@@ -97,7 +97,10 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
     type Owned = V::Owned;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-        let dictionary = downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array)?;
+        let dictionary =
+            downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array, || {
+                format!("Dictionary({:?}, …)", K::datatype())
+            })?;
         if !V::NULLABLE && 0 < dictionary.values().null_count() {
             // Only count *logical* nulls: null entries in the value table that
             // some key actually references. Unreferenced null entries are fine.

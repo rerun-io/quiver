@@ -80,7 +80,7 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
         // `downcast_array` checks it's a `MapArray` (whose entries are, by arrow
         // invariant, a 2-field `{keys, values}` struct); the key and value
         // datatypes are validated below by recursing into `K`/`V`.
-        let map = downcast_array::<MapArray>(array)?;
+        let map = downcast_array::<MapArray>(array, || "Map(…)".to_owned())?;
 
         // Keys are never null in a valid arrow map, but a sliced or null-row map
         // may carry physical nulls; only *reachable* nulls would be a real error.
