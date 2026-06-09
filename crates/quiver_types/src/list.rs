@@ -336,6 +336,10 @@ impl<'a, L: PrimitiveType> ListValue<'a, L> {
     }
 }
 
+// Iteration mirrors a slice's: the items live in `self.index..self.end`, all
+// in bounds, so the combinators are overridden to skip the per-element `Option`
+// plumbing of the default `next`-based implementations. (Primitive items have
+// an even faster path: [`ListValue::as_slice`].)
 impl<'a, L: LogicalType + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 
@@ -353,9 +357,80 @@ impl<'a, L: LogicalType + 'a> Iterator for ListValue<'a, L> {
         let remaining = self.end - self.index;
         (remaining, Some(remaining))
     }
+
+    fn count(self) -> usize {
+        self.end - self.index
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        (self.index < self.end).then(|| L::value(self.values, self.end - 1))
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        match self.index.checked_add(n) {
+            Some(target) if target < self.end => {
+                self.index = target + 1;
+                Some(L::value(self.values, target))
+            }
+            _ => {
+                self.index = self.end;
+                None
+            }
+        }
+    }
+
+    fn fold<B, F>(self, init: B, mut f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let Self { values, index, end } = self;
+        let mut acc = init;
+        for i in index..end {
+            acc = f(acc, L::value(values, i));
+        }
+        acc
+    }
+}
+
+impl<'a, L: LogicalType + 'a> DoubleEndedIterator for ListValue<'a, L> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.index < self.end {
+            self.end -= 1;
+            Some(L::value(self.values, self.end))
+        } else {
+            None
+        }
+    }
+
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        match self.end.checked_sub(n + 1) {
+            Some(target) if self.index <= target => {
+                self.end = target;
+                Some(L::value(self.values, target))
+            }
+            _ => {
+                self.end = self.index;
+                None
+            }
+        }
+    }
+
+    fn rfold<B, F>(self, init: B, mut f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let Self { values, index, end } = self;
+        let mut acc = init;
+        for i in (index..end).rev() {
+            acc = f(acc, L::value(values, i));
+        }
+        acc
+    }
 }
 
 impl<'a, L: LogicalType + 'a> ExactSizeIterator for ListValue<'a, L> {}
+
+impl<'a, L: LogicalType + 'a> std::iter::FusedIterator for ListValue<'a, L> {}
 
 /// Counts the nulls among the *reachable* items of a list array (`List` or
 /// `LargeList` — it is generic over the offset width):

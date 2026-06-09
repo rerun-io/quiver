@@ -1552,6 +1552,35 @@ fn list_value_column_like_api() {
     let collected: Vec<i64> = first.collect();
     assert_eq!(collected, [10, 20, 30]);
 
+    // Overridden combinators behave like the defaults:
+    assert_eq!(first.iter().count(), 3);
+    assert_eq!(first.iter().last(), Some(30));
+    assert_eq!(first.iter().nth(1), Some(20));
+    assert_eq!(first.iter().nth(3), None);
+    assert_eq!(
+        first
+            .iter()
+            .fold(String::new(), |acc, x| format!("{acc}{x}")),
+        "102030"
+    );
+
+    // Double-ended: `rev`, `next_back`, `nth_back`, `rfold`:
+    let rev: Vec<i64> = first.iter().rev().collect();
+    assert_eq!(rev, [30, 20, 10]);
+    let mut cursor = first.iter();
+    assert_eq!(cursor.next_back(), Some(30));
+    assert_eq!(cursor.next(), Some(10));
+    assert_eq!(cursor.next_back(), Some(20));
+    assert_eq!(cursor.next_back(), None);
+    assert_eq!(first.iter().nth_back(1), Some(20));
+    assert_eq!(first.iter().nth_back(3), None);
+    assert_eq!(
+        first
+            .iter()
+            .rfold(String::new(), |acc, x| format!("{acc}{x}")),
+        "302010"
+    );
+
     // Empty element:
     let second = column.value(1);
     assert!(second.is_empty());
