@@ -174,6 +174,7 @@ impl<L: LogicalType> Column<L> {
         ColumnIter {
             column: self,
             index: 0,
+            end: self.len(),
         }
     }
 
@@ -388,27 +389,88 @@ impl<L: LogicalType> TryFrom<ArrayRef> for Column<L> {
 }
 
 /// Iterator over the values of a [`Column`].
+///
+/// The column length is fixed and was validated at construction, so each step
+/// reads with [`value_unchecked`](LogicalType::value_unchecked) — no
+/// per-element bounds check — and the combinators are overridden to skip the
+/// default `next`-based `Option` plumbing.
 pub struct ColumnIter<'a, L: LogicalType> {
     column: &'a Column<L>,
     index: usize,
+    end: usize,
 }
 
 impl<'a, L: LogicalType + 'a> Iterator for ColumnIter<'a, L> {
     type Item = L::Value<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let value = self.column.get(self.index)?;
-        self.index += 1;
-        Some(value)
+        if self.index < self.end {
+            // SAFETY: index < end <= column length.
+            let value = unsafe { self.column.array.value_unchecked(self.index) };
+            self.index += 1;
+            Some(value)
+        } else {
+            None
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.column.len() - self.index;
+        let remaining = self.end - self.index;
         (remaining, Some(remaining))
+    }
+
+    fn count(self) -> usize {
+        self.end - self.index
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        // SAFETY: when non-empty, `end - 1` is in `index..end`.
+        (self.index < self.end).then(|| unsafe { self.column.array.value_unchecked(self.end - 1) })
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        match self.index.checked_add(n) {
+            Some(target) if target < self.end => {
+                self.index = target + 1;
+                // SAFETY: target < end <= column length.
+                Some(unsafe { self.column.array.value_unchecked(target) })
+            }
+            _ => {
+                self.index = self.end;
+                None
+            }
+        }
+    }
+
+    fn fold<B, F>(self, init: B, mut f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let Self { column, index, end } = self;
+        let mut acc = init;
+        for i in index..end {
+            // SAFETY: i < end <= column length.
+            acc = f(acc, unsafe { column.array.value_unchecked(i) });
+        }
+        acc
+    }
+}
+
+impl<'a, L: LogicalType + 'a> DoubleEndedIterator for ColumnIter<'a, L> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.index < self.end {
+            self.end -= 1;
+            // SAFETY: the new `end` is in `index..old end`, hence in bounds.
+            Some(unsafe { self.column.array.value_unchecked(self.end) })
+        } else {
+            None
+        }
     }
 }
 
 impl<'a, L: LogicalType + 'a> ExactSizeIterator for ColumnIter<'a, L> {}
+
+impl<'a, L: LogicalType + 'a> std::iter::FusedIterator for ColumnIter<'a, L> {}
 
 impl<'a, L: LogicalType + 'a> IntoIterator for &'a Column<L> {
     type Item = L::Value<'a>;
@@ -426,9 +488,11 @@ impl<L: LogicalType> IntoIterator for Column<L> {
     type IntoIter = ColumnIntoIter<L>;
 
     fn into_iter(self) -> Self::IntoIter {
+        let end = self.len();
         ColumnIntoIter {
             column: self,
             index: 0,
+            end,
         }
     }
 }
@@ -437,22 +501,60 @@ impl<L: LogicalType> IntoIterator for Column<L> {
 pub struct ColumnIntoIter<L: LogicalType> {
     column: Column<L>,
     index: usize,
+    end: usize,
 }
 
 impl<L: LogicalType> Iterator for ColumnIntoIter<L> {
     type Item = L::Owned;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let value = self.column.get(self.index)?;
-        let value = L::to_owned_value(value);
-        self.index += 1;
-        Some(value)
+        if self.index < self.end {
+            // SAFETY: index < end <= column length.
+            let value = unsafe { self.column.array.value_unchecked(self.index) };
+            let value = L::to_owned_value(value);
+            self.index += 1;
+            Some(value)
+        } else {
+            None
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.column.len() - self.index;
+        let remaining = self.end - self.index;
         (remaining, Some(remaining))
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        match self.index.checked_add(n) {
+            Some(target) if target < self.end => {
+                self.index = target + 1;
+                // SAFETY: target < end <= column length.
+                Some(L::to_owned_value(unsafe {
+                    self.column.array.value_unchecked(target)
+                }))
+            }
+            _ => {
+                self.index = self.end;
+                None
+            }
+        }
+    }
+}
+
+impl<L: LogicalType> DoubleEndedIterator for ColumnIntoIter<L> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.index < self.end {
+            self.end -= 1;
+            // SAFETY: the new `end` is in `index..old end`, hence in bounds.
+            Some(L::to_owned_value(unsafe {
+                self.column.array.value_unchecked(self.end)
+            }))
+        } else {
+            None
+        }
     }
 }
 
 impl<L: LogicalType> ExactSizeIterator for ColumnIntoIter<L> {}
+
+impl<L: LogicalType> std::iter::FusedIterator for ColumnIntoIter<L> {}

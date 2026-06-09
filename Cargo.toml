@@ -42,8 +42,6 @@ trybuild = "1.0"
 # Lints:
 
 [workspace.lints.rust]
-unsafe_code = "deny"
-
 elided_lifetimes_in_paths = "warn"
 future_incompatible = { level = "warn", priority = -1 }
 nonstandard_style = { level = "warn", priority = -1 }
@@ -52,6 +50,7 @@ rust_2021_prelude_collisions = "warn"
 semicolon_in_expressions_from_macros = "warn"
 trivial_numeric_casts = "warn"
 unexpected_cfgs = "warn"
+unsafe_code = "warn"
 unsafe_op_in_unsafe_fn = "warn" # `unsafe_op_in_unsafe_fn` may become the default in future Rust versions: https://github.com/rust-lang/rust/issues/71668
 unused_extern_crates = "warn"
 unused_import_braces = "warn"

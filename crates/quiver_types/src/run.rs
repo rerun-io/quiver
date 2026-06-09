@@ -114,6 +114,14 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         V::value(&typed.values, physical)
     }
 
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // `get_physical_index` maps the logical index to a values index; for an
+        // in-bounds logical index it returns an in-bounds physical one.
+        let physical = typed.run.get_physical_index(index);
+        // SAFETY: `physical` is in bounds for the values when `index` is.
+        unsafe { V::value_unchecked(&typed.values, physical) }
+    }
+
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         V::to_owned_value(value)
     }

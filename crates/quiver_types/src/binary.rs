@@ -80,6 +80,11 @@ macro_rules! impl_binary_datatype {
                 typed.value(index)
             }
 
+            unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { typed.value_unchecked(index) }
+            }
+
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 value.to_vec()
             }
@@ -204,6 +209,18 @@ impl LogicalType for AnyBinary {
             AnyTypedBinary::LargeBinary(array) => array.value(index),
             AnyTypedBinary::BinaryView(array) => array.value(index),
             AnyTypedBinary::FixedSizeBinary(array) => array.value(index),
+        }
+    }
+
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds for the held array.
+        unsafe {
+            match typed {
+                AnyTypedBinary::Binary(array) => array.value_unchecked(index),
+                AnyTypedBinary::LargeBinary(array) => array.value_unchecked(index),
+                AnyTypedBinary::BinaryView(array) => array.value_unchecked(index),
+                AnyTypedBinary::FixedSizeBinary(array) => array.value_unchecked(index),
+            }
         }
     }
 

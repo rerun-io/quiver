@@ -125,6 +125,11 @@ macro_rules! newtype_datatype {
                 <$repr as $crate::LogicalType>::value(typed, index)
             }
 
+            unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { <$repr as $crate::LogicalType>::value_unchecked(typed, index) }
+            }
+
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 ::core::convert::From::from(<$repr as $crate::LogicalType>::to_owned_value(value))
             }
@@ -206,6 +211,11 @@ where
 
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         Repr::value(typed, index)
+    }
+
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { Repr::value_unchecked(typed, index) }
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {

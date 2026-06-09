@@ -61,6 +61,13 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
             .expect("The length is guaranteed by the validated datatype")
     }
 
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { typed.value_unchecked(index) }
+            .first_chunk::<N>()
+            .expect("The length is guaranteed by the validated datatype")
+    }
+
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         *value
     }

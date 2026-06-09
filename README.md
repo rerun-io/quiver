@@ -2,7 +2,6 @@
 
 [![Latest version](https://img.shields.io/crates/v/quiver.svg)](https://crates.io/crates/quiver)
 [![Documentation](https://docs.rs/quiver/badge.svg)](https://docs.rs/quiver)
-[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 
