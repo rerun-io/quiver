@@ -52,7 +52,7 @@ pub use self::list_view::{LargeListView, ListView, TypedLargeListView, TypedList
 pub use self::map::{Map, MapValue, TypedMap};
 pub use self::newtype::As;
 pub use self::run::{Run, RunEndType, TypedRun};
-pub use self::string::{LargeUtf8, Utf8, Utf8View};
+pub use self::string::{AnyTypedUtf8, AnyUtf8, LargeUtf8, Utf8, Utf8View};
 pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
 pub use self::timestamp::{
     Microsecond, Millisecond, Nanosecond, NoTimezone, Second, TimeUnitSpec, Timestamp,

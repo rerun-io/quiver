@@ -675,6 +675,45 @@ fn any_binary_columns() {
 }
 
 #[test]
+fn any_utf8_columns() {
+    use quiver::arrow::array::{LargeStringArray, StringViewArray};
+    use quiver::{AnyUtf8, LargeUtf8, Utf8View};
+
+    // `try_from` accepts every string encoding, read uniformly as `&str`:
+    let encodings = [
+        Column::<Utf8>::from_values(["alice", "bob"]).into_arrow(),
+        Column::<LargeUtf8>::from_values(["alice", "bob"]).into_arrow(),
+        Column::<Utf8View>::from_values(["alice", "bob"]).into_arrow(),
+    ];
+    for array in encodings {
+        let column = Column::<AnyUtf8>::try_from(array).unwrap();
+        assert_eq!(column.value(0), "alice");
+        assert_eq!(&column[1], "bob"); // `RefType` indexing
+        assert_eq!(column.to_vec(), ["alice", "bob"]);
+    }
+
+    // A non-string array is rejected:
+    let ints = Column::<i64>::from_values([1, 2]).into_arrow();
+    assert!(matches!(
+        Column::<AnyUtf8>::try_from(ints),
+        Err(ColumnError::WrongDatatype { .. })
+    ));
+
+    // Nullable rows via the column-level `Option`:
+    let array = LargeStringArray::from(vec![Some("x"), None]);
+    let column = Column::<Option<AnyUtf8>>::try_from(Arc::new(array) as ArrayRef).unwrap();
+    let values: Vec<Option<&str>> = column.iter().collect();
+    assert_eq!(values, [Some("x"), None]);
+
+    // A null at a non-nullable level is rejected:
+    let array = StringViewArray::from(vec![Some("x"), None]);
+    assert!(matches!(
+        Column::<AnyUtf8>::try_from(Arc::new(array) as ArrayRef),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+}
+
+#[test]
 fn f16_column() {
     use quiver::half::f16;
 
