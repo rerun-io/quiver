@@ -210,6 +210,36 @@ The supported logical types:
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
 
+### `AnyList<L>`: one logical type for any list encoding
+
+Arrow has five physically different ways to store the same logical thing — a
+column of lists of `L`: `List`, `LargeList`, `ListView`, `LargeListView`, and
+`FixedSizeList`. `AnyList<L>` is a quiver-only logical type (no single arrow
+datatype of its own) that **accepts whichever of those a column happens to use**
+and reads them all uniformly — handy when the encoding is decided at runtime
+(e.g. data from an external source).
+
+```rust
+# use std::sync::Arc;
+# use quiver::arrow::array::{ArrayRef, LargeListArray};
+# use quiver::arrow::datatypes::Int64Type;
+use quiver::{AnyList, Column};
+
+# let array: ArrayRef = Arc::new(LargeListArray::from_iter_primitive::<Int64Type, _, _>(
+#     vec![Some(vec![Some(1), Some(2)])],
+# ));
+// `array` may be a List / LargeList / ListView / LargeListView / FixedSizeList:
+let column = Column::<AnyList<i64>>::try_from(array).unwrap();
+for list in &column {
+    for _item in list { /* i64 */ }
+}
+```
+
+Because it has no single arrow datatype, `AnyList` is **parse-only**: it implements
+`LogicalType` (so `try_from`/reading work) but not `ConcreteType`, so it has no
+`datatype()`, `from_values`, `Default`, or schema generation. To *build* a column,
+pick a concrete encoding such as `Column<List<L>>`.
+
 ### What is *not* supported
 
 These datatypes have no logical type yet, so there is no `Column<L>` for them:
