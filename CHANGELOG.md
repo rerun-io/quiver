@@ -6,6 +6,27 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.2.0 - 2026-06-10
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.1.1..0.2.0
+
+This release adds a family of new logical types, "any-encoding" types that abstract over the multiple arrow encodings of the same logical value, and support for `arrow` 59.
+
+#### ⚠️ Breaking changes
+* Replace `Column<String>` with `Utf8`/`LargeUtf8`/`Utf8View` markers [#5](https://github.com/rerun-io/quiver/pull/5) by [@emilk](https://github.com/emilk)
+
+#### New logical types
+* Add four arrow logical types: `BinaryView`, `LargeList`, `Map`, `Run` [#6](https://github.com/rerun-io/quiver/pull/6) by [@emilk](https://github.com/emilk)
+* Add `ListView` and `LargeListView` logical types [#7](https://github.com/rerun-io/quiver/pull/7) by [@emilk](https://github.com/emilk)
+* Add `AnyList<L>`: one logical type for any list encoding [#8](https://github.com/rerun-io/quiver/pull/8) by [@emilk](https://github.com/emilk)
+* Add `AnyBinary`: one logical type for any binary encoding [#9](https://github.com/rerun-io/quiver/pull/9) by [@emilk](https://github.com/emilk)
+* Add `AnyUtf8`: one logical type for any UTF-8 encoding [#10](https://github.com/rerun-io/quiver/pull/10) by [@emilk](https://github.com/emilk)
+
+#### Other improvements
+* Give `ListValue` a `Column`-like read API [#11](https://github.com/rerun-io/quiver/pull/11) by [@emilk](https://github.com/emilk)
+* Add support for `arrow` 59 [#12](https://github.com/rerun-io/quiver/pull/12) by [@emilk](https://github.com/emilk)
+
+
 ## 0.1.1 - 2026-06-05
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.1.0..0.1.1
