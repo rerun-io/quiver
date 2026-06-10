@@ -26,7 +26,7 @@ quiver_types = { path = "crates/quiver_types", version = "0.1.1" }
 quiver_derive = { path = "crates/quiver_derive", version = "0.1.1" }
 
 # External crates:
-arrow = { version = ">=57.0, <59", default-features = false }
+arrow = { version = ">=57.0, <60", default-features = false } # Keep up-to-date with scripts/test_arrow_versions.sh
 document-features = "0.2"
 half = "2"
 proc-macro2 = "1.0"
