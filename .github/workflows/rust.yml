@@ -57,6 +57,30 @@ jobs:
 
   # ---------------------------------------------------------------------------
 
+  miri:
+    name: Miri (unsafe soundness)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Miri needs nightly. The `unsafe` we validate lives in `quiver_types`
+      # (`value_unchecked` on the iteration hot path); the sliced-array
+      # soundness tests live in `quiver`'s integration tests.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: miri
+
+      # `f16_column` is skipped: `half`'s f16 conversions use inline asm, which
+      # Miri cannot execute (it is unrelated to our `unsafe`).
+      - name: Miri test
+        run: |
+          cargo miri test -p quiver_types --all-features
+          cargo miri test -p quiver --all-features -- --skip f16
+
+  # ---------------------------------------------------------------------------
+
   check_wasm:
     name: Check wasm32
     runs-on: ubuntu-latest
