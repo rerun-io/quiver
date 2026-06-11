@@ -10,7 +10,7 @@ use arrow::datatypes::DataType;
 
 use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
 use crate::typed_array::TypedArray;
-use crate::{ColumnError, LogicalType};
+use crate::{ColumnError, Error, ErrorKind, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
 ///
@@ -39,6 +39,56 @@ impl<L: LogicalType> Column<L> {
             array: TypedArray::try_new(array)?,
             metadata: std::collections::BTreeMap::new(),
         })
+    }
+
+    /// Extracts and validates a single column of a record batch, by name.
+    ///
+    /// Looks up the column by name (returning [`ErrorKind::MissingColumn`] if it
+    /// is absent), validates it against `L` (datatype and nullability, recursively),
+    /// and carries over the arrow [`Field`](arrow::datatypes::Field) metadata.
+    ///
+    /// This is the no-derive equivalent of the `COLUMN_*` descriptors that
+    /// `#[derive(Quiver)]` generates; prefer those when you have a derived struct,
+    /// since they don't hard-code the column name.
+    ///
+    /// # Errors
+    /// Errors if the column is missing, or if it fails validation against `L`.
+    pub fn from_record_batch_and_name(
+        batch: &arrow::record_batch::RecordBatch,
+        name: &str,
+    ) -> Result<Self, Error> {
+        Self::extract_named(batch, name, "Column")
+    }
+
+    /// Shared implementation of [`Column::from_record_batch_and_name`] and the
+    /// derive-generated `COLUMN_*` descriptors; `record_type` labels errors.
+    pub(crate) fn extract_named(
+        batch: &arrow::record_batch::RecordBatch,
+        name: &str,
+        record_type: &'static str,
+    ) -> Result<Self, Error> {
+        let (index, field) = batch
+            .schema_ref()
+            .column_with_name(name)
+            .ok_or_else(|| Error {
+                record_type,
+                kind: ErrorKind::MissingColumn {
+                    column: name.to_owned(),
+                },
+            })?;
+
+        let column = Self::try_new(ArrayRef::clone(batch.column(index))).map_err(|err| Error {
+            record_type,
+            kind: err.for_column(name.to_owned()),
+        })?;
+
+        Ok(column.with_metadata(
+            field
+                .metadata()
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+        ))
     }
 
     /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]

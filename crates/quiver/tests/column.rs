@@ -7,11 +7,12 @@ use quiver::arrow::array::{
     ArrayRef, DurationMillisecondArray, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
     TimestampNanosecondArray, TimestampSecondArray,
 };
-use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
+use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema};
 use quiver::arrow::error::ArrowError;
+use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnError, Duration, FixedSizeBinary, List, Millisecond, Nanosecond, Second,
-    Timestamp, Utc, Utf8,
+    Column, ColumnError, Duration, Error, ErrorKind, FixedSizeBinary, List, Millisecond,
+    Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
 #[test]
@@ -225,6 +226,42 @@ fn column_metadata() {
         .metadata_mut()
         .insert("source".to_owned(), "sensor".to_owned());
     assert_eq!(column.metadata().len(), 2);
+}
+
+#[test]
+fn from_record_batch_and_name() {
+    let names: ArrayRef = Arc::new(StringArray::from(vec!["alice", "bob"]));
+    let ages: ArrayRef = Arc::new(Int64Array::from(vec![30, 40]));
+    let schema = Schema::new(vec![
+        Field::new("name", DataType::Utf8, false).with_metadata(std::collections::HashMap::from([
+            ("pii".to_owned(), "true".to_owned()),
+        ])),
+        Field::new("age", DataType::Int64, false),
+    ]);
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![names, ages]).unwrap();
+
+    // Happy path: looks up by name, validates, and carries over field metadata.
+    let column = Column::<Utf8>::from_record_batch_and_name(&batch, "name").unwrap();
+    assert_eq!(column.to_vec(), ["alice", "bob"]);
+    assert_eq!(column.metadata()["pii"], "true");
+
+    // Missing column → a helpful `MissingColumn` error.
+    assert!(matches!(
+        Column::<Utf8>::from_record_batch_and_name(&batch, "nope"),
+        Err(Error {
+            record_type: "Column",
+            kind: ErrorKind::MissingColumn { column },
+        }) if column == "nope"
+    ));
+
+    // Present but wrong datatype → a `WrongDatatype` error, naming the column.
+    assert!(matches!(
+        Column::<Utf8>::from_record_batch_and_name(&batch, "age"),
+        Err(Error {
+            record_type: "Column",
+            kind: ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. },
+        }) if column == "age"
+    ));
 }
 
 #[test]

@@ -77,8 +77,7 @@ let scores = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
 let maybe: Column<Option<f64>> = [Some(1.5), None].into_iter().collect();
 ```
 
-Single columns can be extracted without parsing the whole batch — the derive generates
-a `COLUMN_*` descriptor per column, so no names are hard-coded:
+Single columns can be extracted without parsing the whole batch — two ways:
 
 ``` rust
 use quiver::{Column, Quiver, Utf8};
@@ -91,18 +90,24 @@ struct Reading {
 let batch = Reading {
     sensor: vec!["kitchen".to_owned()].into(),
 }
-.into_record_batch()
-.unwrap();
+.into_record_batch()?;
 
-// Single-column extraction, fully typed:
-let sensors = Reading::COLUMN_SENSOR.extract(&batch).unwrap();
+// 1. With the derive's `COLUMN_*` descriptor — no column name hard-coded,
+//    and errors carry the struct + column name for free:
+let sensors = Reading::COLUMN_SENSOR.extract(&batch)?;
 assert_eq!(sensors.to_vec(), ["kitchen"]); // `to_vec()` returns owned values
 assert_eq!(Reading::COLUMN_SENSOR.name, "sensor");
+
+// 2. Without the derive — by name. A missing column gives a helpful
+//    `MissingColumn` error; the datatype and nullability are validated too:
+let sensors = Column::<Utf8>::from_record_batch_and_name(&batch, "sensor")?;
+assert_eq!(sensors.to_vec(), ["kitchen"]);
 
 // Static schema + infallible empty batches
 // (when all columns are statically typed and required):
 let empty = Reading::empty_record_batch(); // all declared columns, zero rows
 assert_eq!(empty.num_rows(), 0);
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 `quiver::Column` is also usable standalone, without the derive:
@@ -118,12 +123,13 @@ let dynamic_arrow_array: ArrayRef = Arc::new(ListArray::from_iter_primitive::<In
     vec![Some(vec![Some(1), Some(2)]), Some(vec![Some(3)])],
 ));
 
-let column = Column::<List<Option<i32>>>::try_from(dynamic_arrow_array).unwrap();
+let column = Column::<List<Option<i32>>>::try_from(dynamic_arrow_array)?;
 for list in &column {
     for number in list {
         // `number` is an `Option<i32>`; validation already happened, up front
     }
 }
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Quiver types vs. arrow types
@@ -175,6 +181,11 @@ More of the `Column` API:
   `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty).
   The exceptions: building a `Dictionary` (key overflow) or `Run` (run-end
   overflow) column can fail, so those use `try_from_values` instead
+* Single-column extraction from a `RecordBatch`, no derive needed:
+  `Column::<L>::from_record_batch_and_name(&batch, name)` — looks the column up by
+  name (a missing one gives a helpful `MissingColumn` error), validates it against `L`,
+  and carries over the field metadata. The `COLUMN_*` descriptors do the same without
+  hard-coding the name
 * Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
 * Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
   and fixed-size binary non-nullable columns
@@ -231,10 +242,11 @@ use quiver::{AnyList, Column};
 #     vec![Some(vec![Some(1), Some(2)])],
 # ));
 // `array` may be a List / LargeList / ListView / LargeListView / FixedSizeList:
-let column = Column::<AnyList<i64>>::try_from(array).unwrap();
+let column = Column::<AnyList<i64>>::try_from(array)?;
 for list in &column {
     for _item in list { /* i64 */ }
 }
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 Because it has no single arrow datatype, `AnyList` is **parse-only**: it implements
