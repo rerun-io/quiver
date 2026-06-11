@@ -62,11 +62,15 @@ impl<L: LogicalType> Copy for ListValue<'_, L> {}
 impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
     /// `index..end` into `values`.
     ///
-    /// The caller guarantees `index <= end` and `end <= values`' length — the
-    /// invariant arrow's list offsets uphold. This is the single bounds check;
-    /// all later item access skips re-checking (see
-    /// [`value_unchecked`](LogicalType::value_unchecked)).
+    /// The caller must uphold `index <= end <= values`' length — the invariant
+    /// arrow's list offsets give us. This is the single bounds check: every
+    /// later item access skips re-checking (see
+    /// [`value_unchecked`](LogicalType::value_unchecked)), so a bad range here
+    /// would make even safe iteration unsound. The `debug_assert` catches an
+    /// inverted range (in tests and under Miri); `end <= length` rests on
+    /// arrow's offsets and can't be cheaply checked generically.
     pub(crate) fn new(values: &'a L::Typed, index: usize, end: usize) -> Self {
+        debug_assert!(index <= end, "ListValue range {index}..{end} is inverted");
         Self { values, index, end }
     }
 

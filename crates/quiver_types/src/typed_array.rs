@@ -68,8 +68,10 @@ impl<L: LogicalType> TypedArray<L> {
     /// The value at `index`, without bounds checking.
     ///
     /// # Safety
-    /// `index < self.len()`. The whole array was validated at construction, so
-    /// any in-bounds index is safe to read.
+    /// `index < self.len()`. That is the only quiver-level precondition; the
+    /// read itself relies on arrow's buffer/offset invariants, which the array
+    /// upholds by construction (quiver validated its datatype and nullability,
+    /// not those internal invariants).
     pub(crate) unsafe fn value_unchecked(&self, index: usize) -> L::Value<'_> {
         // SAFETY: forwarded from the caller's contract.
         unsafe { L::value_unchecked(&self.typed, index) }
