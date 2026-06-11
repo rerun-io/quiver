@@ -2,7 +2,10 @@
 //!
 //! To update the expected output, run with the environment variable `TRYBUILD=overwrite`.
 
-#![cfg(feature = "derive")]
+// Skipped under Miri: trybuild spawns the compiler per case (which Miri can't
+// run as a subprocess), it's slow, and it only checks diagnostics — there is no
+// `unsafe` here for Miri to validate.
+#![cfg(all(feature = "derive", not(miri)))]
 
 #[test]
 fn compile_fail() {
