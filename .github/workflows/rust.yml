@@ -69,21 +69,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Miri needs nightly. The `unsafe` we validate lives in `quiver_types`
-      # (`value_unchecked` on the iteration hot path); the sliced-array
-      # soundness tests live in `quiver`'s integration tests.
+      # Miri needs nightly.
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: nightly
           override: true
           components: miri
 
-      # `f16_column` is skipped: `half`'s f16 conversions use inline asm, which
-      # Miri cannot execute (it is unrelated to our `unsafe`).
+      # Only `quiver_types`: all the `unsafe` (`value_unchecked` + the iterator
+      # combinators) lives there, and its `tests/soundness.rs` drives every path
+      # over sliced arrays. Scoping to it keeps Miri fast — it avoids the heavy
+      # `quiver` test crate and `trybuild` (which spawns the compiler per case,
+      # something Miri can't run anyway). `--tests` skips doctests, which the
+      # soundness test already covers.
       - name: Miri test
-        run: |
-          cargo miri test -p quiver_types --all-features
-          cargo miri test -p quiver --all-features -- --skip f16
+        run: cargo miri test -p quiver_types --all-features --tests
 
   # ---------------------------------------------------------------------------
 
