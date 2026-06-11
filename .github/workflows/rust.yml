@@ -60,6 +60,12 @@ jobs:
   miri:
     name: Miri (unsafe soundness)
     runs-on: ubuntu-latest
+    # This job checks soundness, not lints — the stable `Rust` job already
+    # enforces `-D warnings`. Don't let a fresh nightly lint (warnings-as-errors)
+    # fail the soundness check; override the workflow-level `RUSTFLAGS`.
+    env:
+      RUSTFLAGS: ""
+      RUSTDOCFLAGS: ""
     steps:
       - uses: actions/checkout@v4
 
