@@ -21,6 +21,12 @@ workspace = true
 name = "example"
 required-features = ["derive"]
 
+# Self-contained (no benchmark-framework dependency, to keep the dep tree lean
+# and `cargo-deny` happy). Run with `cargo bench -p quiver`.
+[[bench]]
+name = "sum"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
