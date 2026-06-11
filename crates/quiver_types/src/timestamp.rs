@@ -123,6 +123,11 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
         typed.value(index)
     }
 
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { typed.value_unchecked(index) }
+    }
+
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         value
     }

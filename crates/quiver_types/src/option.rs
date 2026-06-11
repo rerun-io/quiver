@@ -43,6 +43,15 @@ impl<L: LogicalType> LogicalType for Option<L> {
         }
     }
 
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        if L::is_null(typed, index) {
+            None
+        } else {
+            // SAFETY: the caller guarantees `index` is in bounds.
+            Some(unsafe { L::value_unchecked(typed, index) })
+        }
+    }
+
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         value.map(L::to_owned_value)
     }

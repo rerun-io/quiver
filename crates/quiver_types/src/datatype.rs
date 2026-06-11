@@ -74,6 +74,24 @@ pub trait LogicalType {
     /// Contract: `index` is in bounds, and the value is non-null unless `Self` is an `Option`.
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_>;
 
+    /// The value at `index`, **without** the bounds check [`value`](LogicalType::value)
+    /// performs.
+    ///
+    /// Reading a validated [`Column`](crate::Column) or
+    /// [`ListValue`](crate::ListValue) is the hot path: the bounds are known
+    /// once (the column length, or a list element's offset range), so this lets
+    /// bulk iteration skip arrow's per-element bounds check. The default just
+    /// forwards to [`value`](LogicalType::value); encodings override it to call
+    /// arrow's unchecked accessor.
+    ///
+    /// # Safety
+    /// `index` must be in bounds (`< length`) — the same precondition as
+    /// [`value`](LogicalType::value), but here it is the caller's responsibility,
+    /// not checked.
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        Self::value(typed, index)
+    }
+
     /// Converts a borrowed element value into an owned one,
     /// e.g. `&str` → `String`.
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
@@ -239,6 +257,11 @@ macro_rules! impl_flat_datatype {
                 typed.value(index)
             }
 
+            unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { typed.value_unchecked(index) }
+            }
+
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 value.into()
             }
@@ -305,6 +328,11 @@ macro_rules! impl_marker_datatype {
 
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 typed.value(index)
+            }
+
+            unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { typed.value_unchecked(index) }
             }
 
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {

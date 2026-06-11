@@ -4,6 +4,19 @@
 //! `quiver_types` exists so that the bulk of `quiver` compiles independently
 //! of the (optional) `quiver_derive` proc-macro crate.
 
+// The workspace warns on `unsafe_code`; this crate opts into it for one audited
+// use: [`LogicalType::value_unchecked`] skips arrow's per-element bounds check
+// on the hot read path. Its only precondition is `index < length`, which the
+// caller establishes once (the column length, or a list element's offset range)
+// before iterating. The read then relies on arrow's own buffer/offset
+// invariants — which a constructed arrow array upholds by safe-Rust
+// construction; quiver does not re-validate them, it validates datatype and
+// nullability. See `value_unchecked`.
+#![expect(
+    unsafe_code,
+    reason = "value_unchecked skips arrow's per-element bounds check; the index is bounds-checked once up front"
+)]
+
 pub use arrow;
 pub use half;
 
@@ -20,6 +33,7 @@ mod fixed_size_binary;
 mod fixed_size_list;
 mod large_list;
 mod list;
+mod list_value;
 mod list_view;
 mod map;
 mod newtype;
@@ -47,7 +61,8 @@ pub use self::error::{Error, ErrorKind};
 pub use self::fixed_size_binary::FixedSizeBinary;
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
 pub use self::large_list::{LargeList, TypedLargeList};
-pub use self::list::{List, ListValue, TypedList};
+pub use self::list::{List, TypedList};
+pub use self::list_value::ListValue;
 pub use self::list_view::{LargeListView, ListView, TypedLargeListView, TypedListView};
 pub use self::map::{Map, MapValue, TypedMap};
 pub use self::newtype::As;

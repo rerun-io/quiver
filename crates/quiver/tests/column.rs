@@ -415,6 +415,59 @@ fn to_vec_and_iter_owned() {
 }
 
 #[test]
+fn column_iter_combinators_and_double_ended() {
+    let column = Column::<i64>::from_values([10, 20, 30, 40]);
+
+    // Overridden forward combinators:
+    assert_eq!(column.iter().count(), 4);
+    assert_eq!(column.iter().last(), Some(40));
+    assert_eq!(column.iter().nth(2), Some(30));
+    assert_eq!(column.iter().nth(4), None);
+    let sum: i64 = column.iter().sum(); // routes through `fold`
+    assert_eq!(sum, 100);
+
+    // Double-ended (borrowing iterator):
+    let rev: Vec<i64> = column.iter().rev().collect();
+    assert_eq!(rev, [40, 30, 20, 10]);
+    let mut cursor = column.iter();
+    assert_eq!(cursor.next(), Some(10));
+    assert_eq!(cursor.next_back(), Some(40));
+    assert_eq!(cursor.next_back(), Some(30));
+    assert_eq!(cursor.next(), Some(20));
+    assert_eq!(cursor.next(), None);
+    assert_eq!(cursor.next_back(), None);
+
+    // Owning iterator (`IntoIterator for Column`): nth, rev, next_back.
+    assert_eq!(column.clone().into_iter().nth(1), Some(20));
+    let owned_rev: Vec<i64> = column.clone().into_iter().rev().collect();
+    assert_eq!(owned_rev, [40, 30, 20, 10]);
+
+    // Strings exercise the borrowed-view unchecked path:
+    let strings = Column::<Utf8>::from_values(["a", "b", "c"]);
+    let joined: String = strings.iter().rev().collect();
+    assert_eq!(joined, "cba");
+}
+
+#[test]
+fn nested_list_iteration() {
+    // `List<List<i64>>`: unchecked reads must propagate through both levels.
+    let column =
+        Column::<List<List<i64>>>::from_values([vec![vec![1, 2], vec![3]], vec![vec![4, 5, 6]]]);
+
+    let flattened: Vec<i64> = column
+        .iter()
+        .flat_map(|row| row.flat_map(|inner| inner.collect::<Vec<_>>()))
+        .collect();
+    assert_eq!(flattened, [1, 2, 3, 4, 5, 6]);
+
+    // Random access through both levels, plus reverse iteration of the inner list:
+    let first_row = column.value(0);
+    assert_eq!(first_row.value(0).to_vec(), vec![1, 2]);
+    let inner_rev: Vec<i64> = first_row.value(0).rev().collect();
+    assert_eq!(inner_rev, [2, 1]);
+}
+
+#[test]
 fn as_slice() {
     let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);
     assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);

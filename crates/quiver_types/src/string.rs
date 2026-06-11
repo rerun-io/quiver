@@ -180,6 +180,17 @@ impl LogicalType for AnyUtf8 {
         }
     }
 
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds for the held array.
+        unsafe {
+            match typed {
+                AnyTypedUtf8::Utf8(array) => array.value_unchecked(index),
+                AnyTypedUtf8::LargeUtf8(array) => array.value_unchecked(index),
+                AnyTypedUtf8::Utf8View(array) => array.value_unchecked(index),
+            }
+        }
+    }
+
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         value.to_owned()
     }

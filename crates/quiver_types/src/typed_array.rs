@@ -54,13 +54,27 @@ impl<L: LogicalType> TypedArray<L> {
 
     /// The value at `index`, or `None` if out of bounds.
     pub fn get(&self, index: usize) -> Option<L::Value<'_>> {
-        (index < self.len()).then(|| L::value(&self.typed, index))
+        // SAFETY: bounds checked here, once.
+        (index < self.len()).then(|| unsafe { self.value_unchecked(index) })
     }
 
     /// The value at `index`. Panics if out of bounds.
     pub fn value(&self, index: usize) -> L::Value<'_> {
         assert!(index < self.len(), "Index {index} out of bounds");
-        L::value(&self.typed, index)
+        // SAFETY: bounds checked just above.
+        unsafe { self.value_unchecked(index) }
+    }
+
+    /// The value at `index`, without bounds checking.
+    ///
+    /// # Safety
+    /// `index < self.len()`. That is the only quiver-level precondition; the
+    /// read itself relies on arrow's buffer/offset invariants, which the array
+    /// upholds by construction (quiver validated its datatype and nullability,
+    /// not those internal invariants).
+    pub(crate) unsafe fn value_unchecked(&self, index: usize) -> L::Value<'_> {
+        // SAFETY: forwarded from the caller's contract.
+        unsafe { L::value_unchecked(&self.typed, index) }
     }
 
     /// The underlying arrow array.

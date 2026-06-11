@@ -131,6 +131,14 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
         V::value(&typed.values, key)
     }
 
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds for the keys.
+        let key = unsafe { typed.dictionary.keys().value_unchecked(index) }.as_usize();
+        // The decoded key is *not* trusted: a malformed dictionary could point
+        // out of range, so the value lookup stays bounds-checked.
+        V::value(&typed.values, key)
+    }
+
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         V::to_owned_value(value)
     }
