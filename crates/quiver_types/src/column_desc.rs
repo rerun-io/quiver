@@ -51,30 +51,7 @@ impl<L: LogicalType> ColumnDesc<Column<L>> {
         let Self {
             record_type, name, ..
         } = *self;
-
-        let (index, field) = batch
-            .schema_ref()
-            .column_with_name(name)
-            .ok_or_else(|| Error {
-                record_type,
-                kind: ErrorKind::MissingColumn {
-                    column: name.to_owned(),
-                },
-            })?;
-
-        let column =
-            Column::try_new(ArrayRef::clone(batch.column(index))).map_err(|err| Error {
-                record_type,
-                kind: err.for_column(name.to_owned()),
-            })?;
-
-        Ok(column.with_metadata(
-            field
-                .metadata()
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect(),
-        ))
+        Column::extract_named(batch, name, record_type)
     }
 }
 
