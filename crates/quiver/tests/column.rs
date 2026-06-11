@@ -437,9 +437,9 @@ fn column_iter_combinators_and_double_ended() {
     assert_eq!(cursor.next(), None);
     assert_eq!(cursor.next_back(), None);
 
-    // Owning iterator (`IntoIterator for Column`): nth, rev, next_back.
-    assert_eq!(column.clone().into_iter().nth(1), Some(20));
-    let owned_rev: Vec<i64> = column.clone().into_iter().rev().collect();
+    // Owning iterator (`Column::into_iter_owned`): nth, rev, next_back.
+    assert_eq!(column.clone().into_iter_owned().nth(1), Some(20));
+    let owned_rev: Vec<i64> = column.clone().into_iter_owned().rev().collect();
     assert_eq!(owned_rev, [40, 30, 20, 10]);
 
     // Strings exercise the borrowed-view unchecked path:
@@ -469,7 +469,7 @@ fn nested_list_iteration() {
 
 #[test]
 fn as_slice() {
-    let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);
+    let column = Column::<f32>::from_values([1.0_f32, 2.0, 3.0]);
     assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);
 
     let column = Column::<u8>::from_values([1_u8, 2, 3]);
@@ -614,9 +614,9 @@ fn into_iterator() {
     }
     assert_eq!(borrowed, ["a", "b"]);
 
-    // By value: owned values, like a `Vec`.
+    // By value: owned values, opt-in via `into_iter_owned`.
     let mut owned = Vec::new();
-    for value in column {
+    for value in column.into_iter_owned() {
         owned.push(value); // `String`
     }
     assert_eq!(owned, ["a".to_owned(), "b".to_owned()]);

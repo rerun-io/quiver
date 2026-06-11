@@ -186,6 +186,21 @@ impl<L: LogicalType> Column<L> {
         self.iter().map(L::to_owned_value)
     }
 
+    /// Consumes the column, iterating over owned values — e.g. `String`
+    /// (or your newtype) for a `Column<Utf8>`.
+    ///
+    /// May allocate per element (e.g. string columns); for borrowed views,
+    /// iterate `&column` (or call [`Column::iter`]) instead.
+    #[must_use]
+    pub fn into_iter_owned(self) -> ColumnIntoIter<L> {
+        let end = self.len();
+        ColumnIntoIter {
+            column: self,
+            index: 0,
+            end,
+        }
+    }
+
     /// Copies the values into a `Vec` of owned values,
     /// e.g. `Vec<String>` for a `Column<Utf8>`.
     #[must_use]
@@ -481,23 +496,13 @@ impl<'a, L: LogicalType + 'a> IntoIterator for &'a Column<L> {
     }
 }
 
-/// Iterating a `Column` by value yields owned values, like a `Vec` —
-/// e.g. `String` for a `Column<Utf8>`.
-impl<L: LogicalType> IntoIterator for Column<L> {
-    type Item = L::Owned;
-    type IntoIter = ColumnIntoIter<L>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let end = self.len();
-        ColumnIntoIter {
-            column: self,
-            index: 0,
-            end,
-        }
-    }
-}
-
-/// By-value iterator over the owned values of a [`Column`].
+/// By-value iterator over the owned values of a [`Column`],
+/// created by [`Column::into_iter_owned`].
+///
+/// `Column` deliberately does **not** implement [`IntoIterator`] by value:
+/// `for x in column` would have to allocate (owned values), so that path is
+/// explicit via [`into_iter_owned`](Column::into_iter_owned). Iterate
+/// `&column` for the zero-copy borrowed views.
 pub struct ColumnIntoIter<L: LogicalType> {
     column: Column<L>,
     index: usize,
