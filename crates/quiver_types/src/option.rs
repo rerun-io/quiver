@@ -31,10 +31,18 @@ impl<L: LogicalType> LogicalType for Option<L> {
         L::downcast(array)
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         L::is_null(typed, index)
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { L::is_null_unchecked(typed, index) }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         if L::is_null(typed, index) {
             None
@@ -43,8 +51,10 @@ impl<L: LogicalType> LogicalType for Option<L> {
         }
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
-        if L::is_null(typed, index) {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        if unsafe { L::is_null_unchecked(typed, index) } {
             None
         } else {
             // SAFETY: the caller guarantees `index` is in bounds.

@@ -125,6 +125,7 @@ impl<L: LogicalType> Column<L> {
     /// See [`Column::value`] for the returned view;
     /// [`Column::get_owned`] returns the owned value instead.
     #[must_use]
+    #[inline]
     pub fn get(&self, index: usize) -> Option<L::Value<'_>> {
         self.array.get(index)
     }
@@ -149,6 +150,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// Panics if out of bounds.
     #[must_use]
+    #[inline]
     pub fn value(&self, index: usize) -> L::Value<'_> {
         self.array.value(index)
     }
@@ -418,6 +420,7 @@ pub struct ColumnIter<'a, L: LogicalType> {
 impl<'a, L: LogicalType + 'a> Iterator for ColumnIter<'a, L> {
     type Item = L::Value<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.end {
             // SAFETY: index < end <= column length.
@@ -512,6 +515,7 @@ pub struct ColumnIntoIter<L: LogicalType> {
 impl<L: LogicalType> Iterator for ColumnIntoIter<L> {
     type Item = L::Owned;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.end {
             // SAFETY: index < end <= column length.

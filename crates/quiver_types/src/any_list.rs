@@ -120,6 +120,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
         }
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         match typed {
             AnyTypedList::List(typed) => List::<L>::is_null(typed, index),
@@ -130,6 +131,25 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
         }
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds for the held array.
+        unsafe {
+            match typed {
+                AnyTypedList::List(typed) => List::<L>::is_null_unchecked(typed, index),
+                AnyTypedList::LargeList(typed) => LargeList::<L>::is_null_unchecked(typed, index),
+                AnyTypedList::ListView(typed) => ListView::<L>::is_null_unchecked(typed, index),
+                AnyTypedList::LargeListView(typed) => {
+                    LargeListView::<L>::is_null_unchecked(typed, index)
+                }
+                AnyTypedList::FixedSizeList { array, .. } => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+            }
+        }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         match typed {
             AnyTypedList::List(typed) => List::<L>::value(typed, index),
@@ -140,6 +160,28 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                 let start = array.value_offset(index).as_usize();
                 let size = array.value_length() as usize;
                 ListValue::new(values, start, start + size)
+            }
+        }
+    }
+
+    #[inline]
+    unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+        // SAFETY: the caller guarantees `index` is in bounds for the held array.
+        unsafe {
+            match typed {
+                AnyTypedList::List(typed) => List::<L>::value_unchecked(typed, index),
+                AnyTypedList::LargeList(typed) => LargeList::<L>::value_unchecked(typed, index),
+                AnyTypedList::ListView(typed) => ListView::<L>::value_unchecked(typed, index),
+                AnyTypedList::LargeListView(typed) => {
+                    LargeListView::<L>::value_unchecked(typed, index)
+                }
+                AnyTypedList::FixedSizeList { array, values } => {
+                    // `value_offset`/`value_length` are O(1) arithmetic with no
+                    // bounds check, so this is the same read as `value`.
+                    let start = array.value_offset(index).as_usize();
+                    let size = array.value_length() as usize;
+                    ListValue::new(values, start, start + size)
+                }
             }
         }
     }

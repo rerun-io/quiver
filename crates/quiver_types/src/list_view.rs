@@ -107,10 +107,18 @@ macro_rules! impl_list_view_datatype {
                 Ok($typed { list, values })
             }
 
+            #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 typed.list.is_null(index)
             }
 
+            #[inline]
+            unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { crate::datatype::leaf_is_null_unchecked(&typed.list, index) }
+            }
+
+            #[inline]
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 let start = typed.list.value_offset(index).as_usize();
                 let size = typed.list.value_size(index).as_usize();

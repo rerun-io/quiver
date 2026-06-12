@@ -117,14 +117,23 @@ macro_rules! newtype_datatype {
                 <$repr as $crate::LogicalType>::downcast(array)
             }
 
+            #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 <$repr as $crate::LogicalType>::is_null(typed, index)
             }
 
+            #[inline]
+            unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { <$repr as $crate::LogicalType>::is_null_unchecked(typed, index) }
+            }
+
+            #[inline]
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 <$repr as $crate::LogicalType>::value(typed, index)
             }
 
+            #[inline]
             unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 // SAFETY: the caller guarantees `index` is in bounds.
                 unsafe { <$repr as $crate::LogicalType>::value_unchecked(typed, index) }
@@ -205,14 +214,23 @@ where
         Repr::downcast(array)
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         Repr::is_null(typed, index)
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { Repr::is_null_unchecked(typed, index) }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         Repr::value(typed, index)
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         // SAFETY: the caller guarantees `index` is in bounds.
         unsafe { Repr::value_unchecked(typed, index) }

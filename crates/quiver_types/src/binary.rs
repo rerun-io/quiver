@@ -72,14 +72,23 @@ macro_rules! impl_binary_datatype {
                 downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
+            #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 typed.is_null(index)
             }
 
+            #[inline]
+            unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+            }
+
+            #[inline]
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 typed.value(index)
             }
 
+            #[inline]
             unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 // SAFETY: the caller guarantees `index` is in bounds.
                 unsafe { typed.value_unchecked(index) }
@@ -194,6 +203,7 @@ impl LogicalType for AnyBinary {
         }
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         match typed {
             AnyTypedBinary::Binary(array) => array.is_null(index),
@@ -203,6 +213,28 @@ impl LogicalType for AnyBinary {
         }
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds for the held array.
+        unsafe {
+            match typed {
+                AnyTypedBinary::Binary(array) => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+                AnyTypedBinary::LargeBinary(array) => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+                AnyTypedBinary::BinaryView(array) => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+                AnyTypedBinary::FixedSizeBinary(array) => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+            }
+        }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         match typed {
             AnyTypedBinary::Binary(array) => array.value(index),
@@ -212,6 +244,7 @@ impl LogicalType for AnyBinary {
         }
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         // SAFETY: the caller guarantees `index` is in bounds for the held array.
         unsafe {
@@ -232,6 +265,7 @@ impl LogicalType for AnyBinary {
 impl RefType for AnyBinary {
     type Ref = [u8];
 
+    #[inline]
     fn value_ref(typed: &Self::Typed, index: usize) -> &[u8] {
         Self::value(typed, index)
     }
