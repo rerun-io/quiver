@@ -5,16 +5,16 @@
 //! of the (optional) `quiver_derive` proc-macro crate.
 
 // The workspace warns on `unsafe_code`; this crate opts into it for one audited
-// use: [`LogicalType::value_unchecked`] skips arrow's per-element bounds check
-// on the hot read path. Its only precondition is `index < length`, which the
-// caller establishes once (the column length, or a list element's offset range)
-// before iterating. The read then relies on arrow's own buffer/offset
-// invariants — which a constructed arrow array upholds by safe-Rust
-// construction; quiver does not re-validate them, it validates datatype and
-// nullability. See `value_unchecked`.
+// use: [`LogicalType::value_unchecked`] and [`LogicalType::is_null_unchecked`]
+// skip arrow's per-element bounds check on the hot read path. Their only
+// precondition is `index < length`, which the caller establishes once (the
+// column length, or a list element's offset range) before iterating. The read
+// then relies on arrow's own buffer/offset invariants — which a constructed
+// arrow array upholds by safe-Rust construction; quiver does not re-validate
+// them, it validates datatype and nullability. See `value_unchecked`.
 #![expect(
     unsafe_code,
-    reason = "value_unchecked skips arrow's per-element bounds check; the index is bounds-checked once up front"
+    reason = "value_unchecked / is_null_unchecked skip arrow's per-element bounds check; the index is bounds-checked once up front"
 )]
 
 pub use arrow;

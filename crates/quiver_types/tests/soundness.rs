@@ -10,7 +10,11 @@
 //! `next_back`. The values are checked against an independently-computed
 //! reference so a wrong (but in-bounds) read is caught too, not just UB.
 
-use quiver_types::{Column, Dictionary, FixedSizeBinary, List, Utf8};
+use std::sync::Arc;
+
+use quiver_types::arrow::array::{ArrayRef, LargeListArray};
+use quiver_types::arrow::datatypes::Int64Type;
+use quiver_types::{AnyList, Column, Dictionary, FixedSizeBinary, List, Utf8};
 
 /// Drive a fresh iterator (via `iter`, which doesn't consume) through every
 /// overridden combinator and check each against `expected`.
@@ -123,6 +127,103 @@ fn nullable_column_sliced() {
 
     check_iter(&column, &[Some(0), None, Some(2), None, Some(4), Some(5)]);
     check_iter(&column.slice(1, 4), &[None, Some(2), None, Some(4)]);
+}
+
+#[test]
+fn nullable_string_column_sliced() {
+    // Like `nullable_column_sliced`, but over a variable-length (byte-buffer)
+    // encoding, so `Option::value_unchecked`'s `is_null_unchecked` probe runs
+    // against a sliced validity bitmap on a non-primitive leaf.
+    let column = Column::<Option<Utf8>>::from_values([
+        Some("a".to_owned()),
+        None,
+        Some("ccc".to_owned()),
+        None,
+        Some("eeeee".to_owned()),
+        Some("f".to_owned()),
+    ]);
+
+    check_iter(
+        &column,
+        &[Some("a"), None, Some("ccc"), None, Some("eeeee"), Some("f")],
+    );
+    check_iter(
+        &column.slice(1, 4),
+        &[None, Some("ccc"), None, Some("eeeee")],
+    );
+}
+
+#[test]
+fn any_list_column_sliced() {
+    // Exercises `AnyList::value_unchecked` (added so iteration skips the
+    // per-row bounds check) over a sliced `LargeList` encoding.
+    let rows = [
+        Some(vec![Some(0), Some(1), Some(2)]),
+        Some(vec![]),
+        Some(vec![Some(3), Some(4)]),
+        Some(vec![Some(5), Some(6), Some(7), Some(8)]),
+        Some(vec![Some(9)]),
+    ];
+    let array = LargeListArray::from_iter_primitive::<Int64Type, _, _>(rows);
+    let column = Column::<AnyList<i64>>::try_from(Arc::new(array) as ArrayRef)
+        .expect("a LargeList of i64 parses as AnyList<i64>");
+
+    // Forward, over a row-sliced column.
+    let rows: Vec<Vec<i64>> = column
+        .slice(2, 2)
+        .iter()
+        .map(|row| row.iter().collect())
+        .collect();
+    assert_eq!(rows, [vec![3, 4], vec![5, 6, 7, 8]]);
+
+    // Reverse iteration of the row column (drives `next_back`).
+    let rows_rev: Vec<Vec<i64>> = column.iter().rev().map(|row| row.to_vec()).collect();
+    assert_eq!(
+        rows_rev,
+        [vec![9], vec![5, 6, 7, 8], vec![3, 4], vec![], vec![0, 1, 2]]
+    );
+
+    // Random access and `nth` over the sliced row column.
+    assert_eq!(column.slice(2, 2).value(1).to_vec(), vec![5, 6, 7, 8]);
+    assert_eq!(
+        column.iter().nth(3).map(|row| row.to_vec()),
+        Some(vec![5, 6, 7, 8])
+    );
+}
+
+#[test]
+fn nullable_any_list_column_sliced() {
+    // Exercises `AnyList::is_null_unchecked` (the null-row probe) via
+    // `Option<AnyList<…>>`, over a sliced `LargeList` with null rows.
+    let rows = [
+        Some(vec![Some(0), Some(1)]),
+        None,
+        Some(vec![Some(2)]),
+        None,
+        Some(vec![Some(3), Some(4), Some(5)]),
+    ];
+    let array = LargeListArray::from_iter_primitive::<Int64Type, _, _>(rows);
+    let column = Column::<Option<AnyList<i64>>>::try_from(Arc::new(array) as ArrayRef)
+        .expect("a nullable LargeList of i64 parses as Option<AnyList<i64>>");
+
+    let collect = |column: &Column<Option<AnyList<i64>>>| -> Vec<Option<Vec<i64>>> {
+        column
+            .iter()
+            .map(|row| row.map(|items| items.iter().collect()))
+            .collect()
+    };
+
+    assert_eq!(
+        collect(&column),
+        [
+            Some(vec![0, 1]),
+            None,
+            Some(vec![2]),
+            None,
+            Some(vec![3, 4, 5]),
+        ]
+    );
+    assert_eq!(collect(&column.slice(1, 3)), [None, Some(vec![2]), None]);
 }
 
 #[test]

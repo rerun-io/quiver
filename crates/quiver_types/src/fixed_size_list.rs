@@ -86,10 +86,18 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
         Ok(TypedFixedSizeList { list, values })
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         typed.list.is_null(index)
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { crate::datatype::leaf_is_null_unchecked(&typed.list, index) }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         #[expect(clippy::cast_sign_loss)]
         let start = typed.list.value_offset(index) as usize;

@@ -164,6 +164,7 @@ impl LogicalType for AnyUtf8 {
         }
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         match typed {
             AnyTypedUtf8::Utf8(array) => array.is_null(index),
@@ -172,6 +173,23 @@ impl LogicalType for AnyUtf8 {
         }
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds for the held array.
+        unsafe {
+            match typed {
+                AnyTypedUtf8::Utf8(array) => crate::datatype::leaf_is_null_unchecked(array, index),
+                AnyTypedUtf8::LargeUtf8(array) => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+                AnyTypedUtf8::Utf8View(array) => {
+                    crate::datatype::leaf_is_null_unchecked(array, index)
+                }
+            }
+        }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         match typed {
             AnyTypedUtf8::Utf8(array) => array.value(index),
@@ -180,6 +198,7 @@ impl LogicalType for AnyUtf8 {
         }
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         // SAFETY: the caller guarantees `index` is in bounds for the held array.
         unsafe {
@@ -199,6 +218,7 @@ impl LogicalType for AnyUtf8 {
 impl RefType for AnyUtf8 {
     type Ref = str;
 
+    #[inline]
     fn value_ref(typed: &Self::Typed, index: usize) -> &str {
         Self::value(typed, index)
     }

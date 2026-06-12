@@ -69,6 +69,19 @@ pub trait LogicalType {
     /// Is the value at `index` null?
     fn is_null(typed: &Self::Typed, index: usize) -> bool;
 
+    /// Like [`is_null`](LogicalType::is_null), but **without** the bounds check.
+    ///
+    /// Mirrors [`value_unchecked`](LogicalType::value_unchecked): the null probe
+    /// on the hot read path (e.g. `Option<L>` iteration) can skip arrow's
+    /// per-element bounds check once the range is known. The default forwards to
+    /// [`is_null`](LogicalType::is_null); leaf encodings override it.
+    ///
+    /// # Safety
+    /// `index` must be in bounds (`< length`).
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        Self::is_null(typed, index)
+    }
+
     /// The value at `index`.
     ///
     /// Contract: `index` is in bounds, and the value is non-null unless `Self` is an `Option`.
@@ -238,6 +251,23 @@ pub(crate) fn downcast_array<A: Array + Clone + 'static>(
         })
 }
 
+/// Reads an arrow array's logical validity at `index` **without** the bounds
+/// check `Array::is_null` performs.
+///
+/// This is exactly arrow's own `is_null` (`nulls().is_null(index)`), minus the
+/// per-element `assert!(index < len)` on the validity bitmap.
+///
+/// # Safety
+/// `index < array.len()`.
+#[inline]
+pub(crate) unsafe fn leaf_is_null_unchecked(array: &dyn Array, index: usize) -> bool {
+    // SAFETY: the validity bitmap has `len` bits and the caller guarantees
+    // `index < len`, so the unchecked read is in bounds.
+    array
+        .nulls()
+        .is_some_and(|nulls| unsafe { !nulls.inner().value_unchecked(index) })
+}
+
 macro_rules! impl_flat_datatype {
     ($rust:ty, $array:ty, $value:ty, $datatype:expr) => {
         impl LogicalType for $rust {
@@ -249,14 +279,23 @@ macro_rules! impl_flat_datatype {
                 downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
+            #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 typed.is_null(index)
             }
 
+            #[inline]
+            unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+            }
+
+            #[inline]
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 typed.value(index)
             }
 
+            #[inline]
             unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 // SAFETY: the caller guarantees `index` is in bounds.
                 unsafe { typed.value_unchecked(index) }
@@ -292,6 +331,7 @@ macro_rules! impl_primitive_datatype {
         impl crate::datatype::PrimitiveType for $logical {
             type Native = $native;
 
+            #[inline]
             fn values(typed: &Self::Typed) -> &[$native] {
                 typed.values()
             }
@@ -300,6 +340,7 @@ macro_rules! impl_primitive_datatype {
         impl crate::datatype::RefType for $logical {
             type Ref = $native;
 
+            #[inline]
             fn value_ref(typed: &Self::Typed, index: usize) -> &$native {
                 &typed.values()[index]
             }
@@ -322,14 +363,23 @@ macro_rules! impl_marker_datatype {
                 crate::datatype::downcast_array::<$array>(array, || format!("{:?}", $datatype))
             }
 
+            #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 typed.is_null(index)
             }
 
+            #[inline]
+            unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+            }
+
+            #[inline]
             fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 typed.value(index)
             }
 
+            #[inline]
             unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
                 // SAFETY: the caller guarantees `index` is in bounds.
                 unsafe { typed.value_unchecked(index) }

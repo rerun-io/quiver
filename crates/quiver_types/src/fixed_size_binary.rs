@@ -50,10 +50,18 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         }
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         typed.is_null(index)
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds.
+        unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         typed
             .value(index)
@@ -61,6 +69,7 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
             .expect("The length is guaranteed by the validated datatype")
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         // SAFETY: the caller guarantees `index` is in bounds.
         unsafe { typed.value_unchecked(index) }

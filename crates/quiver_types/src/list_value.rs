@@ -78,6 +78,7 @@ impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
     ///
     /// # Safety
     /// `self.index + index < self.end`.
+    #[inline]
     unsafe fn value_unchecked(&self, index: usize) -> L::Value<'a> {
         // SAFETY: by the caller's contract `self.index + index < self.end <=
         // values' length`, so the absolute item index is in bounds.
@@ -86,12 +87,14 @@ impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
 
     /// The number of items in this list element.
     #[must_use]
+    #[inline]
     pub fn len(&self) -> usize {
         self.end - self.index
     }
 
     /// Is this list element empty?
     #[must_use]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.index == self.end
     }
@@ -214,6 +217,7 @@ impl<'a, L: PrimitiveType> ListValue<'a, L> {
 impl<'a, L: LogicalType + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.end {
             // SAFETY: index < end <= values' length.

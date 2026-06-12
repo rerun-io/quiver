@@ -122,15 +122,24 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
         Ok(TypedDictionary { dictionary, values })
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         typed.dictionary.is_null(index)
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // SAFETY: the caller guarantees `index` is in bounds for the keys.
+        unsafe { crate::datatype::leaf_is_null_unchecked(&typed.dictionary, index) }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         let key = typed.dictionary.keys().value(index).as_usize();
         V::value(&typed.values, key)
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         // SAFETY: the caller guarantees `index` is in bounds for the keys.
         let key = unsafe { typed.dictionary.keys().value_unchecked(index) }.as_usize();

@@ -44,21 +44,25 @@ impl<L: LogicalType> TypedArray<L> {
         Ok(Self { array, typed })
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.array.len()
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
 
     /// The value at `index`, or `None` if out of bounds.
+    #[inline]
     pub fn get(&self, index: usize) -> Option<L::Value<'_>> {
         // SAFETY: bounds checked here, once.
         (index < self.len()).then(|| unsafe { self.value_unchecked(index) })
     }
 
     /// The value at `index`. Panics if out of bounds.
+    #[inline]
     pub fn value(&self, index: usize) -> L::Value<'_> {
         assert!(index < self.len(), "Index {index} out of bounds");
         // SAFETY: bounds checked just above.
@@ -72,6 +76,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// read itself relies on arrow's buffer/offset invariants, which the array
     /// upholds by construction (quiver validated its datatype and nullability,
     /// not those internal invariants).
+    #[inline]
     pub(crate) unsafe fn value_unchecked(&self, index: usize) -> L::Value<'_> {
         // SAFETY: forwarded from the caller's contract.
         unsafe { L::value_unchecked(&self.typed, index) }
@@ -91,6 +96,7 @@ impl<L: LogicalType> TypedArray<L> {
 impl<L: RefType> TypedArray<L> {
     /// Like [`TypedArray::value`], but borrows from the array.
     /// Panics if out of bounds.
+    #[inline]
     pub fn value_ref(&self, index: usize) -> &L::Ref {
         assert!(index < self.len(), "Index {index} out of bounds");
         L::value_ref(&self.typed, index)
@@ -99,6 +105,7 @@ impl<L: RefType> TypedArray<L> {
 
 impl<L: PrimitiveType> TypedArray<L> {
     /// The values as a contiguous zero-copy slice.
+    #[inline]
     pub fn values(&self) -> &[L::Native] {
         L::values(&self.typed)
     }

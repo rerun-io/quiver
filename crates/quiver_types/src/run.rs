@@ -104,16 +104,28 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         Ok(TypedRun { run, values })
     }
 
+    #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         let physical = typed.run.get_physical_index(index);
         V::is_null(&typed.values, physical)
     }
 
+    #[inline]
+    unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+        // `get_physical_index` maps an in-bounds logical index to an in-bounds
+        // physical one.
+        let physical = typed.run.get_physical_index(index);
+        // SAFETY: `physical` is in bounds for the values when `index` is.
+        unsafe { V::is_null_unchecked(&typed.values, physical) }
+    }
+
+    #[inline]
     fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         let physical = typed.run.get_physical_index(index);
         V::value(&typed.values, physical)
     }
 
+    #[inline]
     unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
         // `get_physical_index` maps the logical index to a values index; for an
         // in-bounds logical index it returns an in-bounds physical one.
