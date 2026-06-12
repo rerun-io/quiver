@@ -6,6 +6,26 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.3.0 - 2026-06-12
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.2.0..0.3.0
+
+A performance-focused release: reading and iterating a validated `Column` now skips arrow's per-element bounds checks, plus a new record-batch constructor.
+
+#### ⚠️ Breaking changes
+* Replace the implicit by-value `IntoIterator` for `Column` with an explicit `.into_iter_owned()` [#16](https://github.com/rerun-io/quiver/pull/16) by [@emilk](https://github.com/emilk)
+
+#### New features
+* Add `Column::from_record_batch_and_name` [#13](https://github.com/rerun-io/quiver/pull/13) by [@emilk](https://github.com/emilk)
+
+#### Performance
+* Skip per-element bounds checks when iterating `Column`/`ListValue` [#15](https://github.com/rerun-io/quiver/pull/15) by [@emilk](https://github.com/emilk)
+* Unchecked reads for `AnyList`, an unchecked null probe for `Option`, and `#[inline]` on the per-element accessors [#17](https://github.com/rerun-io/quiver/pull/17) by [@emilk](https://github.com/emilk)
+
+#### Other improvements
+* Add benchmarks [#14](https://github.com/rerun-io/quiver/pull/14) by [@emilk](https://github.com/emilk)
+
+
 ## 0.2.0 - 2026-06-10
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.1.1..0.2.0
