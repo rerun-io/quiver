@@ -6,6 +6,19 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.4.0 - 2026-07-02
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.3.0..0.4.0
+
+This release pins `arrow` to version 58.
+
+#### ⚠️ Breaking changes
+* Require `arrow` 58, previously `>=57, <60` [#19](https://github.com/rerun-io/quiver/pull/19) by [@IsseW](https://github.com/IsseW)
+
+#### Other improvements
+* Add a supported `arrow` versions table to the README [#19](https://github.com/rerun-io/quiver/pull/19) by [@IsseW](https://github.com/IsseW)
+
+
 ## 0.3.0 - 2026-06-12
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.2.0..0.3.0
