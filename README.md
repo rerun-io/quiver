@@ -22,6 +22,7 @@ A struct marked with `#[derive(Quiver)]` can contain either dynamically typed ar
 | `quiver`    | `arrow` |
 |-------------|---------|
 | `main`      | 58      |
+| 0.4         | 58      |
 | 0.2 – 0.3   | 57 – 59 |
 | 0.1         | 57 – 58 |
 
