@@ -17,6 +17,14 @@ Additionally, `quiver` provides a proc-macro for easily converting a `struct` of
 
 A struct marked with `#[derive(Quiver)]` can contain either dynamically typed arrow arrays (`ArrayRef`, `ListArray`, …) or strongly typed `quiver` types (or a mix of both!).
 
+## Supported `arrow` versions
+
+| `quiver`    | `arrow` |
+|-------------|---------|
+| `main`      | 58      |
+| 0.2 – 0.3   | 57 – 59 |
+| 0.1         | 57 – 58 |
+
 ## Example
 For a complete, compiling example, see [`example.rs`](crates/quiver/examples/example.rs).
 
