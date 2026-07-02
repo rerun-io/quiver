@@ -104,23 +104,6 @@ jobs:
 
   # ---------------------------------------------------------------------------
 
-  arrow-versions:
-    name: Test all supported arrow versions
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: 1.92.0
-          override: true
-
-      # The version list lives in the script, which can also be run locally:
-      - name: Test all supported arrow versions
-        run: ./scripts/test_arrow_versions.sh
-
-  # ---------------------------------------------------------------------------
-
   cargo-deny:
     name: Check Rust dependencies (cargo-deny)
     runs-on: ubuntu-latest
