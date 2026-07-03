@@ -6,6 +6,14 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.5.0 - 2026-07-03
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.4.0..0.5.0
+
+#### New features
+* Add `try_newtype_datatype!` for fallible domain conversions [#21](https://github.com/rerun-io/quiver/pull/21) by [@emilk](https://github.com/emilk)
+
+
 ## 0.4.0 - 2026-07-02
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.3.0..0.4.0
