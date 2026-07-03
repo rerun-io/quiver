@@ -1472,6 +1472,117 @@ fn newtype_columns() {
     assert_eq!(column.to_vec(), [IsActive(true), IsActive(false)]);
 }
 
+/// A fallible domain newtype via `try_newtype_datatype!`:
+/// only even numbers are valid.
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct Even(i64);
+
+#[derive(Debug, PartialEq)]
+struct NotEven(i64);
+
+impl std::fmt::Display for NotEven {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} is not even", self.0)
+    }
+}
+impl std::error::Error for NotEven {}
+
+impl TryFrom<i64> for Even {
+    type Error = NotEven;
+
+    fn try_from(value: i64) -> Result<Self, NotEven> {
+        if value % 2 == 0 {
+            Ok(Self(value))
+        } else {
+            Err(NotEven(value))
+        }
+    }
+}
+impl From<Even> for i64 {
+    fn from(even: Even) -> Self {
+        even.0
+    }
+}
+
+quiver::try_newtype_datatype!(Even, i64, primitive);
+
+#[test]
+fn fallible_newtype_columns() {
+    // Building goes through the infallible `From<Even> for i64`:
+    let column = Column::<Even>::from_values([Even(2), Even(4)]);
+    assert_eq!(Column::<Even>::datatype(), DataType::Int64);
+    assert_eq!(column.to_vec(), [Even(2), Even(4)]);
+
+    // Reading yields the repr's borrowed value; owned values are the newtype:
+    assert_eq!(column.value(0), 2_i64);
+    assert_eq!(column[1], 4_i64); // indexing borrows through the repr
+    assert_eq!(column.value_owned(1), Even(4));
+
+    // The `primitive` arm still enables bulk zero-copy reads of the repr:
+    assert_eq!(column.as_slice(), &[2_i64, 4]);
+
+    // A valid array converts fine:
+    let array = Arc::new(Int64Array::from(vec![2, 4, 6]));
+    assert!(Column::<Even>::try_new(array).is_ok());
+
+    // …but one bad value is rejected eagerly, at construction:
+    let array = Arc::new(Int64Array::from(vec![2, 3, 4]));
+    let err = Column::<Even>::try_new(array).unwrap_err();
+    assert!(matches!(err, quiver::ColumnError::Conversion(_)));
+    assert_eq!(err.to_string(), "Failed to convert value: 3 is not even");
+
+    // Nulls at an `Option` level are skipped by the validation:
+    let column = Column::<Option<Even>>::from_nullable_values([Some(Even(2)), None]);
+    assert_eq!(column.to_vec(), [Some(Even(2)), None]);
+
+    // The conversion error is boxed into `ErrorKind::Conversion` once the
+    // column name is known:
+    let array = Arc::new(Int64Array::from(vec![1]));
+    let batch = RecordBatch::try_from_iter([("level", array as ArrayRef)]).unwrap();
+    let err = Column::<Even>::from_record_batch_and_name(&batch, "level").unwrap_err();
+    assert!(matches!(err.kind, quiver::ErrorKind::Conversion { .. }));
+}
+
+#[test]
+fn nonzero_and_char_columns() {
+    use std::num::{NonZeroI64, NonZeroU32};
+
+    // `NonZero*` are wired up out of the box, stored as their plain integer:
+    let column = Column::<NonZeroI64>::from_values([
+        NonZeroI64::new(1).unwrap(),
+        NonZeroI64::new(-3).unwrap(),
+    ]);
+    assert_eq!(Column::<NonZeroI64>::datatype(), DataType::Int64);
+    assert_eq!(column.value(0), 1_i64); // reads the repr
+    assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy (primitive arm)
+    assert_eq!(
+        column.to_vec(),
+        [NonZeroI64::new(1).unwrap(), NonZeroI64::new(-3).unwrap()]
+    );
+
+    // A zero is rejected at construction:
+    let array = Arc::new(Int64Array::from(vec![1, 0, 2]));
+    let err = Column::<NonZeroI64>::try_new(array).unwrap_err();
+    assert!(matches!(err, quiver::ColumnError::Conversion(_)));
+
+    // `char` is stored as `UInt32`:
+    let column = Column::<char>::from_values(['q', '🦀']);
+    assert_eq!(Column::<char>::datatype(), DataType::UInt32);
+    assert_eq!(column.to_vec(), ['q', '🦀']);
+    assert_eq!(column.value(0), u32::from('q'));
+
+    // A surrogate / out-of-range code point is rejected at construction:
+    let array = Arc::new(quiver::arrow::array::UInt32Array::from(vec![
+        u32::from('a'),
+        0xD800, // a UTF-16 surrogate: not a valid `char`
+    ]));
+    assert!(Column::<char>::try_new(array).is_err());
+
+    // Composes and nullable-wraps like any other logical type:
+    let column = Column::<Option<NonZeroU32>>::from_nullable_values([NonZeroU32::new(5), None]);
+    assert_eq!(column.to_vec(), [NonZeroU32::new(5), None]);
+}
+
 #[test]
 fn as_adapter_for_foreign_types() {
     use std::net::Ipv4Addr;

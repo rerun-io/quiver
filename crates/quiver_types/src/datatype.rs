@@ -199,6 +199,11 @@ pub enum ColumnError {
     )]
     UnexpectedNulls { null_count: usize },
 
+    /// A fallible domain conversion (`try_newtype_datatype!`) rejected a value
+    /// while validating the column at construction.
+    #[error("Failed to convert value: {0}")]
+    Conversion(#[source] Box<dyn std::error::Error + Send + Sync>),
+
     #[error("Failed to build the array: {0}")]
     Build(arrow::error::ArrowError),
 }
@@ -215,6 +220,7 @@ impl ColumnError {
             Self::UnexpectedNulls { null_count } => {
                 ErrorKind::UnexpectedNulls { column, null_count }
             }
+            Self::Conversion(source) => ErrorKind::Conversion { column, source },
             Self::Build(err) => ErrorKind::BuildRecordBatch(err),
         }
     }

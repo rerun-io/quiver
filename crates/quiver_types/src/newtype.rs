@@ -165,6 +165,183 @@ macro_rules! newtype_datatype {
     };
 }
 
+/// Like [`newtype_datatype!`](crate::newtype_datatype), but for a **fallible**
+/// conversion *from* the representation's owned value.
+///
+/// The newtype provides `impl TryFrom<Owned> for MyType` instead of
+/// `impl From<Owned> for MyType` (the reverse, `impl From<MyType> for Owned`,
+/// must still be infallible, for building). The `TryFrom::Error` must be
+/// `std::error::Error + Send + Sync + 'static`.
+///
+/// The standard `NonZero*` integer types and [`char`] are wired up out of the
+/// box (they are `TryFrom` a primitive quiver supports), so `Column<NonZeroU32>`
+/// and `Column<char>` just work.
+///
+/// Consistent with [`Column`](crate::Column)'s "validate once, then read
+/// infallibly" contract, the conversion of *every* value is checked eagerly at
+/// construction ([`Column::try_new`](crate::Column::try_new), and the derive's
+/// record-batch parsing). A rejected value stops there, boxing the `TryFrom`
+/// error into [`ColumnError::Conversion`] — surfaced as
+/// [`ErrorKind::Conversion`](crate::ErrorKind::Conversion) once the column name
+/// is known. After that, element access is infallible, as usual.
+///
+/// The trailing `noref` / `primitive` arguments work exactly as in
+/// [`newtype_datatype!`](crate::newtype_datatype).
+///
+/// ```
+/// #[derive(Debug, PartialEq)]
+/// struct Even(i64);
+///
+/// #[derive(Debug)]
+/// struct NotEven(i64);
+/// impl std::fmt::Display for NotEven {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+///         write!(f, "{} is not even", self.0)
+///     }
+/// }
+/// impl std::error::Error for NotEven {}
+///
+/// impl TryFrom<i64> for Even {
+///     type Error = NotEven;
+///     fn try_from(value: i64) -> Result<Self, NotEven> {
+///         if value % 2 == 0 { Ok(Self(value)) } else { Err(NotEven(value)) }
+///     }
+/// }
+/// impl From<Even> for i64 {
+///     fn from(even: Even) -> Self {
+///         even.0
+///     }
+/// }
+///
+/// quiver::try_newtype_datatype!(Even, i64, primitive);
+///
+/// // Building goes through the infallible `From<Even> for i64`:
+/// let column = quiver::Column::<Even>::from_values([Even(2), Even(4)]);
+/// assert_eq!(column.to_vec(), [Even(2), Even(4)]);
+///
+/// // A column whose values don't all convert is rejected at construction:
+/// use quiver::arrow::array::Int64Array;
+/// let array = std::sync::Arc::new(Int64Array::from(vec![2, 3]));
+/// assert!(quiver::Column::<Even>::try_new(array).is_err());
+/// ```
+#[macro_export]
+macro_rules! try_newtype_datatype {
+    ($newtype:ty, $repr:ty) => {
+        $crate::try_newtype_datatype!($newtype, $repr, noref);
+
+        impl $crate::RefType for $newtype {
+            type Ref = <$repr as $crate::RefType>::Ref;
+
+            fn value_ref(typed: &Self::Typed, index: usize) -> &Self::Ref {
+                <$repr as $crate::RefType>::value_ref(typed, index)
+            }
+        }
+    };
+
+    ($newtype:ty, $repr:ty, primitive) => {
+        $crate::try_newtype_datatype!($newtype, $repr);
+
+        impl $crate::PrimitiveType for $newtype {
+            type Native = <$repr as $crate::PrimitiveType>::Native;
+
+            fn values(typed: &Self::Typed) -> &[Self::Native] {
+                <$repr as $crate::PrimitiveType>::values(typed)
+            }
+        }
+    };
+
+    ($newtype:ty, $repr:ty, noref) => {
+        impl $crate::LogicalType for $newtype {
+            const NULLABLE: bool = <$repr as $crate::LogicalType>::NULLABLE;
+            type Typed = <$repr as $crate::LogicalType>::Typed;
+            type Value<'a>
+                = <$repr as $crate::LogicalType>::Value<'a>
+            where
+                Self: 'a;
+            type Owned = $newtype;
+
+            fn downcast(
+                array: &dyn $crate::arrow::array::Array,
+            ) -> ::core::result::Result<Self::Typed, $crate::ColumnError> {
+                let typed = <$repr as $crate::LogicalType>::downcast(array)?;
+                // Validate every value converts, once, up front — so element
+                // access can stay infallible afterwards.
+                for index in 0..$crate::arrow::array::Array::len(array) {
+                    if !<$repr as $crate::LogicalType>::is_null(&typed, index) {
+                        let owned = <$repr as $crate::LogicalType>::to_owned_value(
+                            <$repr as $crate::LogicalType>::value(&typed, index),
+                        );
+                        if let ::core::result::Result::Err(err) =
+                            <$newtype as ::core::convert::TryFrom<_>>::try_from(owned)
+                        {
+                            return ::core::result::Result::Err($crate::ColumnError::Conversion(
+                                ::std::boxed::Box::new(err),
+                            ));
+                        }
+                    }
+                }
+                ::core::result::Result::Ok(typed)
+            }
+
+            #[inline]
+            fn is_null(typed: &Self::Typed, index: usize) -> bool {
+                <$repr as $crate::LogicalType>::is_null(typed, index)
+            }
+
+            #[inline]
+            unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { <$repr as $crate::LogicalType>::is_null_unchecked(typed, index) }
+            }
+
+            #[inline]
+            fn value(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                <$repr as $crate::LogicalType>::value(typed, index)
+            }
+
+            #[inline]
+            unsafe fn value_unchecked(typed: &Self::Typed, index: usize) -> Self::Value<'_> {
+                // SAFETY: the caller guarantees `index` is in bounds.
+                unsafe { <$repr as $crate::LogicalType>::value_unchecked(typed, index) }
+            }
+
+            fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
+                let owned = <$repr as $crate::LogicalType>::to_owned_value(value);
+                match <$newtype as ::core::convert::TryFrom<_>>::try_from(owned) {
+                    ::core::result::Result::Ok(value) => value,
+                    // The column was validated at construction, so this cannot
+                    // happen for a well-behaved (deterministic) `TryFrom`.
+                    ::core::result::Result::Err(_) => ::core::panic!(::core::concat!(
+                        "`",
+                        ::core::stringify!($newtype),
+                        "` conversion failed despite being validated at column \
+                         construction; this indicates a non-deterministic `TryFrom` impl"
+                    )),
+                }
+            }
+        }
+
+        impl $crate::ConcreteType for $newtype
+        where
+            $repr: $crate::ConcreteType,
+        {
+            fn datatype() -> $crate::arrow::datatypes::DataType {
+                <$repr as $crate::ConcreteType>::datatype()
+            }
+
+            fn build(
+                values: impl ::core::iter::Iterator<Item = ::core::option::Option<Self::Owned>>,
+            ) -> ::core::result::Result<$crate::arrow::array::ArrayRef, $crate::ColumnError> {
+                <$repr as $crate::ConcreteType>::build(
+                    values.map(|value| value.map(::core::convert::Into::into)),
+                )
+            }
+        }
+
+        impl $crate::InfallibleBuild for $newtype where $repr: $crate::InfallibleBuild {}
+    };
+}
+
 use std::marker::PhantomData;
 
 use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType};
@@ -298,3 +475,32 @@ where
         Repr::values(typed)
     }
 }
+
+// Standard library types that are `TryFrom` a primitive quiver already
+// supports, wired up with [`try_newtype_datatype!`]. Each is stored as (and
+// read back as) that primitive; its invariant (non-zero, valid scalar value) is
+// checked once at column construction.
+
+/// Wires up every `NonZero*` integer over its plain integer representation.
+macro_rules! nonzero_datatype {
+    ($($nonzero:ty => $int:ty),* $(,)?) => {
+        $(
+            crate::try_newtype_datatype!($nonzero, $int, primitive);
+        )*
+    };
+}
+
+nonzero_datatype! {
+    ::core::num::NonZeroI8   => i8,
+    ::core::num::NonZeroI16  => i16,
+    ::core::num::NonZeroI32  => i32,
+    ::core::num::NonZeroI64  => i64,
+    ::core::num::NonZeroU8   => u8,
+    ::core::num::NonZeroU16  => u16,
+    ::core::num::NonZeroU32  => u32,
+    ::core::num::NonZeroU64  => u64,
+}
+
+// `char` is `TryFrom<u32>` (rejecting surrogates and out-of-range values),
+// and `u32: From<char>`; stored as `UInt32`.
+crate::try_newtype_datatype!(char, u32, primitive);
