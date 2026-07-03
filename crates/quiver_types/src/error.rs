@@ -49,6 +49,16 @@ pub enum ErrorKind {
         actual: DataType,
     },
 
+    /// A fallible domain conversion (`try_newtype_datatype!`) rejected a value
+    /// while validating the column at construction.
+    #[error("Column {column:?}: failed to convert value: {source}")]
+    Conversion {
+        column: String,
+
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[error("Failed to build the record batch: {0}")]
     BuildRecordBatch(ArrowError),
 }
