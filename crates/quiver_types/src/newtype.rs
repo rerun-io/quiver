@@ -177,9 +177,9 @@ macro_rules! newtype_datatype {
 /// infallibly" contract, the conversion of *every* value is checked eagerly at
 /// construction ([`Column::try_new`](crate::Column::try_new), and the derive's
 /// record-batch parsing). A rejected value stops there, boxing the `TryFrom`
-/// error into [`ColumnError::Conversion`](crate::ColumnError::Conversion) —
-/// surfaced as [`ErrorKind::Conversion`](crate::ErrorKind::Conversion) once the
-/// column name is known. After that, element access is infallible, as usual.
+/// error into [`ColumnError::Conversion`] — surfaced as
+/// [`ErrorKind::Conversion`](crate::ErrorKind::Conversion) once the column name
+/// is known. After that, element access is infallible, as usual.
 ///
 /// The trailing `noref` / `primitive` arguments work exactly as in
 /// [`newtype_datatype!`](crate::newtype_datatype).
