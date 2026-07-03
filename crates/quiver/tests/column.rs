@@ -1544,6 +1544,46 @@ fn fallible_newtype_columns() {
 }
 
 #[test]
+fn nonzero_and_char_columns() {
+    use std::num::{NonZeroI64, NonZeroU32};
+
+    // `NonZero*` are wired up out of the box, stored as their plain integer:
+    let column = Column::<NonZeroI64>::from_values([
+        NonZeroI64::new(1).unwrap(),
+        NonZeroI64::new(-3).unwrap(),
+    ]);
+    assert_eq!(Column::<NonZeroI64>::datatype(), DataType::Int64);
+    assert_eq!(column.value(0), 1_i64); // reads the repr
+    assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy (primitive arm)
+    assert_eq!(
+        column.to_vec(),
+        [NonZeroI64::new(1).unwrap(), NonZeroI64::new(-3).unwrap()]
+    );
+
+    // A zero is rejected at construction:
+    let array = Arc::new(Int64Array::from(vec![1, 0, 2]));
+    let err = Column::<NonZeroI64>::try_new(array).unwrap_err();
+    assert!(matches!(err, quiver::ColumnError::Conversion(_)));
+
+    // `char` is stored as `UInt32`:
+    let column = Column::<char>::from_values(['q', '🦀']);
+    assert_eq!(Column::<char>::datatype(), DataType::UInt32);
+    assert_eq!(column.to_vec(), ['q', '🦀']);
+    assert_eq!(column.value(0), u32::from('q'));
+
+    // A surrogate / out-of-range code point is rejected at construction:
+    let array = Arc::new(quiver::arrow::array::UInt32Array::from(vec![
+        u32::from('a'),
+        0xD800, // a UTF-16 surrogate: not a valid `char`
+    ]));
+    assert!(Column::<char>::try_new(array).is_err());
+
+    // Composes and nullable-wraps like any other logical type:
+    let column = Column::<Option<NonZeroU32>>::from_nullable_values([NonZeroU32::new(5), None]);
+    assert_eq!(column.to_vec(), [NonZeroU32::new(5), None]);
+}
+
+#[test]
 fn as_adapter_for_foreign_types() {
     use std::net::Ipv4Addr;
 

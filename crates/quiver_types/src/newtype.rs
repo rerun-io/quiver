@@ -173,6 +173,10 @@ macro_rules! newtype_datatype {
 /// must still be infallible, for building). The `TryFrom::Error` must be
 /// `std::error::Error + Send + Sync + 'static`.
 ///
+/// The standard `NonZero*` integer types and [`char`] are wired up out of the
+/// box (they are `TryFrom` a primitive quiver supports), so `Column<NonZeroU32>`
+/// and `Column<char>` just work.
+///
 /// Consistent with [`Column`](crate::Column)'s "validate once, then read
 /// infallibly" contract, the conversion of *every* value is checked eagerly at
 /// construction ([`Column::try_new`](crate::Column::try_new), and the derive's
@@ -471,3 +475,32 @@ where
         Repr::values(typed)
     }
 }
+
+// Standard library types that are `TryFrom` a primitive quiver already
+// supports, wired up with [`try_newtype_datatype!`]. Each is stored as (and
+// read back as) that primitive; its invariant (non-zero, valid scalar value) is
+// checked once at column construction.
+
+/// Wires up every `NonZero*` integer over its plain integer representation.
+macro_rules! nonzero_datatype {
+    ($($nonzero:ty => $int:ty),* $(,)?) => {
+        $(
+            crate::try_newtype_datatype!($nonzero, $int, primitive);
+        )*
+    };
+}
+
+nonzero_datatype! {
+    ::core::num::NonZeroI8   => i8,
+    ::core::num::NonZeroI16  => i16,
+    ::core::num::NonZeroI32  => i32,
+    ::core::num::NonZeroI64  => i64,
+    ::core::num::NonZeroU8   => u8,
+    ::core::num::NonZeroU16  => u16,
+    ::core::num::NonZeroU32  => u32,
+    ::core::num::NonZeroU64  => u64,
+}
+
+// `char` is `TryFrom<u32>` (rejecting surrogates and out-of-range values),
+// and `u32: From<char>`; stored as `UInt32`.
+crate::try_newtype_datatype!(char, u32, primitive);
