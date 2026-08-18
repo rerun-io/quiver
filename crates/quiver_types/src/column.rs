@@ -212,8 +212,10 @@ impl<L: LogicalType> Column<L> {
 
     /// A zero-copy slice of the rows `offset..offset + length`.
     ///
-    /// Panics if the range is out of bounds (like arrow's `slice`).
     /// The metadata is preserved.
+    ///
+    /// # Panics
+    /// If the range is out of bounds (like arrow's `slice`).
     #[must_use]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
         Self::try_new(self.array.as_arrow().slice(offset, length))
@@ -316,6 +318,9 @@ where
     ///
     /// Infallible — for the one fallible encoding (dictionaries),
     /// see [`Column::try_from_values`].
+    ///
+    /// # Panics
+    /// Never: the logical type is [`InfallibleBuild`].
     pub fn from_values(values: impl IntoIterator<Item = impl Into<L::Owned>>) -> Self {
         Self::try_from_values(values).expect("Cannot fail: the logical type is InfallibleBuild")
     }

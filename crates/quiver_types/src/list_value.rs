@@ -122,7 +122,8 @@ impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
     /// Where the item can be borrowed from the array, `list[index]` works too
     /// (see the [`Index`](std::ops::Index) impl).
     ///
-    /// Panics if out of bounds.
+    /// # Panics
+    /// If `index` is out of bounds.
     #[must_use]
     pub fn value(&self, index: usize) -> L::Value<'a> {
         assert!(
