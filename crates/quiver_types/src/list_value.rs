@@ -214,6 +214,10 @@ impl<'a, L: PrimitiveType> ListValue<'a, L> {
 // check. The combinators are overridden to also skip the `Option` plumbing of
 // the default `next`-based implementations. (Primitive items have an even
 // faster path: [`ListValue::as_slice`].)
+#[expect(
+    clippy::copy_iterator,
+    reason = "`ListValue` is a cheap Copy cursor over a slice range; iterating it directly is the point"
+)]
 impl<'a, L: LogicalType + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 
