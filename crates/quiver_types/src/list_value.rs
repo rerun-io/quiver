@@ -122,7 +122,8 @@ impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
     /// Where the item can be borrowed from the array, `list[index]` works too
     /// (see the [`Index`](std::ops::Index) impl).
     ///
-    /// Panics if out of bounds.
+    /// # Panics
+    /// If `index` is out of bounds.
     #[must_use]
     pub fn value(&self, index: usize) -> L::Value<'a> {
         assert!(
@@ -214,6 +215,10 @@ impl<'a, L: PrimitiveType> ListValue<'a, L> {
 // check. The combinators are overridden to also skip the `Option` plumbing of
 // the default `next`-based implementations. (Primitive items have an even
 // faster path: [`ListValue::as_slice`].)
+#[expect(
+    clippy::copy_iterator,
+    reason = "`ListValue` is a cheap Copy cursor over a slice range; iterating it directly is the point"
+)]
 impl<'a, L: LogicalType + 'a> Iterator for ListValue<'a, L> {
     type Item = L::Value<'a>;
 
