@@ -11,7 +11,7 @@ use quiver::arrow::array::{
 };
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use quiver::arrow::record_batch::RecordBatch;
-use quiver::{DynColumn, DynColumnDesc, Error, ErrorKind, List, Quiver, Utf8};
+use quiver::{DynColumn, DynColumnDesc, ErrorKind, List, Quiver, Utf8};
 
 /// Important thing
 #[derive(Quiver)]
@@ -118,30 +118,20 @@ fn missing_required_column() {
         Arc::new(TimestampNanosecondArray::from(vec![1])) as ArrayRef,
     )]);
     let result = Thing::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Thing",
-            kind: ErrorKind::MissingColumn { column },
-        }) if column == "name"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Thing");
+    assert!(matches!(*err.kind, ErrorKind::MissingColumn { column } if column == "name"));
 }
 
 #[test]
 fn wrong_datatype() {
     let batch = batch_of(&[("name", Arc::new(Int64Array::from(vec![1])) as ArrayRef)]);
     let result = Strict::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Strict",
-            kind: ErrorKind::WrongDatatype {
-                column,
-                expected,
-                actual: DataType::Int64,
-            },
-        }) if column == "name" && expected == "Utf8"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Strict");
+    assert!(
+        matches!(*err.kind, ErrorKind::WrongDatatype { column, expected, actual: DataType::Int64, } if column == "name" && expected == "Utf8")
+    );
 }
 
 #[test]
@@ -166,13 +156,9 @@ fn unexpected_column() {
         ("age", Arc::new(Int64Array::from(vec![30])) as ArrayRef),
     ]);
     let result = Strict::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Strict",
-            kind: ErrorKind::UnexpectedColumn { column },
-        }) if column == "age"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Strict");
+    assert!(matches!(*err.kind, ErrorKind::UnexpectedColumn { column } if column == "age"));
 }
 
 #[test]
@@ -277,17 +263,11 @@ fn wrong_array_type() {
         ),
     ]);
     let result = Nested::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Nested",
-            kind: ErrorKind::WrongArrayType {
-                column,
-                expected,
-                actual: DataType::Int64,
-            },
-        }) if column == "list" && expected == "ListArray"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Nested");
+    assert!(
+        matches!(*err.kind, ErrorKind::WrongArrayType { column, expected, actual: DataType::Int64, } if column == "list" && expected == "ListArray")
+    );
 }
 
 #[test]
@@ -299,13 +279,9 @@ fn column_length_mismatch() {
         other_columns: vec![],
     };
     let result = RecordBatch::try_from(thing);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Thing",
-            kind: ErrorKind::BuildRecordBatch(_),
-        })
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Thing");
+    assert!(matches!(*err.kind, ErrorKind::BuildRecordBatch(_)));
 }
 
 #[test]
@@ -460,16 +436,11 @@ fn typed_column_rejects_nulls() {
         ("tags", string_list_array()),
     ]);
     let result = Typed::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Typed",
-            kind: ErrorKind::UnexpectedNulls {
-                column,
-                null_count: 1,
-            },
-        }) if column == "name"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Typed");
+    assert!(
+        matches!(*err.kind, ErrorKind::UnexpectedNulls { column, null_count: 1, } if column == "name")
+    );
 }
 
 #[test]
@@ -488,13 +459,9 @@ fn typed_column_validates_inner_list_type() {
         ("tags", Arc::new(list) as ArrayRef),
     ]);
     let result = Typed::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Typed",
-            kind: ErrorKind::WrongDatatype { column, .. },
-        }) if column == "tags"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Typed");
+    assert!(matches!(*err.kind, ErrorKind::WrongDatatype { column, .. } if column == "tags"));
 }
 
 #[derive(Quiver)]
@@ -697,13 +664,8 @@ fn column_descriptors() {
 
     // Missing column:
     let err = Typed::COLUMN_SCORES.extract(&batch).err().unwrap();
-    assert!(matches!(
-        err,
-        Error {
-            record_type: "Typed",
-            kind: ErrorKind::MissingColumn { .. },
-        }
-    ));
+    assert_eq!(err.record_type, "Typed");
+    assert!(matches!(*err.kind, ErrorKind::MissingColumn { .. }));
 
     // Dynamically-typed columns get a DynColumnDesc:
     let strict = Strict {
@@ -737,13 +699,9 @@ fn column_desc_to_dyn() {
     );
 
     // A missing column still errors under the struct's own name:
-    assert!(matches!(
-        Typed::COLUMN_SCORES.to_dyn().extract(&batch),
-        Err(Error {
-            record_type: "Typed",
-            kind: ErrorKind::MissingColumn { column },
-        }) if column == "scores"
-    ));
+    let err = Typed::COLUMN_SCORES.to_dyn().extract(&batch).err().unwrap();
+    assert_eq!(err.record_type, "Typed");
+    assert!(matches!(*err.kind, ErrorKind::MissingColumn { column } if column == "scores"));
 }
 
 #[test]
@@ -761,14 +719,9 @@ fn column_desc_typed_array() {
         .typed_array(Arc::new(StringArray::from(vec!["7"])) as ArrayRef)
         .err()
         .unwrap();
+    assert_eq!(err.record_type, "Annotated");
     assert!(
-        matches!(
-            &err,
-            Error {
-                record_type: "Annotated",
-                kind: ErrorKind::WrongDatatype { column, .. },
-            } if column == "frame_nr"
-        ),
+        matches!(&*err.kind, ErrorKind::WrongDatatype { column, .. } if column == "frame_nr"),
         "{err}"
     );
 
@@ -783,14 +736,9 @@ fn column_desc_typed_array() {
         ) as ArrayRef)
         .err()
         .unwrap();
+    assert_eq!(err.record_type, "Annotated");
     assert!(
-        matches!(
-            err,
-            Error {
-                record_type: "Annotated",
-                kind: ErrorKind::UnexpectedNulls { null_count: 1, .. },
-            }
-        ),
+        matches!(&*err.kind, ErrorKind::UnexpectedNulls { null_count: 1, .. }),
         "{err}"
     );
 }
@@ -921,13 +869,9 @@ fn exhaustive_rejects_unknown_columns() {
     ]);
 
     let result = Exhaustive::try_from(batch);
-    assert!(matches!(
-        result,
-        Err(Error {
-            record_type: "Exhaustive",
-            kind: ErrorKind::UnexpectedColumn { column },
-        }) if column == "age"
-    ));
+    let err = result.err().unwrap();
+    assert_eq!(err.record_type, "Exhaustive");
+    assert!(matches!(*err.kind, ErrorKind::UnexpectedColumn { column } if column == "age"));
 }
 
 /// Columns with declared (`#[quiver(metadata(…))]`) field metadata.
