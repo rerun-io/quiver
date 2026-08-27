@@ -158,7 +158,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
             AnyTypedList::LargeListView(typed) => LargeListView::<L>::value(typed, index),
             AnyTypedList::FixedSizeList { array, values } => {
                 let start = array.value_offset(index).as_usize();
-                let size = array.value_length() as usize;
+                let size = array.value_length().as_usize();
                 ListValue::new(values, start, start + size)
             }
         }
@@ -179,7 +179,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                     // `value_offset`/`value_length` are O(1) arithmetic with no
                     // bounds check, so this is the same read as `value`.
                     let start = array.value_offset(index).as_usize();
-                    let size = array.value_length() as usize;
+                    let size = array.value_length().as_usize();
                     ListValue::new(values, start, start + size)
                 }
             }
