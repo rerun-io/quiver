@@ -26,7 +26,7 @@ A struct marked with `#[derive(Quiver)]` can contain either dynamically typed ar
   the data half of a `Column<L>`, i.e. the same validated array with the same value API,
   minus the metadata. A `Column<L>` is a `TypedArray<L>` plus metadata; use a `TypedArray<L>`
   directly for arrays that aren't record batch columns.
-* [`ColumnDesc<Column<L>>`](https://docs.rs/quiver/latest/quiver/struct.ColumnDesc.html):
+* [`ColumnDesc<L>`](https://docs.rs/quiver/latest/quiver/struct.ColumnDesc.html):
   a named handle on one column, holding no data. It knows both the column name and `L`,
   so it can `extract` a `Column<L>` from a record batch, or validate a loose `ArrayRef`
   into a `TypedArray<L>`, without you naming either at the call site.

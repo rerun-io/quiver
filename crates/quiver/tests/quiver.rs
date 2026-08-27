@@ -795,6 +795,30 @@ fn column_desc_typed_array() {
     );
 }
 
+#[test]
+fn column_desc_is_parameterized_by_the_logical_type() {
+    // `ColumnDesc<L>`, not `ColumnDesc<Column<L>>` — a descriptor yields both a
+    // `Column<L>` and a `TypedArray<L>`, so it names the logical type instead.
+    const MAYBE_AGE: quiver::ColumnDesc<Option<i64>> =
+        quiver::ColumnDesc::new("Typed", "maybe_age", &[]);
+    let derived: quiver::ColumnDesc<Option<i64>> = Typed::COLUMN_MAYBE_AGE;
+    assert_eq!(derived.name, MAYBE_AGE.name);
+
+    let batch = Typed {
+        name: quiver::Column::from_values(["Alice"]),
+        maybe_age: quiver::Column::from_values([Some(30_i64)]),
+        tags: quiver::Column::try_new(string_list_array_of_one()).unwrap(),
+        scores: None,
+    }
+    .into_record_batch()
+    .unwrap();
+
+    // A hand-written descriptor and the derived one behave the same:
+    assert_eq!(MAYBE_AGE.extract(&batch).unwrap().to_vec(), [Some(30)]);
+    assert_eq!(derived.extract(&batch).unwrap().to_vec(), [Some(30)]);
+    assert_eq!(derived.arrow_field(), MAYBE_AGE.arrow_field());
+}
+
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
 #[derive(Quiver)]
 struct AllRequired {

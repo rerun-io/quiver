@@ -1,0 +1,21 @@
+error: Expected exactly one logical type parameter, e.g. `Column<Utf8>` or `Column<Option<i64>>`
+ --> tests/compile_fail/column_without_logical_type.rs:7:11
+  |
+7 |     name: Column,
+  |           ^^^^^^
+
+error[E0107]: missing generics for struct `Column`
+ --> tests/compile_fail/column_without_logical_type.rs:7:11
+  |
+7 |     name: Column,
+  |           ^^^^^^ expected 1 generic argument
+  |
+note: struct defined here, with 1 generic parameter: `L`
+ --> $WORKSPACE/crates/quiver_types/src/column.rs
+  |
+  | pub struct Column<L: LogicalType> {
+  |            ^^^^^^ -
+help: add missing generic argument
+  |
+7 |     name: Column<L>,
+  |                 +++
