@@ -20,7 +20,7 @@ use crate::{ColumnError, Error, ErrorKind, LogicalType};
 /// # Relationship to the other main types
 /// A column is a [`TypedArray<L>`](TypedArray) (the validated array, and every
 /// method for reading it) plus the per-column [`metadata`](Column::metadata)
-/// that lives on the arrow [`Field`](arrow::datatypes::Field). Use a
+/// that lives on the arrow [`Field`]. Use a
 /// [`TypedArray`] instead for an array that isn't a record batch column, and so
 /// has no metadata to carry; convert either way with
 /// [`as_typed_array`](Column::as_typed_array),
