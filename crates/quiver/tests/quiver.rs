@@ -800,7 +800,9 @@ fn column_desc_is_parameterized_by_the_logical_type() {
     // `ColumnDesc<L>`, not `ColumnDesc<Column<L>>` — a descriptor yields both a
     // `Column<L>` and a `TypedArray<L>`, so it names the logical type instead.
     const MAYBE_AGE: quiver::ColumnDesc<Option<i64>> =
-        quiver::ColumnDesc::new("Typed", "maybe_age", &[]);
+        quiver::ColumnDesc::new("Typed", "maybe_age");
+    const CHUNK_ID: quiver::ColumnDesc<quiver::FixedSizeBinary<16>> =
+        quiver::ColumnDesc::new_with_metadata("Annotated", "chunk_id", &[("meta:kind", "control")]);
     let derived: quiver::ColumnDesc<Option<i64>> = Typed::COLUMN_MAYBE_AGE;
     assert_eq!(derived.name, MAYBE_AGE.name);
 
@@ -817,6 +819,13 @@ fn column_desc_is_parameterized_by_the_logical_type() {
     assert_eq!(MAYBE_AGE.extract(&batch).unwrap().to_vec(), [Some(30)]);
     assert_eq!(derived.extract(&batch).unwrap().to_vec(), [Some(30)]);
     assert_eq!(derived.arrow_field(), MAYBE_AGE.arrow_field());
+
+    // Declared metadata needs the longer constructor; the derive picks it too:
+    assert_eq!(
+        CHUNK_ID.arrow_field(),
+        Annotated::COLUMN_CHUNK_ID.arrow_field()
+    );
+    assert!(MAYBE_AGE.metadata.is_empty());
 }
 
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.

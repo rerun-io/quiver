@@ -277,13 +277,18 @@ impl Quiver {
                 .iter()
                 .map(|(key, value)| quote! { (#key, #value) });
             let declared = quote! { &[#(#declared),*] };
+            let construct = if declared_metadata.is_empty() {
+                quote! { new(#record_type, Self::#name_const_ident) }
+            } else {
+                quote! { new_with_metadata(#record_type, Self::#name_const_ident, #declared) }
+            };
             match kind {
                 ColumnKind::Wrapper { logical_type, .. } => quote! {
                     #name_const
 
                     #[doc = #doc]
                     pub const #const_ident: #krate::ColumnDesc<#logical_type> =
-                        #krate::ColumnDesc::new(#record_type, Self::#name_const_ident, #declared);
+                        #krate::ColumnDesc::#construct;
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
                     quote! {

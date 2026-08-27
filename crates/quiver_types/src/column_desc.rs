@@ -20,7 +20,7 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 ///
 /// ```
 /// # use quiver::{ColumnDesc, Utf8};
-/// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor", &[]);
+/// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
 ///
 /// # let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
 /// #     "sensor",
@@ -66,9 +66,17 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// (the name of the `#[derive(Quiver)]` struct, when there is one).
     ///
     /// `const`, so a descriptor can live in a constant, exactly like the
-    /// `COLUMN_*` constants the derive generates. Pass `&[]` for no metadata.
+    /// `COLUMN_*` constants the derive generates.
+    /// For a column with metadata, see [`ColumnDesc::new_with_metadata`].
     #[must_use]
-    pub const fn new(
+    pub const fn new(record_type: &'static str, name: &'static str) -> Self {
+        Self::new_with_metadata(record_type, name, &[])
+    }
+
+    /// Like [`ColumnDesc::new`], plus the column metadata that
+    /// [`arrow_field`](ColumnDesc::arrow_field) puts on the arrow field.
+    #[must_use]
+    pub const fn new_with_metadata(
         record_type: &'static str,
         name: &'static str,
         metadata: &'static [(&'static str, &'static str)],
