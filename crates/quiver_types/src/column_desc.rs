@@ -34,9 +34,8 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 ///
 /// # Relationship to the other main types
 /// A descriptor is the *name and logical type* of a column, holding no data.
-/// The type parameter is that logical type — `ColumnDesc<Utf8>`, not
-/// `ColumnDesc<Column<Utf8>>` — because a descriptor yields both of the data
-/// types: it can
+/// The type parameter is the logical type, e.g. `ColumnDesc<Utf8>`, because a
+/// descriptor yields both of the data types: it can
 /// [`extract`](ColumnDesc::extract) a [`Column<L>`](Column) from a record batch
 /// (metadata included), or validate a bare arrow array into a
 /// [`TypedArray<L>`](TypedArray) with
