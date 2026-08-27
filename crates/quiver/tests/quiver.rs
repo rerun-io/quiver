@@ -764,12 +764,12 @@ fn column_desc_is_parameterized_by_the_logical_type() {
     // A hand-written descriptor and the derived one behave the same:
     assert_eq!(MAYBE_AGE.extract(&batch).unwrap().to_vec(), [Some(30)]);
     assert_eq!(derived.extract(&batch).unwrap().to_vec(), [Some(30)]);
-    assert_eq!(derived.arrow_field(), MAYBE_AGE.arrow_field());
+    assert_eq!(derived.arrow_field_ref(), MAYBE_AGE.arrow_field_ref());
 
     // Declared metadata needs the longer constructor; the derive picks it too:
     assert_eq!(
-        CHUNK_ID.arrow_field(),
-        Annotated::COLUMN_CHUNK_ID.arrow_field()
+        CHUNK_ID.arrow_field_ref(),
+        Annotated::COLUMN_CHUNK_ID.arrow_field_ref()
     );
     assert!(MAYBE_AGE.metadata.is_empty());
 }
@@ -807,6 +807,40 @@ fn column_descs_are_copy_debug_and_comparable() {
     assert_eq!(dynamic, desc.to_dyn());
     assert_ne!(dynamic, OTHER.to_dyn());
     assert!(format!("{dynamic:?}").contains("maybe_age"));
+}
+
+#[test]
+fn arrow_field_ref_is_built_once() {
+    use std::sync::Arc;
+
+    const UNCACHED: quiver::ColumnDesc<Utf8> = quiver::ColumnDesc::new("Typed", "name");
+    static CELL: std::sync::OnceLock<quiver::arrow::datatypes::FieldRef> =
+        std::sync::OnceLock::new();
+
+    // The derive points each `COLUMN_*` at a `static` cell, so repeat calls hand
+    // back the same allocation…
+    let once = Typed::COLUMN_MAYBE_AGE.arrow_field_ref();
+    assert!(Arc::ptr_eq(
+        &once,
+        &Typed::COLUMN_MAYBE_AGE.arrow_field_ref()
+    ));
+
+    // …including through a separate copy of the `const`, which is the case a
+    // by-value cell would get wrong.
+    let copy = Typed::COLUMN_MAYBE_AGE;
+    assert!(Arc::ptr_eq(&once, &copy.arrow_field_ref()));
+
+    assert_eq!(once.name(), "maybe_age");
+    assert!(once.is_nullable());
+
+    // A hand-written descriptor with no cache still works, rebuilding each time.
+    let a = UNCACHED.arrow_field_ref();
+    let b = UNCACHED.arrow_field_ref();
+    assert_eq!(a, b);
+    assert!(!Arc::ptr_eq(&a, &b));
+
+    // The cache is not part of a descriptor's identity.
+    assert_eq!(UNCACHED, UNCACHED.__with_field_cache(&CELL));
 }
 
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
@@ -1012,7 +1046,7 @@ fn declared_metadata_in_static_schema() {
         Annotated::COLUMN_CHUNK_ID.metadata,
         [("meta:kind", "control")]
     );
-    assert_eq!(Annotated::COLUMN_CHUNK_ID.arrow_field(), expected);
+    assert_eq!(*Annotated::COLUMN_CHUNK_ID.arrow_field_ref(), expected);
 }
 
 /// The generated code refers to the crate via `#[quiver(crate = "…")]`,

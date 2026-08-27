@@ -288,7 +288,13 @@ impl Quiver {
 
                     #[doc = #doc]
                     pub const #const_ident: #krate::ColumnDesc<#logical_type> =
-                        #krate::ColumnDesc::#construct;
+                        #krate::ColumnDesc::#construct.__with_field_cache({
+                            // A `static`, so every use of this `const` shares one cell:
+                            static FIELD: ::std::sync::OnceLock<
+                                #krate::arrow::datatypes::FieldRef,
+                            > = ::std::sync::OnceLock::new();
+                            &FIELD
+                        });
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
                     quote! {
