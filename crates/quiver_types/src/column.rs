@@ -398,6 +398,48 @@ impl<L: PrimitiveType> Column<L> {
     }
 }
 
+/// `&column` where `&[L::Native]` is expected, for the same columns as
+/// [`as_slice`](Column::as_slice) — so a `Column<u64>` is a drop-in for the
+/// `ScalarBuffer<u64>` it replaces:
+///
+/// ```
+/// # use quiver::Column;
+/// struct Manifest {
+///     chunk_byte_sizes: Column<u64>, // was: ScalarBuffer<u64>
+/// }
+///
+/// impl Manifest {
+///     fn chunk_byte_sizes(&self) -> &[u64] {
+///         &self.chunk_byte_sizes // unchanged
+///     }
+/// }
+/// # let manifest = Manifest { chunk_byte_sizes: Column::from_values([1_u64, 2]) };
+/// # assert_eq!(manifest.chunk_byte_sizes(), &[1, 2]);
+/// ```
+///
+/// The slice methods come along, but never displace `Column`'s own: an
+/// inherent method wins over a dereferenced one, so `iter`, `len`, `get`,
+/// and `to_vec` still read the column, not the raw slice. Indexing likewise
+/// stays with `Index<usize>`, so range slicing needs an explicit
+/// `&(*column)[a..b]`.
+impl<L: PrimitiveType> std::ops::Deref for Column<L> {
+    type Target = [L::Native];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+/// The generic counterpart of [`Column::as_slice`], for callers bounded on
+/// `AsRef<[T]>`.
+impl<L: PrimitiveType> AsRef<[L::Native]> for Column<L> {
+    #[inline]
+    fn as_ref(&self) -> &[L::Native] {
+        self.as_slice()
+    }
+}
+
 impl<L: LogicalType> Column<L>
 where
     L: InfallibleBuild,

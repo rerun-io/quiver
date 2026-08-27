@@ -221,7 +221,8 @@ More of the `Column` API:
   hard-coding the name
 * Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
 * Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
-  and fixed-size binary non-nullable columns
+  and fixed-size binary non-nullable columns. Those columns also `Deref`/`AsRef`
+  to the slice, so `&column` is a drop-in for an arrow `ScalarBuffer`
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("sorted" = "true"))]` — stamped on encode (instance metadata

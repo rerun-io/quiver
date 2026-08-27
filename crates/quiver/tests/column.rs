@@ -509,6 +509,48 @@ fn as_slice_fixed_size_binary() {
 }
 
 #[test]
+fn deref_to_slice() {
+    fn takes_slice(values: &[u64]) -> u64 {
+        values.iter().sum()
+    }
+    fn takes_as_ref(values: impl AsRef<[u64]>) -> usize {
+        values.as_ref().len()
+    }
+
+    let column = Column::<u64>::from_values([1_u64, 2, 3]);
+    assert_eq!(takes_slice(&column), 6);
+    assert_eq!(takes_as_ref(&column), 3);
+
+    // Slice methods that `Column` does not have come along…
+    assert_eq!(column.first(), Some(&1));
+    assert_eq!(column.chunks(2).count(), 2);
+
+    // …though `column[1..]` does not: `Index<usize>` is already implemented,
+    // so indexing never reaches the slice. Deref explicitly for that:
+    assert_eq!(&(*column)[1..], &[2, 3]);
+
+    // …but never displace `Column`'s own, which read the logical values:
+    assert_eq!(column.get(0), Some(1_u64)); // not `Some(&1)`
+    assert_eq!(column.len(), 3);
+    assert_eq!(column.iter().collect::<Vec<u64>>(), [1, 2, 3]);
+    assert_eq!(column.to_vec(), [1_u64, 2, 3]);
+    assert_eq!(column[1], 2); // `Index<usize>`, not the slice's
+
+    // The deref follows the logical window, like `as_slice`:
+    assert_eq!(takes_slice(&column.slice(1, 2)), 5);
+
+    // Non-numeric natives deref too:
+    let hashes = Column::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4]]);
+    let raw: &[[u8; 2]] = &hashes;
+    assert_eq!(raw, &[[1, 2], [3, 4]]);
+
+    // Same on the untyped-metadata form:
+    let array = column.into_typed_array();
+    assert_eq!(takes_slice(&array), 6);
+    assert_eq!(array.get(0), Some(1_u64));
+}
+
+#[test]
 fn as_slice_respects_offset() {
     let column = Column::<i64>::from_values([1, 2, 3, 4, 5]);
     let sliced = column.slice(1, 3);

@@ -344,6 +344,26 @@ impl<L: PrimitiveType> TypedArray<L> {
     }
 }
 
+/// `&array` where `&[L::Native]` is expected — see
+/// [`Column`](crate::Column)'s `Deref` for the details.
+impl<L: PrimitiveType> std::ops::Deref for TypedArray<L> {
+    type Target = [L::Native];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+/// The generic counterpart of [`TypedArray::as_slice`], for callers bounded on
+/// `AsRef<[T]>`.
+impl<L: PrimitiveType> AsRef<[L::Native]> for TypedArray<L> {
+    #[inline]
+    fn as_ref(&self) -> &[L::Native] {
+        self.as_slice()
+    }
+}
+
 impl<L: InfallibleBuild, T: Into<L::Owned>> From<Vec<T>> for TypedArray<L> {
     fn from(values: Vec<T>) -> Self {
         Self::from_values(values)
