@@ -13,13 +13,14 @@
 //!   A [`Column<L>`](Column) is a [`TypedArray<L>`](TypedArray) plus metadata;
 //!   use a [`TypedArray<L>`](TypedArray) directly for arrays that aren't
 //!   record batch columns.
-//! * [`ColumnDesc<Column<L>>`](ColumnDesc): a named handle on one column of a
-//!   `#[derive(Quiver)]` struct, generated as a `COLUMN_*` constant. It knows
-//!   both the column name and `L`, so it can
+//! * [`ColumnDesc<Column<L>>`](ColumnDesc): a named handle on one column,
+//!   holding no data. It knows both the column name and `L`, so it can
 //!   [`extract`](ColumnDesc::extract) a [`Column<L>`](Column) from a record
 //!   batch, or validate a loose `ArrayRef` into a
 //!   [`TypedArray<L>`](TypedArray) with
-//!   [`typed_array`](ColumnDesc::typed_array) — without you naming either.
+//!   [`typed_array`](ColumnDesc::typed_array) — without you naming either at
+//!   the call site. `#[derive(Quiver)]` generates one per field as a `COLUMN_*`
+//!   constant; [`ColumnDesc::new`] is `const`, so you can declare your own.
 //!
 //! Dynamically typed columns get the same pair without the `L`:
 //! [`DynColumn`] and [`DynColumnDesc`].

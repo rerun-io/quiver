@@ -24,8 +24,8 @@ use crate::{ColumnError, LogicalType};
 /// [`Column::into_typed_array`](crate::Column::into_typed_array) to get at the
 /// data half of a column, and `Column::from` to go back.
 ///
-/// With `#[derive(Quiver)]`, [`ColumnDesc::typed_array`](crate::ColumnDesc::typed_array)
-/// validates a loose arrow array against the column's `L` without you naming it.
+/// [`ColumnDesc::typed_array`](crate::ColumnDesc::typed_array) validates a
+/// loose arrow array against a named column's `L`, without you naming that `L`.
 ///
 /// ```
 /// # use quiver::{TypedArray, Utf8};
