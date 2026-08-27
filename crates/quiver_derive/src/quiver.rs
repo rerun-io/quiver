@@ -87,7 +87,12 @@ enum ColumnKind {
 
     /// `quiver::Column<L>` — a strongly-typed wrapper. Validates itself
     /// (exact datatype incl. nested types, and nullability from the logical type).
-    Wrapper { column_type: Box<syn::Type> },
+    Wrapper {
+        column_type: Box<syn::Type>,
+
+        /// The `L` of the `Column<L>`, for `ColumnDesc<L>`.
+        logical_type: Box<syn::Type>,
+    },
 }
 
 impl Quiver {
@@ -274,11 +279,11 @@ impl Quiver {
                 .map(|(key, value)| quote! { (#key, #value) });
             let declared = quote! { &[#(#declared),*] };
             match kind {
-                ColumnKind::Wrapper { column_type } => quote! {
+                ColumnKind::Wrapper { logical_type, .. } => quote! {
                     #name_const
 
                     #[doc = #doc]
-                    pub const #const_ident: #krate::ColumnDesc<#column_type> =
+                    pub const #const_ident: #krate::ColumnDesc<#logical_type> =
                         #krate::ColumnDesc::new(#record_type, Self::#name_const_ident, #declared);
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
@@ -324,7 +329,7 @@ impl Quiver {
                     .with_metadata([#(#declared),*].into_iter().collect())
                 };
                 let field = match kind {
-                    ColumnKind::Wrapper { column_type } => quote! {
+                    ColumnKind::Wrapper { column_type, .. } => quote! {
                         #krate::arrow::datatypes::Field::new(
                             #column_name,
                             <#column_type>::datatype(),
@@ -607,7 +612,7 @@ impl ColumnField {
         } = self;
 
         // Wrappers also need the arrow `Field` (for the metadata), so they bind differently:
-        if let ColumnKind::Wrapper { column_type } = kind {
+        if let ColumnKind::Wrapper { column_type, .. } = kind {
             // `array` is a `&ArrayRef`, `field` is a `&Field`:
             let convert = quote! {
                 <#column_type>::try_new(::std::sync::Arc::clone(array))
@@ -771,7 +776,7 @@ impl ColumnField {
                 ));
                 columns.push(::std::sync::Arc::new(array));
             },
-            ColumnKind::Wrapper { column_type } => quote! {
+            ColumnKind::Wrapper { column_type, .. } => quote! {
                 // Declared metadata first; the per-instance metadata wins on key conflicts:
                 let mut metadata: ::std::collections::HashMap<::std::string::String, ::std::string::String> =
                     #declared.into_iter().collect();
@@ -861,6 +866,30 @@ fn classify_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<(bool, Column
     }
 }
 
+/// The `L` of a `quiver::Column<L>` path segment.
+fn logical_type_of_column(segment: &syn::PathSegment) -> syn::Result<syn::Type> {
+    let expected_one_type = || {
+        syn::Error::new_spanned(
+            segment,
+            "Expected exactly one logical type parameter, e.g. `Column<Utf8>` or `Column<Option<i64>>`",
+        )
+    };
+
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return Err(expected_one_type());
+    };
+
+    let mut types = arguments.args.iter().filter_map(|argument| match argument {
+        syn::GenericArgument::Type(ty) => Some(ty),
+        _ => None,
+    });
+
+    match (types.next(), types.next()) {
+        (Some(ty), None) => Ok(ty.clone()),
+        _ => Err(expected_one_type()),
+    }
+}
+
 fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnKind> {
     let unsupported = |ty: &syn::Type| {
         syn::Error::new_spanned(
@@ -885,6 +914,7 @@ fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnK
     } else if type_name == "Column" {
         Ok(ColumnKind::Wrapper {
             column_type: Box::new(ty.clone()),
+            logical_type: Box::new(logical_type_of_column(segment)?),
         })
     } else if let Some(datatype) = datatype_of_array(krate, &type_name) {
         Ok(ColumnKind::Typed {

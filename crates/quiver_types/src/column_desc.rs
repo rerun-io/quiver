@@ -19,8 +19,8 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 /// it with no derive in sight.
 ///
 /// ```
-/// # use quiver::{Column, ColumnDesc, Utf8};
-/// const SENSOR: ColumnDesc<Column<Utf8>> = ColumnDesc::new("Measurements", "sensor", &[]);
+/// # use quiver::{ColumnDesc, Utf8};
+/// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor", &[]);
 ///
 /// # let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
 /// #     "sensor",
@@ -33,17 +33,20 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 /// ```
 ///
 /// # Relationship to the other main types
-/// A descriptor is the *name and type* of a column, holding no data. It carries
-/// the logical type `L` of its [`Column<L>`](Column), so it can
-/// [`extract`](ColumnDesc::extract) one from a record batch (metadata included),
-/// or validate a bare arrow array into a [`TypedArray<L>`](TypedArray) with
+/// A descriptor is the *name and logical type* of a column, holding no data.
+/// The type parameter is that logical type — `ColumnDesc<Utf8>`, not
+/// `ColumnDesc<Column<Utf8>>` — because a descriptor yields both of the data
+/// types: it can
+/// [`extract`](ColumnDesc::extract) a [`Column<L>`](Column) from a record batch
+/// (metadata included), or validate a bare arrow array into a
+/// [`TypedArray<L>`](TypedArray) with
 /// [`typed_array`](ColumnDesc::typed_array) — in both cases without you naming
 /// the column or its type at the call site.
 /// [`arrow_field`](ColumnDesc::arrow_field) goes the other way, describing the
 /// column to arrow.
 ///
 /// Dynamically-typed columns get a [`DynColumnDesc`] and a [`DynColumn`] instead.
-pub struct ColumnDesc<C> {
+pub struct ColumnDesc<L: LogicalType> {
     /// What owns the column — the `#[derive(Quiver)]` struct, or whatever you
     /// want error messages to name.
     pub record_type: &'static str,
@@ -55,10 +58,10 @@ pub struct ColumnDesc<C> {
     /// `#[quiver(metadata("key" = "value", …))]`.
     pub metadata: &'static [(&'static str, &'static str)],
 
-    _marker: PhantomData<fn() -> C>,
+    _marker: PhantomData<fn() -> L>,
 }
 
-impl<L: LogicalType> ColumnDesc<Column<L>> {
+impl<L: LogicalType> ColumnDesc<L> {
     /// Describes the column `name` of `record_type`, which labels the errors
     /// (the name of the `#[derive(Quiver)]` struct, when there is one).
     ///
@@ -113,7 +116,7 @@ impl<L: LogicalType> ColumnDesc<Column<L>> {
     }
 }
 
-impl<L: crate::ConcreteType> ColumnDesc<Column<L>> {
+impl<L: crate::ConcreteType> ColumnDesc<L> {
     /// The arrow field of this column, including the declared metadata.
     #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
@@ -126,7 +129,7 @@ impl<L: crate::ConcreteType> ColumnDesc<Column<L>> {
     }
 }
 
-impl<C> ColumnDesc<C> {
+impl<L: LogicalType> ColumnDesc<L> {
     /// Forgets the static type: the same column, described dynamically.
     ///
     /// The declared [`metadata`](ColumnDesc::metadata) is dropped, since
@@ -137,8 +140,8 @@ impl<C> ColumnDesc<C> {
     }
 }
 
-impl<C> From<&ColumnDesc<C>> for DynColumnDesc {
-    fn from(desc: &ColumnDesc<C>) -> Self {
+impl<L: LogicalType> From<&ColumnDesc<L>> for DynColumnDesc {
+    fn from(desc: &ColumnDesc<L>) -> Self {
         desc.to_dyn()
     }
 }
