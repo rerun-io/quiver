@@ -45,7 +45,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// Looks up the column by name (returning [`ErrorKind::MissingColumn`] if it
     /// is absent), validates it against `L` (datatype and nullability, recursively),
-    /// and carries over the arrow [`Field`](arrow::datatypes::Field) metadata.
+    /// and carries over the arrow [`Field`] metadata.
     ///
     /// This is the no-derive equivalent of the `COLUMN_*` descriptors that
     /// `#[derive(Quiver)]` generates; prefer those when you have a derived struct,
