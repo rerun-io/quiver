@@ -140,6 +140,11 @@ for list in &column {
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+For an array that isn't a record batch column, and so has no field metadata to carry,
+use `quiver::TypedArray<L>`: the same validated, zero-copy view, with the same value API.
+A `Column<L>` is a `TypedArray<L>` plus the per-column metadata
+(`column.as_typed_array()` and `column.into_typed_array()` get you the data half).
+
 ## Quiver types vs. arrow types
 
 A `#[derive(Quiver)]` field can hold its column either as a raw `arrow` array
