@@ -265,6 +265,36 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
     }
 }
 
+impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
+    /// A column of `len` nulls, carrying this descriptor's declared
+    /// [`metadata`](ColumnDesc::metadata).
+    ///
+    /// Pads a record batch that is missing this column — typically reached
+    /// through [`optional`](ColumnDesc::optional), so the name stays
+    /// single-sourced. [`into_dyn`](Column::into_dyn) then pairs the data with
+    /// the arrow field, ready to widen a record batch with:
+    ///
+    /// ```
+    /// # use quiver::{Binary, ColumnDesc};
+    /// const CHUNK_KEY: ColumnDesc<Binary> = ColumnDesc::new("Manifest", "chunk_key");
+    ///
+    /// let column = CHUNK_KEY.optional().new_null(3);
+    /// assert_eq!(column.to_vec(), [None, None, None]);
+    ///
+    /// let dyn_column = column.into_dyn(CHUNK_KEY.name);
+    /// assert!(dyn_column.field.is_nullable());
+    /// ```
+    #[must_use]
+    pub fn new_null(&self, len: usize) -> Column<Option<L>> {
+        Column::<Option<L>>::new_null(len).with_metadata(
+            self.metadata
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+                .collect(),
+        )
+    }
+}
+
 impl<L: LogicalType> ColumnDesc<L> {
     /// Forgets the static type: the same column, described dynamically.
     ///
