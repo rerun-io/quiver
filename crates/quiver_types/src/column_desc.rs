@@ -256,6 +256,13 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
                 .collect(),
         )
     }
+
+    /// The arrow field of this column, including the declared metadata.
+    #[must_use]
+    pub fn arrow_field_ref(&self) -> arrow::datatypes::FieldRef {
+        // TODO(emilk): it would be nice if this just `Arc::clone`d an existing `FieldRef` instead of allocating a new one on each call.
+        self.arrow_field().into()
+    }
 }
 
 impl<L: LogicalType> ColumnDesc<L> {
