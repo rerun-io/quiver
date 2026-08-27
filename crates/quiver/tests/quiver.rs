@@ -774,6 +774,41 @@ fn column_desc_is_parameterized_by_the_logical_type() {
     assert!(MAYBE_AGE.metadata.is_empty());
 }
 
+#[test]
+fn column_descs_are_copy_debug_and_comparable() {
+    // `Utf8` and friends derive nothing, so a descriptor over one only compiles
+    // here because the impls put no bound on `L`:
+    const NAME: quiver::ColumnDesc<Utf8> = quiver::ColumnDesc::new("Typed", "name");
+    const OTHER: quiver::ColumnDesc<Option<i64>> = quiver::ColumnDesc::new("Other", "maybe_age");
+    assert_eq!(NAME, NAME);
+    assert!(format!("{NAME:?}").contains("name"));
+
+    let desc: quiver::ColumnDesc<Option<i64>> = Typed::COLUMN_MAYBE_AGE;
+    let copy = desc; // `Copy`, so `desc` stays usable below.
+    assert_eq!(desc, copy);
+    assert_eq!(desc, Typed::COLUMN_MAYBE_AGE);
+
+    // Same name and type, different owner → not equal.
+    assert_ne!(desc, OTHER);
+
+    // Declared metadata takes part in the comparison.
+    assert_ne!(
+        Annotated::COLUMN_CHUNK_ID,
+        quiver::ColumnDesc::<quiver::FixedSizeBinary<16>>::new("Annotated", "chunk_id")
+    );
+
+    // `Debug` names the fields, and skips the `PhantomData`:
+    let shown = format!("{desc:?}");
+    assert!(shown.contains("maybe_age"), "{shown}");
+    assert!(!shown.contains("PhantomData"), "{shown}");
+
+    // `DynColumnDesc` gets the same treatment:
+    let dynamic = desc.to_dyn();
+    assert_eq!(dynamic, desc.to_dyn());
+    assert_ne!(dynamic, OTHER.to_dyn());
+    assert!(format!("{dynamic:?}").contains("maybe_age"));
+}
+
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
 #[derive(Quiver)]
 struct AllRequired {

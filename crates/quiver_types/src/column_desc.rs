@@ -60,6 +60,47 @@ pub struct ColumnDesc<L: LogicalType> {
     _marker: PhantomData<fn() -> L>,
 }
 
+// Hand-written rather than derived: `#[derive]` would put the trait's own bound
+// on `L`, but a descriptor holds no `L` — only a `PhantomData<fn() -> L>`, which
+// is `Copy`, `Eq`, and `Debug` whatever `L` is.
+impl<L: LogicalType> Clone for ColumnDesc<L> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<L: LogicalType> Copy for ColumnDesc<L> {}
+
+impl<L: LogicalType> std::fmt::Debug for ColumnDesc<L> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            record_type,
+            name,
+            metadata,
+            _marker,
+        } = self;
+        f.debug_struct("ColumnDesc")
+            .field("record_type", record_type)
+            .field("name", name)
+            .field("metadata", metadata)
+            .finish()
+    }
+}
+
+impl<L: LogicalType> PartialEq for ColumnDesc<L> {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            record_type,
+            name,
+            metadata,
+            _marker,
+        } = self;
+        *record_type == other.record_type && *name == other.name && *metadata == other.metadata
+    }
+}
+
+impl<L: LogicalType> Eq for ColumnDesc<L> {}
+
 impl<L: LogicalType> ColumnDesc<L> {
     /// Describes the column `name` of `record_type`, which labels the errors
     /// (the name of the `#[derive(Quiver)]` struct, when there is one).
@@ -140,7 +181,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// The declared [`metadata`](ColumnDesc::metadata) is dropped, since
     /// [`DynColumnDesc`] does not carry any.
     #[must_use]
-    pub const fn to_dyn(&self) -> DynColumnDesc {
+    pub const fn to_dyn(self) -> DynColumnDesc {
         DynColumnDesc::new(self.record_type, self.name)
     }
 }
@@ -160,6 +201,7 @@ impl<L: LogicalType> From<&ColumnDesc<L>> for DynColumnDesc {
 /// The untyped counterpart of [`ColumnDesc`]: it extracts a
 /// [`DynColumn`] (field plus array), with no datatype or
 /// nullability validation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DynColumnDesc {
     /// The name of the `#[derive(Quiver)]` struct, for error messages.
     pub record_type: &'static str,
