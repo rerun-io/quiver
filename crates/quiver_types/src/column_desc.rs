@@ -24,7 +24,7 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 /// other way, describing the column to arrow.
 ///
 /// Raw arrow array fields get a [`DynColumnDesc`] and a
-/// [`DynColumn`](crate::DynColumn) instead.
+/// [`DynColumn`] instead.
 pub struct ColumnDesc<C> {
     /// The name of the `#[derive(Quiver)]` struct, for error messages.
     pub record_type: &'static str,
@@ -127,7 +127,7 @@ impl<C> From<&ColumnDesc<C>> for DynColumnDesc {
 /// for raw arrow array fields.
 ///
 /// The untyped counterpart of [`ColumnDesc`]: it extracts a
-/// [`DynColumn`](crate::DynColumn) (field plus array), with no datatype or
+/// [`DynColumn`] (field plus array), with no datatype or
 /// nullability validation.
 pub struct DynColumnDesc {
     /// The name of the `#[derive(Quiver)]` struct, for error messages.
