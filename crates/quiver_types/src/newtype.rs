@@ -29,7 +29,7 @@
 ///
 /// That reinterprets the representation's buffer as the newtype, so the newtype
 /// must be layout-compatible with the representation's native type and accept
-/// every bit pattern — spelled as [`bytemuck::Pod`](crate::bytemuck::Pod).
+/// every bit pattern — spelled as [`bytemuck::Pod`].
 /// The size and alignment are checked at compile time.
 ///
 /// Quiver re-exports `bytemuck`, derive included, so you do not have to depend
