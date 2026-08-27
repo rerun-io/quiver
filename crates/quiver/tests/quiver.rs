@@ -775,6 +775,53 @@ fn column_desc_is_parameterized_by_the_logical_type() {
 }
 
 #[test]
+fn column_desc_optional() {
+    // A batch where the declared-non-nullable column does hold a null:
+    let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
+        "chunk_id",
+        Arc::new(
+            FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+                [Some([1_u8; 16]), None].into_iter(),
+                16,
+            )
+            .unwrap(),
+        ) as ArrayRef,
+    )])
+    .unwrap();
+
+    // The strict descriptor rejects it, the optional one reads it:
+    let err = Annotated::COLUMN_CHUNK_ID.extract(&batch).err().unwrap();
+    assert!(
+        matches!(&*err.kind, ErrorKind::UnexpectedNulls { null_count: 1, .. }),
+        "{err}"
+    );
+    let ids = Annotated::COLUMN_CHUNK_ID
+        .optional()
+        .extract(&batch)
+        .unwrap();
+    assert_eq!(ids.to_vec(), [Some([1_u8; 16]), None]);
+
+    // Name, record type, and declared metadata all carry over — only the
+    // nullability of the arrow field changes:
+    let strict = Annotated::COLUMN_CHUNK_ID;
+    let optional = strict.optional();
+    assert_eq!(optional.name, strict.name);
+    assert_eq!(optional.record_type, strict.record_type);
+    assert_eq!(optional.metadata, strict.metadata);
+    assert!(!strict.arrow_field().is_nullable());
+    assert!(optional.arrow_field().is_nullable());
+    assert_eq!(
+        optional.arrow_field().metadata(),
+        strict.arrow_field().metadata()
+    );
+
+    // An already-optional column stays readable, and the same descriptor:
+    let twice: quiver::ColumnDesc<Option<Option<i64>>> = Annotated::COLUMN_FRAME_START.optional();
+    assert_eq!(twice.name, "frame_nr");
+    assert_eq!(twice.to_dyn(), Annotated::COLUMN_FRAME_START.to_dyn());
+}
+
+#[test]
 fn column_descs_are_copy_debug_and_comparable() {
     // `Utf8` and friends derive nothing, so a descriptor over one only compiles
     // here because the impls put no bound on `L`:
