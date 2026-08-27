@@ -93,7 +93,7 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         let run = downcast_array::<RunArray<R::ArrowRunType>>(array, || {
             format!("RunEndEncoded({:?}, …)", R::datatype())
         })?;
-        if !V::NULLABLE {
+        if V::REJECTS_NULLS {
             // `logical_nulls` expands the runs to logical positions and counts
             // only the *reachable* nulls (respecting any slice window), so this
             // is the logical null count, like for lists and dictionaries.

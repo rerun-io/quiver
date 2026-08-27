@@ -48,7 +48,8 @@ impl<L: LogicalType> TypedArray<L> {
     /// recursively), then downcasts it (zero-copy).
     ///
     /// # Errors
-    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting
+    /// level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
         // Validate (and downcast) the datatype first — `downcast` rejects a wrong
         // datatype, including parameters the concrete arrow array type doesn't
@@ -57,7 +58,7 @@ impl<L: LogicalType> TypedArray<L> {
         // mismatch is reported as `WrongDatatype`, not masked by `UnexpectedNulls`.
         let typed = L::downcast(&*array)?;
 
-        if !L::NULLABLE && 0 < array.null_count() {
+        if L::REJECTS_NULLS && 0 < array.null_count() {
             return Err(ColumnError::UnexpectedNulls {
                 null_count: array.null_count(),
             });
@@ -219,11 +220,14 @@ impl<L: LogicalType> TypedArray<L> {
     ///
     /// Only the top-level validity needs checking: the child levels were
     /// validated when this array was built, and dropping the `Option` at this
-    /// level does not touch them.
+    /// level does not touch them. And only if the narrowed type rejects nulls
+    /// at all.
     pub(crate) fn try_into_required(self) -> Result<TypedArray<L::Required>, ColumnError> {
-        let null_count = self.array.null_count();
-        if 0 < null_count {
-            return Err(ColumnError::UnexpectedNulls { null_count });
+        if <L::Required as LogicalType>::REJECTS_NULLS {
+            let null_count = self.array.null_count();
+            if 0 < null_count {
+                return Err(ColumnError::UnexpectedNulls { null_count });
+            }
         }
 
         let Self { array, typed } = self;
