@@ -384,6 +384,10 @@ impl<L: PrimitiveType> Column<L> {
     /// Only available for primitive and fixed-size binary non-nullable columns
     /// (`bool` is excluded: arrow bit-packs it).
     ///
+    /// A newtype declared with the `primitive` arm of
+    /// [`newtype_datatype!`](crate::newtype_datatype) yields the newtype itself
+    /// (`&[Uuid]`, not `&[[u8; 16]]`).
+    ///
     /// ```
     /// # use quiver::{Column, FixedSizeBinary};
     /// let column = Column::<f32>::from_values([1.0, 2.0, 3.0]);

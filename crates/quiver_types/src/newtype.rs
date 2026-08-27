@@ -24,15 +24,27 @@
 /// For representations that implement [`PrimitiveType`]
 /// (primitives, [`FixedSizeBinary<N>`](crate::FixedSizeBinary)), add a trailing
 /// `primitive` to also enable the bulk zero-copy
-/// [`Column::as_slice`](crate::Column::as_slice) — which, like
-/// reading, yields the *representation's* values
-/// (e.g. `&[[u8; 16]]` for a `FixedSizeBinary<16>`-backed newtype):
+/// [`Column::as_slice`](crate::Column::as_slice), which yields the *newtype*
+/// (e.g. `&[Uuid]` for a `FixedSizeBinary<16>`-backed `Uuid`).
+///
+/// That reinterprets the representation's buffer as the newtype, so the newtype
+/// must be layout-compatible with the representation's native type and accept
+/// every bit pattern — spelled as [`bytemuck::Pod`](crate::bytemuck::Pod),
+/// which quiver re-exports so you do not have to depend on `bytemuck` yourself.
+/// The size and alignment are checked at compile time.
 ///
 /// ```
 /// use quiver::FixedSizeBinary;
 ///
-/// #[derive(Debug, PartialEq)]
+/// #[derive(Debug, PartialEq, Clone, Copy)]
+/// #[repr(transparent)]
 /// struct Uuid([u8; 16]);
+///
+/// // SAFETY: a `#[repr(transparent)]` wrapper around a `Pod` type,
+/// // with no invalid bit patterns of its own.
+/// unsafe impl quiver::bytemuck::Zeroable for Uuid {}
+/// // SAFETY: see above.
+/// unsafe impl quiver::bytemuck::Pod for Uuid {}
 ///
 /// impl From<[u8; 16]> for Uuid {
 ///     fn from(bytes: [u8; 16]) -> Self {
@@ -48,8 +60,13 @@
 /// quiver::newtype_datatype!(Uuid, FixedSizeBinary<16>, primitive);
 ///
 /// let column = quiver::Column::<Uuid>::from_values([Uuid([7; 16])]);
-/// assert_eq!(column.as_slice(), &[[7_u8; 16]]); // bulk, zero-copy
+/// assert_eq!(column.as_slice(), &[Uuid([7; 16])]); // bulk, zero-copy
 /// ```
+///
+/// A newtype that is not `Pod` — because it is not layout-compatible, or
+/// because it upholds an invariant that not every bit pattern satisfies — uses
+/// `primitive(raw)` instead, which hands back the *representation's* values
+/// (`&[[u8; 16]]` above), exactly as reading does.
 ///
 /// ```
 /// #[derive(Debug, PartialEq)]
@@ -90,6 +107,20 @@ macro_rules! newtype_datatype {
     };
 
     ($newtype:ty, $repr:ty, primitive) => {
+        $crate::newtype_datatype!($newtype, $repr);
+
+        impl $crate::PrimitiveType for $newtype {
+            type Native = Self;
+
+            fn values(typed: &Self::Typed) -> &[Self] {
+                // Checked at compile time: `Self` has the same size and
+                // alignment as the representation's native type.
+                $crate::bytemuck::must_cast_slice(<$repr as $crate::PrimitiveType>::values(typed))
+            }
+        }
+    };
+
+    ($newtype:ty, $repr:ty, primitive(raw)) => {
         $crate::newtype_datatype!($newtype, $repr);
 
         impl $crate::PrimitiveType for $newtype {
@@ -187,8 +218,10 @@ macro_rules! newtype_datatype {
 /// [`ErrorKind::Conversion`](crate::ErrorKind::Conversion) once the column name
 /// is known. After that, element access is infallible, as usual.
 ///
-/// The trailing `noref` / `primitive` arguments work exactly as in
-/// [`newtype_datatype!`](crate::newtype_datatype).
+/// The trailing `noref` / `primitive` / `primitive(raw)` arguments work exactly
+/// as in [`newtype_datatype!`](crate::newtype_datatype). A validating newtype
+/// rarely accepts every bit pattern, so `primitive(raw)` is usually the right
+/// one here — it is what the built-in `NonZero*` and [`char`] impls use.
 ///
 /// ```
 /// #[derive(Debug, PartialEq)]
@@ -215,7 +248,7 @@ macro_rules! newtype_datatype {
 ///     }
 /// }
 ///
-/// quiver::try_newtype_datatype!(Even, i64, primitive);
+/// quiver::try_newtype_datatype!(Even, i64, primitive(raw));
 ///
 /// // Building goes through the infallible `From<Even> for i64`:
 /// let column = quiver::Column::<Even>::from_values([Even(2), Even(4)]);
@@ -241,6 +274,20 @@ macro_rules! try_newtype_datatype {
     };
 
     ($newtype:ty, $repr:ty, primitive) => {
+        $crate::try_newtype_datatype!($newtype, $repr);
+
+        impl $crate::PrimitiveType for $newtype {
+            type Native = Self;
+
+            fn values(typed: &Self::Typed) -> &[Self] {
+                // Checked at compile time: `Self` has the same size and
+                // alignment as the representation's native type.
+                $crate::bytemuck::must_cast_slice(<$repr as $crate::PrimitiveType>::values(typed))
+            }
+        }
+    };
+
+    ($newtype:ty, $repr:ty, primitive(raw)) => {
         $crate::try_newtype_datatype!($newtype, $repr);
 
         impl $crate::PrimitiveType for $newtype {
@@ -491,7 +538,7 @@ where
 macro_rules! nonzero_datatype {
     ($($nonzero:ty => $int:ty),* $(,)?) => {
         $(
-            crate::try_newtype_datatype!($nonzero, $int, primitive);
+            crate::try_newtype_datatype!($nonzero, $int, primitive(raw));
         )*
     };
 }
@@ -509,4 +556,4 @@ nonzero_datatype! {
 
 // `char` is `TryFrom<u32>` (rejecting surrogates and out-of-range values),
 // and `u32: From<char>`; stored as `UInt32`.
-crate::try_newtype_datatype!(char, u32, primitive);
+crate::try_newtype_datatype!(char, u32, primitive(raw));
