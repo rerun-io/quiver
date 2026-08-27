@@ -122,10 +122,8 @@ impl DynColumn {
     pub fn try_into_column<L: LogicalType>(self) -> Result<Column<L>, Error> {
         let Self { field, array } = self;
 
-        let column = Column::<L>::try_new(array).map_err(|err| Error {
-            record_type: "DynColumn",
-            kind: err.for_column(field.name().clone()),
-        })?;
+        let column = Column::<L>::try_new(array)
+            .map_err(|err| Error::new("DynColumn", err.for_column(field.name().clone())))?;
 
         Ok(column.with_metadata(
             field

@@ -82,20 +82,17 @@ impl<L: LogicalType> Column<L> {
         name: &str,
         record_type: &'static str,
     ) -> Result<Self, Error> {
-        let (index, field) = batch
-            .schema_ref()
-            .column_with_name(name)
-            .ok_or_else(|| Error {
+        let (index, field) = batch.schema_ref().column_with_name(name).ok_or_else(|| {
+            Error::new(
                 record_type,
-                kind: ErrorKind::MissingColumn {
+                ErrorKind::MissingColumn {
                     column: name.to_owned(),
                 },
-            })?;
-
-        let column = Self::try_new(ArrayRef::clone(batch.column(index))).map_err(|err| Error {
-            record_type,
-            kind: err.for_column(name.to_owned()),
+            )
         })?;
+
+        let column = Self::try_new(ArrayRef::clone(batch.column(index)))
+            .map_err(|err| Error::new(record_type, err.for_column(name.to_owned())))?;
 
         Ok(column.with_metadata(
             field

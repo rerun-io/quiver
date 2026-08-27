@@ -12,7 +12,7 @@ use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema};
 use quiver::arrow::error::ArrowError;
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnError, Duration, DynColumn, Error, ErrorKind, FixedSizeBinary, List, Millisecond,
+    Column, ColumnError, Duration, DynColumn, ErrorKind, FixedSizeBinary, List, Millisecond,
     Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
@@ -247,22 +247,20 @@ fn from_record_batch_and_name() {
     assert_eq!(column.metadata()["pii"], "true");
 
     // Missing column → a helpful `MissingColumn` error.
-    assert!(matches!(
-        Column::<Utf8>::from_record_batch_and_name(&batch, "nope"),
-        Err(Error {
-            record_type: "Column",
-            kind: ErrorKind::MissingColumn { column },
-        }) if column == "nope"
-    ));
+    let err = Column::<Utf8>::from_record_batch_and_name(&batch, "nope")
+        .err()
+        .unwrap();
+    assert_eq!(err.record_type, "Column");
+    assert!(matches!(*err.kind, ErrorKind::MissingColumn { column } if column == "nope"));
 
     // Present but wrong datatype → a `WrongDatatype` error, naming the column.
-    assert!(matches!(
-        Column::<Utf8>::from_record_batch_and_name(&batch, "age"),
-        Err(Error {
-            record_type: "Column",
-            kind: ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. },
-        }) if column == "age"
-    ));
+    let err = Column::<Utf8>::from_record_batch_and_name(&batch, "age")
+        .err()
+        .unwrap();
+    assert_eq!(err.record_type, "Column");
+    assert!(
+        matches!(*err.kind, ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. } if column == "age")
+    );
 }
 
 #[test]
@@ -1541,7 +1539,7 @@ fn fallible_newtype_columns() {
     let array = Arc::new(Int64Array::from(vec![1]));
     let batch = RecordBatch::try_from_iter([("level", array as ArrayRef)]).unwrap();
     let err = Column::<Even>::from_record_batch_and_name(&batch, "level").unwrap_err();
-    assert!(matches!(err.kind, quiver::ErrorKind::Conversion { .. }));
+    assert!(matches!(*err.kind, quiver::ErrorKind::Conversion { .. }));
 }
 
 #[test]
@@ -1844,26 +1842,22 @@ fn dyn_column_validation_names_the_field() {
         field: Arc::new(Field::new("age", DataType::Int64, false)),
         array: Arc::new(Int64Array::from(vec![1, 2])),
     };
-    assert!(matches!(
-        dynamic.try_into_column::<Utf8>(),
-        Err(Error {
-            record_type: "DynColumn",
-            kind: ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. },
-        }) if column == "age"
-    ));
+    let err = dynamic.try_into_column::<Utf8>().err().unwrap();
+    assert_eq!(err.record_type, "DynColumn");
+    assert!(
+        matches!(*err.kind, ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. } if column == "age")
+    );
 
     // Nulls at a non-`Option` level → `UnexpectedNulls`, naming the field.
     let dynamic = DynColumn {
         field: Arc::new(Field::new("age", DataType::Int64, true)),
         array: Arc::new(Int64Array::from(vec![Some(1), None])),
     };
-    assert!(matches!(
-        dynamic.try_into_column::<i64>(),
-        Err(Error {
-            record_type: "DynColumn",
-            kind: ErrorKind::UnexpectedNulls { column, null_count: 1 },
-        }) if column == "age"
-    ));
+    let err = dynamic.try_into_column::<i64>().err().unwrap();
+    assert_eq!(err.record_type, "DynColumn");
+    assert!(
+        matches!(*err.kind, ErrorKind::UnexpectedNulls { column, null_count: 1 } if column == "age")
+    );
 
     // The *array* decides, not the field flag: a nullable field with no nulls
     // is a perfectly good `Column<i64>`.

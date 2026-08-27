@@ -116,10 +116,8 @@ impl<L: LogicalType> ColumnDesc<L> {
             record_type, name, ..
         } = *self;
 
-        TypedArray::try_new(array).map_err(|err| Error {
-            record_type,
-            kind: err.for_column(name.to_owned()),
-        })
+        TypedArray::try_new(array)
+            .map_err(|err| Error::new(record_type, err.for_column(name.to_owned())))
     }
 }
 
@@ -185,15 +183,14 @@ impl DynColumnDesc {
     pub fn extract(&self, batch: &arrow::record_batch::RecordBatch) -> Result<DynColumn, Error> {
         let Self { record_type, name } = *self;
 
-        let index = batch
-            .schema_ref()
-            .index_of(name)
-            .map_err(|_not_found| Error {
+        let index = batch.schema_ref().index_of(name).map_err(|_not_found| {
+            Error::new(
                 record_type,
-                kind: ErrorKind::MissingColumn {
+                ErrorKind::MissingColumn {
                     column: name.to_owned(),
                 },
-            })?;
+            )
+        })?;
 
         Ok(DynColumn {
             field: std::sync::Arc::clone(&batch.schema_ref().fields()[index]),
