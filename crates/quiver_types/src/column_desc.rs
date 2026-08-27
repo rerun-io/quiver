@@ -30,6 +30,7 @@ impl<L: LogicalType> ColumnDesc<Column<L>> {
     /// Describes the column `name` of the `#[derive(Quiver)]` struct `record_type`.
     ///
     /// Usually not called directly: the derive generates these as `COLUMN_*` constants.
+    #[must_use]
     pub const fn new(
         record_type: &'static str,
         name: &'static str,
@@ -84,6 +85,7 @@ impl DynColumnDesc {
     /// Describes the column `name` of the `#[derive(Quiver)]` struct `record_type`.
     ///
     /// Usually not called directly: the derive generates these as `COLUMN_*` constants.
+    #[must_use]
     pub const fn new(record_type: &'static str, name: &'static str) -> Self {
         Self { record_type, name }
     }

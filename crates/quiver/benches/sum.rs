@@ -156,6 +156,7 @@ fn run(name: &str, elements: usize, expected: i64, mut f: impl FnMut() -> i64) {
     black_box(checksum);
 
     let per_run: Duration = elapsed / runs;
-    let ns_per_element = per_run.as_nanos() as f64 / elements as f64;
+    #[expect(clippy::cast_precision_loss, reason = "printed timing, not exact math")]
+    let ns_per_element = per_run.as_secs_f64() * 1e9 / elements as f64;
     println!("  {name:<32} {per_run:>10.2?}  ({ns_per_element:.3} ns/element)");
 }
