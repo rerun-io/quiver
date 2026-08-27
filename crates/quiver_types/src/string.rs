@@ -145,6 +145,8 @@ impl LogicalType for AnyUtf8 {
     type Typed = AnyTypedUtf8;
     type Value<'a> = &'a str;
     type Owned = String;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         match array.data_type() {

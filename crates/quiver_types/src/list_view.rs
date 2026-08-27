@@ -90,6 +90,8 @@ macro_rules! impl_list_view_datatype {
             where
                 Self: 'a;
             type Owned = Vec<L::Owned>;
+            type Optional = Option<Self>;
+            type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 let list =

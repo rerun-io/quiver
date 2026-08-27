@@ -37,6 +37,8 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
     where
         Self: 'a;
     type Owned = i64;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // The unit is part of `Self::Typed`'s Rust type, so `downcast_array`

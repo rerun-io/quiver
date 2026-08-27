@@ -95,6 +95,8 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
     type Typed = TypedDictionary<K, V>;
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let dictionary =

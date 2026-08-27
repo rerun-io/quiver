@@ -83,6 +83,8 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
     type Typed = TypedRun<R, V>;
     type Value<'a> = V::Value<'a>;
     type Owned = V::Owned;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // `downcast_array` checks the run-end index type (it's part of

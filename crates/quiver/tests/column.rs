@@ -1623,6 +1623,8 @@ impl quiver::LogicalType for AnyInt {
     type Typed = ArrayRef;
     type Value<'a> = i64;
     type Owned = i64;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(
         array: &dyn quiver::arrow::array::Array,
