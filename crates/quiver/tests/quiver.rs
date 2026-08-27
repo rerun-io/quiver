@@ -797,8 +797,6 @@ fn column_desc_typed_array() {
 
 #[test]
 fn column_desc_is_parameterized_by_the_logical_type() {
-    // A descriptor yields both a `Column<L>` and a `TypedArray<L>`,
-    // so its type parameter is the logical type `L`.
     const MAYBE_AGE: quiver::ColumnDesc<Option<i64>> =
         quiver::ColumnDesc::new("Typed", "maybe_age");
     const CHUNK_ID: quiver::ColumnDesc<quiver::FixedSizeBinary<16>> =
