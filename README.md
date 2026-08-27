@@ -211,7 +211,8 @@ obvious empty batch, and a round-trip would silently turn `None` into `Some(empt
 More of the `Column` API:
 
 * Construction is infallible: `from_values`, `From<Vec<T>>`, `FromIterator`,
-  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), and `Default` (empty).
+  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), `Default` (empty),
+  and `new_null` (all nulls, e.g. to pad a batch that is missing the column).
   The exceptions: building a `Dictionary` (key overflow) or `Run` (run-end
   overflow) column can fail, so those use `try_from_values` instead
 * Single-column extraction from a `RecordBatch`, no derive needed:

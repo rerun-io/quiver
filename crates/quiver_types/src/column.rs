@@ -471,6 +471,31 @@ impl<L: crate::ConcreteType> Column<Option<L>> {
     }
 }
 
+impl<L: crate::ConcreteType> Column<Option<L>> {
+    /// A column of `len` nulls, with no metadata.
+    ///
+    /// The direct way to pad a record batch that is missing a column, without
+    /// naming a value type the column never holds — spelling out
+    /// `from_nullable_values(std::iter::repeat_n(None::<Vec<u8>>, len))` just
+    /// to satisfy inference — and cheaper than building through the values.
+    ///
+    /// ```
+    /// # use quiver::{Binary, Column};
+    /// let keys = Column::<Option<Binary>>::new_null(3);
+    /// assert_eq!(keys.len(), 3);
+    /// assert_eq!(keys.to_vec(), [None, None, None]);
+    /// ```
+    ///
+    /// # Panics
+    /// Panics for run-end encoding: a `RunArray` has no validity buffer of its
+    /// own, so its nulls live in the values — `Run<K, Option<V>>`, not
+    /// `Option<Run<K, V>>`, which no constructor can build.
+    #[must_use]
+    pub fn new_null(len: usize) -> Self {
+        TypedArray::<Option<L>>::new_null(len).into()
+    }
+}
+
 impl<L: InfallibleBuild> Column<Option<L>> {
     /// Builds a nullable column from optional values.
     ///

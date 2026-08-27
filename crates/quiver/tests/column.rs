@@ -230,6 +230,88 @@ fn column_metadata() {
 }
 
 #[test]
+fn new_null() {
+    use quiver::{Binary, ColumnDesc, Dictionary, TypedArray};
+
+    const CHUNK_KEY: ColumnDesc<Binary> =
+        ColumnDesc::new_with_metadata("Manifest", "chunk_key", &[("sorted", "true")]);
+
+    let column = Column::<Option<Binary>>::new_null(3);
+    assert_eq!(column.len(), 3);
+    assert_eq!(column.to_vec(), [None, None, None]);
+    assert_eq!(column.as_arrow().null_count(), 3);
+    assert_eq!(Column::<Option<Binary>>::datatype(), DataType::Binary);
+
+    // Zero-length is the empty column, not a special case:
+    assert_eq!(Column::<Option<i64>>::new_null(0), Column::default());
+
+    // Nesting: the nulls are at the outer level, the items are untouched:
+    let column = Column::<Option<List<i64>>>::new_null(2);
+    assert_eq!(column.to_vec(), [None, None]);
+
+    // …and at an inner level, through the item type:
+    let column = Column::<List<Option<i64>>>::from_values([vec![None, Some(1)]]);
+    assert_eq!(column.value(0).to_vec(), [None, Some(1)]);
+
+    // Encodings whose *values* can fail to build still have an all-null form:
+    let column = Column::<Option<Dictionary<i32, Utf8>>>::new_null(2);
+    assert_eq!(column.to_vec(), [None, None]);
+
+    // Fixed-size binary keeps its width:
+    let column = Column::<Option<FixedSizeBinary<4>>>::new_null(1);
+    assert_eq!(
+        Column::<Option<FixedSizeBinary<4>>>::datatype(),
+        DataType::FixedSizeBinary(4)
+    );
+    assert_eq!(column.to_vec(), [None]);
+
+    // The `TypedArray` form agrees:
+    assert_eq!(
+        TypedArray::<Option<Binary>>::new_null(3),
+        Column::<Option<Binary>>::new_null(3).into_typed_array()
+    );
+
+    // Through a descriptor: the declared metadata comes along, and `into_dyn`
+    // pairs the data with the nullable field, under the descriptor's name.
+    let column = CHUNK_KEY.optional().new_null(2);
+    assert_eq!(column.to_vec(), [None, None]);
+    assert_eq!(column.metadata()["sorted"], "true");
+
+    assert_eq!(CHUNK_KEY.arrow_metadata()["sorted"], "true");
+    assert_eq!(
+        CHUNK_KEY.arrow_metadata(),
+        CHUNK_KEY.arrow_field().metadata().clone()
+    );
+
+    let dyn_column = column.into_dyn(CHUNK_KEY.name);
+    assert_eq!(dyn_column.field.name(), "chunk_key");
+    assert!(dyn_column.field.is_nullable());
+    assert_eq!(dyn_column.field.metadata()["sorted"], "true");
+    assert_eq!(dyn_column.array.len(), 2);
+
+    // It round-trips back through the same descriptor:
+    let batch =
+        RecordBatch::try_from_iter_with_nullable([("chunk_key", dyn_column.array, true)]).unwrap();
+    assert_eq!(
+        CHUNK_KEY.optional().extract(&batch).unwrap().to_vec(),
+        [None, None]
+    );
+    // …but not through the strict one: nulls where none were declared.
+    assert!(matches!(
+        *CHUNK_KEY.extract(&batch).unwrap_err().kind,
+        ErrorKind::UnexpectedNulls { .. }
+    ));
+}
+
+/// Run-end encoding has no validity of its own: the nulls belong in the values,
+/// so `Option<Run<K, V>>` is unbuildable by any route, `new_null` included.
+#[test]
+#[should_panic(expected = "run-end encoding")]
+fn new_null_run_end_encoded() {
+    let _column: Column<Option<quiver::Run<i32, Utf8>>> = Column::new_null(2);
+}
+
+#[test]
 fn from_record_batch_and_name() {
     let names: ArrayRef = Arc::new(StringArray::from(vec!["alice", "bob"]));
     let ages: ArrayRef = Arc::new(Int64Array::from(vec![30, 40]));

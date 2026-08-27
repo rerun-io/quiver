@@ -271,6 +271,28 @@ impl<L: InfallibleBuild> TypedArray<L> {
 }
 
 impl<L: crate::ConcreteType> TypedArray<Option<L>> {
+    /// An array of `len` nulls.
+    ///
+    /// The `TypedArray` counterpart of [`Column::new_null`](crate::Column::new_null).
+    ///
+    /// ```
+    /// # use quiver::{TypedArray, Utf8};
+    /// let array = TypedArray::<Option<Utf8>>::new_null(3);
+    /// assert_eq!(array.to_vec(), [None, None, None]);
+    /// ```
+    ///
+    /// # Panics
+    /// Panics for run-end encoding, which has no validity of its own — see
+    /// [`Column::new_null`](crate::Column::new_null).
+    #[must_use]
+    pub fn new_null(len: usize) -> Self {
+        let array = arrow::array::new_null_array(&L::datatype(), len);
+        Self::try_new(array).expect(
+            "An all-null array of the right datatype is valid, \
+             except for run-end encoding: use `Run<K, Option<V>>`",
+        )
+    }
+
     /// Builds a nullable array from optional values; the fallible form of
     /// [`TypedArray::from_nullable_values`].
     ///

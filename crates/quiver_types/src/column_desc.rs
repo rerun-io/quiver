@@ -243,18 +243,25 @@ impl<L: LogicalType> ColumnDesc<L> {
         TypedArray::try_new(array)
             .map_err(|err| Error::new(record_type, err.for_column(name.to_owned())))
     }
+
+    /// The declared [`metadata`](ColumnDesc::metadata), owned, in the shape
+    /// arrow wants it — for [`arrow_field`](ColumnDesc::arrow_field), and for
+    /// stamping it on a field you build yourself.
+    #[must_use]
+    pub fn arrow_metadata(&self) -> std::collections::HashMap<String, String> {
+        self.metadata
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+            .collect()
+    }
 }
 
 impl<L: crate::ConcreteType> ColumnDesc<L> {
     /// The arrow field of this column, including the declared metadata.
     #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
-            self.metadata
-                .iter()
-                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-                .collect(),
-        )
+        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE)
+            .with_metadata(self.arrow_metadata())
     }
 
     /// The arrow field of this column, including the declared metadata.
@@ -262,6 +269,32 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
     pub fn arrow_field_ref(&self) -> arrow::datatypes::FieldRef {
         // TODO(emilk): it would be nice if this just `Arc::clone`d an existing `FieldRef` instead of allocating a new one on each call.
         self.arrow_field().into()
+    }
+}
+
+impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
+    /// A column of `len` nulls, carrying this descriptor's declared
+    /// [`metadata`](ColumnDesc::metadata).
+    ///
+    /// Pads a record batch that is missing this column — typically reached
+    /// through [`optional`](ColumnDesc::optional), so the name stays
+    /// single-sourced. [`into_dyn`](Column::into_dyn) then pairs the data with
+    /// the arrow field, ready to widen a record batch with:
+    ///
+    /// ```
+    /// # use quiver::{Binary, ColumnDesc};
+    /// const CHUNK_KEY: ColumnDesc<Binary> = ColumnDesc::new("Manifest", "chunk_key");
+    ///
+    /// let column = CHUNK_KEY.optional().new_null(3);
+    /// assert_eq!(column.to_vec(), [None, None, None]);
+    ///
+    /// let dyn_column = column.into_dyn(CHUNK_KEY.name);
+    /// assert!(dyn_column.field.is_nullable());
+    /// ```
+    #[must_use]
+    pub fn new_null(&self, len: usize) -> Column<Option<L>> {
+        Column::<Option<L>>::new_null(len)
+            .with_metadata(self.arrow_metadata().into_iter().collect())
     }
 }
 
