@@ -1,11 +1,5 @@
 //! Tests for standalone use of [`quiver::Column`] — no derive macro involved.
 
-// For the `Pod` impl that lets a newtype's `as_slice` hand out the newtype:
-#![expect(
-    unsafe_code,
-    reason = "`bytemuck::Pod` is an unsafe trait to implement"
-)]
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -1404,15 +1398,10 @@ quiver::newtype_datatype!(SensorName, Utf8);
 ///
 /// `Pod` (via the re-exported `bytemuck`) is what lets the `primitive` arm hand
 /// out `&[ChunkId]` from `as_slice`, rather than the raw `&[[u8; 16]]`.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, quiver::bytemuck::Pod, quiver::bytemuck::Zeroable)]
+#[bytemuck(crate = "::quiver::bytemuck")]
 #[repr(transparent)]
 struct ChunkId([u8; 16]);
-
-// SAFETY: a `#[repr(transparent)]` wrapper around a `Pod` type,
-// with no invalid bit patterns of its own.
-unsafe impl quiver::bytemuck::Zeroable for ChunkId {}
-// SAFETY: see above.
-unsafe impl quiver::bytemuck::Pod for ChunkId {}
 
 impl From<[u8; 16]> for ChunkId {
     fn from(id: [u8; 16]) -> Self {

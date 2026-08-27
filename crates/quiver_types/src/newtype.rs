@@ -29,22 +29,20 @@
 ///
 /// That reinterprets the representation's buffer as the newtype, so the newtype
 /// must be layout-compatible with the representation's native type and accept
-/// every bit pattern — spelled as [`bytemuck::Pod`](crate::bytemuck::Pod),
-/// which quiver re-exports so you do not have to depend on `bytemuck` yourself.
+/// every bit pattern — spelled as [`bytemuck::Pod`](crate::bytemuck::Pod).
 /// The size and alignment are checked at compile time.
+///
+/// Quiver re-exports `bytemuck`, derive included, so you do not have to depend
+/// on it yourself; the `crate` attribute points the derive back at the
+/// re-export:
 ///
 /// ```
 /// use quiver::FixedSizeBinary;
 ///
-/// #[derive(Debug, PartialEq, Clone, Copy)]
+/// #[derive(Debug, PartialEq, Clone, Copy, quiver::bytemuck::Pod, quiver::bytemuck::Zeroable)]
+/// #[bytemuck(crate = "::quiver::bytemuck")]
 /// #[repr(transparent)]
 /// struct Uuid([u8; 16]);
-///
-/// // SAFETY: a `#[repr(transparent)]` wrapper around a `Pod` type,
-/// // with no invalid bit patterns of its own.
-/// unsafe impl quiver::bytemuck::Zeroable for Uuid {}
-/// // SAFETY: see above.
-/// unsafe impl quiver::bytemuck::Pod for Uuid {}
 ///
 /// impl From<[u8; 16]> for Uuid {
 ///     fn from(bytes: [u8; 16]) -> Self {
