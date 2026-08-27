@@ -4,8 +4,10 @@
 //! equally usable standalone: [`ColumnDesc::new`] is a `const fn`.
 
 use std::marker::PhantomData;
+use std::sync::OnceLock;
 
 use arrow::array::ArrayRef;
+use arrow::datatypes::FieldRef;
 
 use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 
@@ -41,7 +43,7 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 /// [`TypedArray<L>`](TypedArray) with
 /// [`typed_array`](ColumnDesc::typed_array) — in both cases without you naming
 /// the column or its type at the call site.
-/// [`arrow_field`](ColumnDesc::arrow_field) goes the other way, describing the
+/// [`arrow_field_ref`](ColumnDesc::arrow_field_ref) goes the other way, describing the
 /// column to arrow.
 ///
 /// Dynamically-typed columns get a [`DynColumnDesc`] and a [`DynColumn`] instead.
@@ -56,6 +58,10 @@ pub struct ColumnDesc<L: LogicalType> {
     /// The column metadata; the derive fills this in from
     /// `#[quiver(metadata("key" = "value", …))]`.
     pub metadata: &'static [(&'static str, &'static str)],
+
+    /// Where [`arrow_field_ref`](ColumnDesc::arrow_field_ref) memoizes its
+    /// [`FieldRef`]; see [`ColumnDesc::with_field_cache`].
+    field_cache: Option<&'static OnceLock<FieldRef>>,
 
     _marker: PhantomData<fn() -> L>,
 }
@@ -77,6 +83,7 @@ impl<L: LogicalType> std::fmt::Debug for ColumnDesc<L> {
             record_type,
             name,
             metadata,
+            field_cache: _,
             _marker,
         } = self;
         f.debug_struct("ColumnDesc")
@@ -93,6 +100,7 @@ impl<L: LogicalType> PartialEq for ColumnDesc<L> {
             record_type,
             name,
             metadata,
+            field_cache: _,
             _marker,
         } = self;
         *record_type == other.record_type && *name == other.name && *metadata == other.metadata
@@ -114,7 +122,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     }
 
     /// Like [`ColumnDesc::new`], plus the column metadata that
-    /// [`arrow_field`](ColumnDesc::arrow_field) puts on the arrow field.
+    /// [`arrow_field_ref`](ColumnDesc::arrow_field_ref) puts on the arrow field.
     #[must_use]
     pub const fn new_with_metadata(
         record_type: &'static str,
@@ -125,6 +133,7 @@ impl<L: LogicalType> ColumnDesc<L> {
             record_type,
             name,
             metadata,
+            field_cache: None,
             _marker: PhantomData,
         }
     }
@@ -162,16 +171,64 @@ impl<L: LogicalType> ColumnDesc<L> {
     }
 }
 
+impl<L: LogicalType> ColumnDesc<L> {
+    /// Points [`arrow_field_ref`](ColumnDesc::arrow_field_ref) at a `static`
+    /// cell to memoize its [`FieldRef`] in.
+    ///
+    /// The cell has to be a `static`: descriptors are `const`, so a cell stored
+    /// *by value* would be a fresh, always-empty one at every use site. The
+    /// derive writes it out like this, and you can too:
+    ///
+    /// ```
+    /// use std::sync::OnceLock;
+    /// use quiver::{ColumnDesc, Utf8};
+    ///
+    /// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Reading", "sensor").with_field_cache({
+    ///     static CELL: OnceLock<quiver::arrow::datatypes::FieldRef> = OnceLock::new();
+    ///     &CELL
+    /// });
+    ///
+    /// // Every use of the `const` copies the descriptor, but shares the one cell:
+    /// assert!(std::sync::Arc::ptr_eq(
+    ///     &SENSOR.arrow_field_ref(),
+    ///     &SENSOR.arrow_field_ref()
+    /// ));
+    /// ```
+    ///
+    /// Without this the field is rebuilt on each call, which is correct but
+    /// allocates every time.
+    #[must_use]
+    pub const fn with_field_cache(mut self, cache: &'static OnceLock<FieldRef>) -> Self {
+        self.field_cache = Some(cache);
+        self
+    }
+}
+
 impl<L: crate::ConcreteType> ColumnDesc<L> {
     /// The arrow field of this column, including the declared metadata.
+    ///
+    /// Built once and memoized when the descriptor carries a
+    /// [`field_cache`](ColumnDesc::with_field_cache) — as the derive-generated
+    /// `COLUMN_*` constants do — so repeat calls are just an [`Arc::clone`].
+    ///
+    /// [`Arc::clone`]: std::sync::Arc::clone
     #[must_use]
-    pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
-            self.metadata
-                .iter()
-                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-                .collect(),
-        )
+    pub fn arrow_field_ref(&self) -> FieldRef {
+        let build = || -> FieldRef {
+            std::sync::Arc::new(
+                arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
+                    self.metadata
+                        .iter()
+                        .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+                        .collect(),
+                ),
+            )
+        };
+
+        match self.field_cache {
+            Some(cell) => FieldRef::clone(cell.get_or_init(build)),
+            None => build(),
+        }
     }
 }
 
