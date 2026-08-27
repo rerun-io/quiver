@@ -283,7 +283,7 @@ impl Quiver {
                 quote! { new_with_metadata(#record_type, Self::#name_const_ident, #declared) }
             };
             match kind {
-                ColumnKind::Wrapper { logical_type, .. } => quote! {
+                ColumnKind::Wrapper { logical_type } => quote! {
                     #name_const
 
                     #[doc = #doc]
