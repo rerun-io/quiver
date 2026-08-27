@@ -17,6 +17,24 @@ Additionally, `quiver` provides a proc-macro for easily converting a `struct` of
 
 A struct marked with `#[derive(Quiver)]` can contain either dynamically typed arrow arrays (`ArrayRef`, `ListArray`, …) or strongly typed `quiver` types (or a mix of both!).
 
+## The main types
+
+* [`Column<L>`](https://docs.rs/quiver/latest/quiver/struct.Column.html):
+  one column of a record batch, i.e. an arrow array validated against the logical type `L`,
+  plus that column's field metadata.
+* [`TypedArray<L>`](https://docs.rs/quiver/latest/quiver/struct.TypedArray.html):
+  the data half of a `Column<L>`, i.e. the same validated array with the same value API,
+  minus the metadata. A `Column<L>` is a `TypedArray<L>` plus metadata; use a `TypedArray<L>`
+  directly for arrays that aren't record batch columns.
+* [`ColumnDesc<Column<L>>`](https://docs.rs/quiver/latest/quiver/struct.ColumnDesc.html):
+  a named handle on one column of a `#[derive(Quiver)]` struct, generated as a `COLUMN_*` constant.
+  It knows both the column name and `L`, so it can `extract` a `Column<L>` from a record batch,
+  or validate a loose `ArrayRef` into a `TypedArray<L>`, without you naming either.
+
+Dynamically typed columns get the same pair without the `L`:
+[`DynColumn`](https://docs.rs/quiver/latest/quiver/struct.DynColumn.html) and
+[`DynColumnDesc`](https://docs.rs/quiver/latest/quiver/struct.DynColumnDesc.html).
+
 ## Supported `arrow` versions
 
 | `quiver`    | `arrow` |

@@ -10,13 +10,22 @@ use crate::{ColumnError, LogicalType};
 /// A strongly-typed, validated, zero-copy view of one arrow array:
 /// a [`Column`](crate::Column) minus the per-column metadata.
 ///
-/// Use this over [`Column`](crate::Column) for arrays that aren't record batch
-/// columns, and so have no field metadata to carry.
-///
 /// Validates the array **once, eagerly** at construction
 /// (exact datatype, including the inner types of nested arrays, plus nulls at
 /// every non-`Option` nesting level). After that, element access is infallible,
 /// fully typed, and zero-copy.
+///
+/// # Relationship to the other main types
+/// [`Column<L>`](crate::Column) is this type plus the field metadata of a
+/// record batch column, and forwards every value method here. Prefer a
+/// `TypedArray` for an array that isn't a record batch column, and so has no
+/// metadata to carry; call
+/// [`Column::as_typed_array`](crate::Column::as_typed_array) or
+/// [`Column::into_typed_array`](crate::Column::into_typed_array) to get at the
+/// data half of a column, and `Column::from` to go back.
+///
+/// With `#[derive(Quiver)]`, [`ColumnDesc::typed_array`](crate::ColumnDesc::typed_array)
+/// validates a loose arrow array against the column's `L` without you naming it.
 ///
 /// ```
 /// # use quiver::{TypedArray, Utf8};
