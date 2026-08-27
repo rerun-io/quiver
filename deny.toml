@@ -46,6 +46,7 @@ deny = [
 ]
 skip = [
   { name = "getrandom" }, # const-random (via arrow) is still on getrandom 0.2
+  { name = "syn" },       # `quiver_derive` is on syn 3; arrow (via ahash → zerocopy-derive) and trybuild (via serde_derive) are still on syn 2
 ]
 skip-tree = []
 
