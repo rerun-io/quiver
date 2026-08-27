@@ -1,6 +1,6 @@
 //! Benchmarks for summing the values of a [`Column`], comparing the access
 //! strategies — so the cost of the typesafe iterator (which skips per-element
-//! bounds checks, see `ColumnIter`) can be weighed against the alternatives.
+//! bounds checks, see `TypedArrayIter`) can be weighed against the alternatives.
 //!
 //! Self-contained: no benchmark framework, just a small timing harness, to keep
 //! the dependency tree lean (`cargo-deny` denies duplicate versions).

@@ -16,6 +16,20 @@ use crate::{ColumnError, Error, ErrorKind, LogicalType};
 ///
 /// The logical type `L` describes the exact datatype and nullability,
 /// e.g. `Column<List<Utf8>>` or `Column<Option<i64>>`.
+///
+/// # Relationship to the other main types
+/// A column is a [`TypedArray<L>`](TypedArray) (the validated array, and every
+/// method for reading it) plus the per-column [`metadata`](Column::metadata)
+/// that lives on the arrow [`Field`](arrow::datatypes::Field). Use a
+/// [`TypedArray`] instead for an array that isn't a record batch column, and so
+/// has no metadata to carry; convert either way with
+/// [`as_typed_array`](Column::as_typed_array),
+/// [`into_typed_array`](Column::into_typed_array), and `Column::from`.
+///
+/// Getting a column out of a record batch by name is
+/// [`Column::from_record_batch_and_name`], or — with `#[derive(Quiver)]` — the
+/// generated [`ColumnDesc`](crate::ColumnDesc) constants, which know the name
+/// and `L` for you.
 pub struct Column<L: LogicalType> {
     /// The data: the arrow array plus its downcast view.
     array: TypedArray<L>,
@@ -451,3 +465,12 @@ impl<'a, L: LogicalType + 'a> IntoIterator for &'a Column<L> {
         self.iter()
     }
 }
+
+/// The old name of [`TypedArrayIter`], the iterator [`Column::iter`] returns.
+#[deprecated(since = "0.6.0", note = "Renamed `TypedArrayIter`")]
+pub type ColumnIter<'a, L> = TypedArrayIter<'a, L>;
+
+/// The old name of [`TypedArrayIntoIter`], the iterator
+/// [`Column::into_iter_owned`] returns.
+#[deprecated(since = "0.6.0", note = "Renamed `TypedArrayIntoIter`")]
+pub type ColumnIntoIter<L> = TypedArrayIntoIter<L>;

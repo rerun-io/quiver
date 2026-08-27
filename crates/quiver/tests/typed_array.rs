@@ -80,3 +80,15 @@ fn converts_to_and_from_column() {
         &(&StringArray::from(vec!["foo"]) as &dyn quiver::arrow::array::Array)
     );
 }
+
+/// The pre-rename iterator names still resolve, for one deprecation cycle.
+#[test]
+#[expect(deprecated)]
+fn deprecated_iterator_aliases() {
+    let column = Column::<Utf8>::from_values(["foo", "bar"]);
+    let borrowed: quiver::ColumnIter<'_, Utf8> = column.iter();
+    assert_eq!(borrowed.count(), 2);
+
+    let owned: quiver::ColumnIntoIter<Utf8> = column.into_iter_owned();
+    assert_eq!(owned.count(), 2);
+}
