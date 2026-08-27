@@ -162,6 +162,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
+    #[doc(alias = "nullable")]
     pub const fn optional(self) -> ColumnDesc<L::Optional> {
         let Self {
             record_type,
@@ -200,6 +201,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
+    #[doc(alias = "non_nullable")]
     pub const fn required(self) -> ColumnDesc<L::Required> {
         let Self {
             record_type,

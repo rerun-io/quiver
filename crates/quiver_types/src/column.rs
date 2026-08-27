@@ -255,6 +255,7 @@ impl<L: LogicalType> Column<L> {
     /// assert_eq!(maybe.to_vec(), [Some(30), Some(40)]);
     /// ```
     #[must_use]
+    #[doc(alias = "nullable")]
     pub fn optional(self) -> Column<L::Optional> {
         let Self { array, metadata } = self;
         Column {
@@ -283,6 +284,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// # Errors
     /// Errors with [`ColumnError::UnexpectedNulls`] if the column contains nulls.
+    #[doc(alias = "non_nullable")]
     pub fn try_required(self) -> Result<Column<L::Required>, ColumnError> {
         let Self { array, metadata } = self;
         Ok(Column {
