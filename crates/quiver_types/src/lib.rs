@@ -82,3 +82,30 @@ pub struct DynColumn {
     pub field: arrow::datatypes::FieldRef,
     pub array: arrow::array::ArrayRef,
 }
+
+impl DynColumn {
+    /// Validates this column against the logical type `L` (datatype and
+    /// nullability, recursively) and downcasts it (zero-copy), carrying over
+    /// the arrow field metadata.
+    ///
+    /// The inverse is [`Column::into_dyn`].
+    ///
+    /// # Errors
+    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    pub fn try_into_column<L: LogicalType>(self) -> Result<Column<L>, Error> {
+        let Self { field, array } = self;
+
+        let column = Column::<L>::try_new(array).map_err(|err| Error {
+            record_type: "DynColumn",
+            kind: err.for_column(field.name().clone()),
+        })?;
+
+        Ok(column.with_metadata(
+            field
+                .metadata()
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+        ))
+    }
+}

@@ -6,7 +6,7 @@
 //! fully typed, and zero-copy.
 
 use arrow::array::ArrayRef;
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Field};
 
 use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
 use crate::typed_array::TypedArray;
@@ -45,7 +45,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// Looks up the column by name (returning [`ErrorKind::MissingColumn`] if it
     /// is absent), validates it against `L` (datatype and nullability, recursively),
-    /// and carries over the arrow [`Field`](arrow::datatypes::Field) metadata.
+    /// and carries over the arrow [`Field`] metadata.
     ///
     /// This is the no-derive equivalent of the `COLUMN_*` descriptors that
     /// `#[derive(Quiver)]` generates; prefer those when you have a derived struct,
@@ -258,6 +258,25 @@ impl<L: crate::ConcreteType> Column<L> {
     #[must_use]
     pub fn datatype() -> DataType {
         L::datatype()
+    }
+
+    /// Forgets the static type: the same data, as a dynamically-typed column
+    /// whose arrow field is called `column_name`.
+    ///
+    /// The field carries the datatype and nullability of `L`, plus this
+    /// column's [`metadata`](Column::metadata). Zero-copy: the array is moved.
+    ///
+    /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
+    #[must_use]
+    pub fn into_dyn(self, column_name: impl Into<String>) -> crate::DynColumn {
+        let Self { array, metadata } = self;
+        crate::DynColumn {
+            field: std::sync::Arc::new(
+                Field::new(column_name, L::datatype(), L::NULLABLE)
+                    .with_metadata(metadata.into_iter().collect()),
+            ),
+            array: array.into_arrow(),
+        }
     }
 }
 
