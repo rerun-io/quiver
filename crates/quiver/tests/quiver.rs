@@ -746,6 +746,86 @@ fn column_desc_to_dyn() {
     ));
 }
 
+#[test]
+fn column_desc_typed_array() {
+    // The descriptor supplies the logical type, so a loose array needs no turbofish:
+    let array = Annotated::COLUMN_FRAME_START
+        .typed_array(Arc::new(Int64Array::from(vec![Some(7_i64), None])) as ArrayRef)
+        .unwrap();
+    assert_eq!(array.len(), 2);
+    assert_eq!(array.value(0), Some(7));
+    assert_eq!(array.value(1), None);
+
+    // Wrong datatype: labeled with the column name (the renamed one) and record type.
+    let err = Annotated::COLUMN_FRAME_START
+        .typed_array(Arc::new(StringArray::from(vec!["7"])) as ArrayRef)
+        .err()
+        .unwrap();
+    assert!(
+        matches!(
+            &err,
+            Error {
+                record_type: "Annotated",
+                kind: ErrorKind::WrongDatatype { column, .. },
+            } if column == "frame_nr"
+        ),
+        "{err}"
+    );
+
+    // Nulls in a non-nullable column:
+    let err = Annotated::COLUMN_CHUNK_ID
+        .typed_array(Arc::new(
+            FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+                [None, Some([1_u8; 16])].into_iter(),
+                16,
+            )
+            .unwrap(),
+        ) as ArrayRef)
+        .err()
+        .unwrap();
+    assert!(
+        matches!(
+            err,
+            Error {
+                record_type: "Annotated",
+                kind: ErrorKind::UnexpectedNulls { null_count: 1, .. },
+            }
+        ),
+        "{err}"
+    );
+}
+
+#[test]
+fn column_desc_is_parameterized_by_the_logical_type() {
+    const MAYBE_AGE: quiver::ColumnDesc<Option<i64>> =
+        quiver::ColumnDesc::new("Typed", "maybe_age");
+    const CHUNK_ID: quiver::ColumnDesc<quiver::FixedSizeBinary<16>> =
+        quiver::ColumnDesc::new_with_metadata("Annotated", "chunk_id", &[("meta:kind", "control")]);
+    let derived: quiver::ColumnDesc<Option<i64>> = Typed::COLUMN_MAYBE_AGE;
+    assert_eq!(derived.name, MAYBE_AGE.name);
+
+    let batch = Typed {
+        name: quiver::Column::from_values(["Alice"]),
+        maybe_age: quiver::Column::from_values([Some(30_i64)]),
+        tags: quiver::Column::try_new(string_list_array_of_one()).unwrap(),
+        scores: None,
+    }
+    .into_record_batch()
+    .unwrap();
+
+    // A hand-written descriptor and the derived one behave the same:
+    assert_eq!(MAYBE_AGE.extract(&batch).unwrap().to_vec(), [Some(30)]);
+    assert_eq!(derived.extract(&batch).unwrap().to_vec(), [Some(30)]);
+    assert_eq!(derived.arrow_field(), MAYBE_AGE.arrow_field());
+
+    // Declared metadata needs the longer constructor; the derive picks it too:
+    assert_eq!(
+        CHUNK_ID.arrow_field(),
+        Annotated::COLUMN_CHUNK_ID.arrow_field()
+    );
+    assert!(MAYBE_AGE.metadata.is_empty());
+}
+
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
 #[derive(Quiver)]
 struct AllRequired {

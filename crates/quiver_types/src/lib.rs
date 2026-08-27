@@ -3,6 +3,30 @@
 //! You should normally depend on `quiver` instead of this crate.
 //! `quiver_types` exists so that the bulk of `quiver` compiles independently
 //! of the (optional) `quiver_derive` proc-macro crate.
+//!
+//! ## The main types
+//!
+//! * [`Column<L>`]: one column of a record batch — an arrow array validated
+//!   against the logical type `L`, plus that column's field metadata.
+//! * [`TypedArray<L>`]: the data half of a [`Column<L>`](Column) — the same
+//!   validated array with the same value API, minus the metadata.
+//!   A [`Column<L>`](Column) is a [`TypedArray<L>`](TypedArray) plus metadata;
+//!   use a [`TypedArray<L>`](TypedArray) directly for arrays that aren't
+//!   record batch columns.
+//! * [`ColumnDesc<L>`](ColumnDesc): a named handle on one column,
+//!   holding no data. It knows both the column name and `L`, so it can
+//!   [`extract`](ColumnDesc::extract) a [`Column<L>`](Column) from a record
+//!   batch, or validate a loose `ArrayRef` into a
+//!   [`TypedArray<L>`](TypedArray) with
+//!   [`typed_array`](ColumnDesc::typed_array) — without you naming either at
+//!   the call site. `#[derive(Quiver)]` generates one per field as a `COLUMN_*`
+//!   constant; [`ColumnDesc::new`] is `const`, so you can declare your own.
+//!
+//! Dynamically typed columns get the same pair without the `L`:
+//! [`DynColumn`] and [`DynColumnDesc`].
+//!
+//! The logical types themselves (`L`) live in [`LogicalType`] and its
+//! implementors: [`Utf8`], [`List`], [`Timestamp`], `Option<…>`, `i64`, ….
 
 // The workspace warns on `unsafe_code`; this crate opts into it for one audited
 // use: [`LogicalType::value_unchecked`] and [`LogicalType::is_null_unchecked`]
@@ -47,7 +71,9 @@ mod typed_array;
 
 pub use self::any_list::{AnyList, AnyTypedList};
 pub use self::binary::{AnyBinary, AnyTypedBinary, Binary, BinaryView, LargeBinary};
-pub use self::column::{Column, ColumnIntoIter, ColumnIter};
+pub use self::column::Column;
+#[expect(deprecated, reason = "re-exporting the old names for one more release")]
+pub use self::column::{ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{
     ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveType, RefType,
@@ -74,6 +100,7 @@ pub use self::timestamp::{
     TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond, TimestampSecond, TimezoneSpec,
     Utc,
 };
+pub use self::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
 
 /// A single dynamically-typed column of a record batch:
 /// the field description plus the actual data.

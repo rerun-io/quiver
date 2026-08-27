@@ -17,6 +17,26 @@ Additionally, `quiver` provides a proc-macro for easily converting a `struct` of
 
 A struct marked with `#[derive(Quiver)]` can contain either dynamically typed arrow arrays (`ArrayRef`, `ListArray`, …) or strongly typed `quiver` types (or a mix of both!).
 
+## The main types
+
+* [`Column<L>`](https://docs.rs/quiver/latest/quiver/struct.Column.html):
+  one column of a record batch, i.e. an arrow array validated against the logical type `L`,
+  plus that column's field metadata.
+* [`TypedArray<L>`](https://docs.rs/quiver/latest/quiver/struct.TypedArray.html):
+  the data half of a `Column<L>`, i.e. the same validated array with the same value API,
+  minus the metadata. A `Column<L>` is a `TypedArray<L>` plus metadata; use a `TypedArray<L>`
+  directly for arrays that aren't record batch columns.
+* [`ColumnDesc<L>`](https://docs.rs/quiver/latest/quiver/struct.ColumnDesc.html):
+  a named handle on one column, holding no data. It knows both the column name and `L`,
+  so it can `extract` a `Column<L>` from a record batch, or validate a loose `ArrayRef`
+  into a `TypedArray<L>`, without you naming either at the call site.
+  `#[derive(Quiver)]` generates one per field as a `COLUMN_*` constant, and `ColumnDesc::new`
+  is a `const fn`, so you can just as well declare your own.
+
+Dynamically typed columns get the same pair without the `L`:
+[`DynColumn`](https://docs.rs/quiver/latest/quiver/struct.DynColumn.html) and
+[`DynColumnDesc`](https://docs.rs/quiver/latest/quiver/struct.DynColumnDesc.html).
+
 ## Supported `arrow` versions
 
 | `quiver`    | `arrow` |
@@ -139,6 +159,11 @@ for list in &column {
 }
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+For an array that isn't a record batch column, and so has no field metadata to carry,
+use `quiver::TypedArray<L>`: the same validated, zero-copy view, with the same value API.
+A `Column<L>` is a `TypedArray<L>` plus the per-column metadata
+(`column.as_typed_array()` and `column.into_typed_array()` get you the data half).
 
 ## Quiver types vs. arrow types
 
