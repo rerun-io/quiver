@@ -261,18 +261,18 @@ impl<L: crate::ConcreteType> Column<L> {
     }
 
     /// Forgets the static type: the same data, as a dynamically-typed column
-    /// whose arrow field is called `name`.
+    /// whose arrow field is called `column_name`.
     ///
     /// The field carries the datatype and nullability of `L`, plus this
     /// column's [`metadata`](Column::metadata). Zero-copy: the array is moved.
     ///
     /// The inverse is [`DynColumn::try_into_column`].
     #[must_use]
-    pub fn into_dyn(self, name: impl Into<String>) -> crate::DynColumn {
+    pub fn into_dyn(self, column_name: impl Into<String>) -> crate::DynColumn {
         let Self { array, metadata } = self;
         crate::DynColumn {
             field: std::sync::Arc::new(
-                Field::new(name, L::datatype(), L::NULLABLE)
+                Field::new(column_name, L::datatype(), L::NULLABLE)
                     .with_metadata(metadata.into_iter().collect()),
             ),
             array: array.into_arrow(),
