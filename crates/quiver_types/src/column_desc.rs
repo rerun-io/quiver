@@ -60,7 +60,7 @@ pub struct ColumnDesc<L: LogicalType> {
     pub metadata: &'static [(&'static str, &'static str)],
 
     /// Where [`arrow_field_ref`](ColumnDesc::arrow_field_ref) memoizes its
-    /// [`FieldRef`]; see [`ColumnDesc::with_field_cache`].
+    /// [`FieldRef`]. Filled in by the derive; see `__with_field_cache`.
     field_cache: Option<&'static OnceLock<FieldRef>>,
 
     _marker: PhantomData<fn() -> L>,
@@ -172,33 +172,16 @@ impl<L: LogicalType> ColumnDesc<L> {
 }
 
 impl<L: LogicalType> ColumnDesc<L> {
+    /// Support API for `#[derive(Quiver)]`; not part of the public interface.
+    ///
     /// Points [`arrow_field_ref`](ColumnDesc::arrow_field_ref) at a `static`
-    /// cell to memoize its [`FieldRef`] in.
-    ///
-    /// The cell has to be a `static`: descriptors are `const`, so a cell stored
-    /// *by value* would be a fresh, always-empty one at every use site. The
-    /// derive writes it out like this, and you can too:
-    ///
-    /// ```
-    /// use std::sync::OnceLock;
-    /// use quiver::{ColumnDesc, Utf8};
-    ///
-    /// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Reading", "sensor").with_field_cache({
-    ///     static CELL: OnceLock<quiver::arrow::datatypes::FieldRef> = OnceLock::new();
-    ///     &CELL
-    /// });
-    ///
-    /// // Every use of the `const` copies the descriptor, but shares the one cell:
-    /// assert!(std::sync::Arc::ptr_eq(
-    ///     &SENSOR.arrow_field_ref(),
-    ///     &SENSOR.arrow_field_ref()
-    /// ));
-    /// ```
-    ///
-    /// Without this the field is rebuilt on each call, which is correct but
-    /// allocates every time.
+    /// cell to memoize its [`FieldRef`] in. The cell cannot live in the
+    /// descriptor itself: a `const` is inlined at every use site, so an
+    /// interior-mutable field would be a fresh, always-empty cell on each call
+    /// (which is what `clippy::declare_interior_mutable_const` warns about).
+    #[doc(hidden)]
     #[must_use]
-    pub const fn with_field_cache(mut self, cache: &'static OnceLock<FieldRef>) -> Self {
+    pub const fn __with_field_cache(mut self, cache: &'static OnceLock<FieldRef>) -> Self {
         self.field_cache = Some(cache);
         self
     }
@@ -207,9 +190,9 @@ impl<L: LogicalType> ColumnDesc<L> {
 impl<L: crate::ConcreteType> ColumnDesc<L> {
     /// The arrow field of this column, including the declared metadata.
     ///
-    /// Built once and memoized when the descriptor carries a
-    /// [`field_cache`](ColumnDesc::with_field_cache) — as the derive-generated
-    /// `COLUMN_*` constants do — so repeat calls are just an [`Arc::clone`].
+    /// For the derive-generated `COLUMN_*` constants this is built once and
+    /// memoized, so repeat calls are just an [`Arc::clone`]. A descriptor you
+    /// build yourself rebuilds the field per call.
     ///
     /// [`Arc::clone`]: std::sync::Arc::clone
     #[must_use]

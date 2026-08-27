@@ -840,7 +840,7 @@ fn arrow_field_ref_is_built_once() {
     assert!(!Arc::ptr_eq(&a, &b));
 
     // The cache is not part of a descriptor's identity.
-    assert_eq!(UNCACHED, UNCACHED.with_field_cache(&CELL));
+    assert_eq!(UNCACHED, UNCACHED.__with_field_cache(&CELL));
 }
 
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
