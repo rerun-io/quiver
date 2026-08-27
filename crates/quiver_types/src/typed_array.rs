@@ -49,7 +49,9 @@ impl<L: LogicalType> TypedArray<L> {
     ///
     /// # Errors
     /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting
-    /// level.
+    /// level — unless that level is an
+    /// [`IgnoreValidity`](crate::IgnoreValidity), whose validity mask is
+    /// meaningless by contract.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
         // Validate (and downcast) the datatype first — `downcast` rejects a wrong
         // datatype, including parameters the concrete arrow array type doesn't
@@ -221,7 +223,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// Only the top-level validity needs checking: the child levels were
     /// validated when this array was built, and dropping the `Option` at this
     /// level does not touch them. And only if the narrowed type rejects nulls
-    /// at all.
+    /// at all — [`IgnoreValidity`](crate::IgnoreValidity) does not.
     pub(crate) fn try_into_required(self) -> Result<TypedArray<L::Required>, ColumnError> {
         if <L::Required as LogicalType>::REJECTS_NULLS {
             let null_count = self.array.null_count();

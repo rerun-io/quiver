@@ -138,6 +138,9 @@ macro_rules! newtype_datatype {
     ($newtype:ty, $repr:ty, noref) => {
         impl $crate::LogicalType for $newtype {
             const NULLABLE: bool = <$repr as $crate::LogicalType>::NULLABLE;
+            // Forwarded, so a representation of
+            // `IgnoreValidity<…>` carries that decision into the newtype:
+            const REJECTS_NULLS: bool = <$repr as $crate::LogicalType>::REJECTS_NULLS;
             type Typed = <$repr as $crate::LogicalType>::Typed;
             type Value<'a>
                 = <$repr as $crate::LogicalType>::Value<'a>
@@ -294,6 +297,9 @@ macro_rules! try_newtype_datatype {
     ($newtype:ty, $repr:ty, noref) => {
         impl $crate::LogicalType for $newtype {
             const NULLABLE: bool = <$repr as $crate::LogicalType>::NULLABLE;
+            // Forwarded, so a representation of
+            // `IgnoreValidity<…>` carries that decision into the newtype:
+            const REJECTS_NULLS: bool = <$repr as $crate::LogicalType>::REJECTS_NULLS;
             type Typed = <$repr as $crate::LogicalType>::Typed;
             type Value<'a>
                 = <$repr as $crate::LogicalType>::Value<'a>
@@ -423,6 +429,7 @@ where
     Repr::Owned: From<T>,
 {
     const NULLABLE: bool = Repr::NULLABLE;
+    const REJECTS_NULLS: bool = Repr::REJECTS_NULLS;
     type Typed = Repr::Typed;
     type Value<'a>
         = Repr::Value<'a>
