@@ -11,7 +11,7 @@ use quiver::arrow::array::{
 };
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
 use quiver::arrow::record_batch::RecordBatch;
-use quiver::{DynColumn, Error, ErrorKind, List, Quiver, Utf8};
+use quiver::{DynColumn, DynColumnDesc, Error, ErrorKind, List, Quiver, Utf8};
 
 /// Important thing
 #[derive(Quiver)]
@@ -712,6 +712,38 @@ fn column_descriptors() {
     let batch = strict.into_record_batch().unwrap();
     let column = Strict::COLUMN_NAME.extract(&batch).unwrap();
     assert_eq!(column.field.name(), "name");
+}
+
+#[test]
+fn column_desc_to_dyn() {
+    let typed = Typed {
+        name: quiver::Column::from_values(["Alice", "Bob"]),
+        maybe_age: quiver::Column::from_values([Some(30_i64), None]),
+        tags: quiver::Column::try_new(string_list_array()).unwrap(),
+        scores: None,
+    };
+    let batch = typed.into_record_batch().unwrap();
+
+    // A typed descriptor drops to a dynamic one, keeping the name and record type:
+    let dynamic = Typed::COLUMN_NAME.to_dyn();
+    assert_eq!(dynamic.name, "name");
+    assert_eq!(dynamic.record_type, Typed::COLUMN_NAME.record_type);
+    assert_eq!(dynamic.extract(&batch).unwrap().field.name(), "name");
+
+    // `From` is the same conversion:
+    assert_eq!(
+        DynColumnDesc::from(&Typed::COLUMN_MAYBE_AGE).name,
+        "maybe_age"
+    );
+
+    // A missing column still errors under the struct's own name:
+    assert!(matches!(
+        Typed::COLUMN_SCORES.to_dyn().extract(&batch),
+        Err(Error {
+            record_type: "Typed",
+            kind: ErrorKind::MissingColumn { column },
+        }) if column == "scores"
+    ));
 }
 
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.

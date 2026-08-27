@@ -1,5 +1,6 @@
 //! Tests for standalone use of [`quiver::Column`] — no derive macro involved.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use quiver::arrow::array::Array as _;
@@ -11,7 +12,7 @@ use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema};
 use quiver::arrow::error::ArrowError;
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnError, Duration, Error, ErrorKind, FixedSizeBinary, List, Millisecond,
+    Column, ColumnError, Duration, DynColumn, Error, ErrorKind, FixedSizeBinary, List, Millisecond,
     Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
@@ -1804,4 +1805,72 @@ fn list_value_index_out_of_bounds() {
     let column = Column::<List<i64>>::from_values([vec![1, 2]]);
     let value: i64 = column.value(0).value(2);
     assert_eq!(value, 0); // unreachable: the line above panics
+}
+
+#[test]
+fn column_to_dyn_and_back() {
+    let column = Column::<Utf8>::from_values(["alice", "bob"])
+        .with_metadata(BTreeMap::from([("pii".to_owned(), "true".to_owned())]));
+
+    // The field takes its name from the argument, and everything else from `L`:
+    let dynamic = column.into_dyn("name");
+    assert_eq!(dynamic.field.name(), "name");
+    assert_eq!(dynamic.field.data_type(), &DataType::Utf8);
+    assert!(!dynamic.field.is_nullable());
+    assert_eq!(dynamic.field.metadata()["pii"], "true");
+
+    // …and back, metadata intact:
+    let column: Column<Utf8> = dynamic.try_into_column().unwrap();
+    assert_eq!(column.to_vec(), ["alice", "bob"]);
+    assert_eq!(column.metadata()["pii"], "true");
+
+    // `Option<…>` is the only thing that makes the field nullable:
+    let dynamic = Column::<Option<i64>>::from_values([Some(1), None]).into_dyn("age");
+    assert!(dynamic.field.is_nullable());
+    assert_eq!(dynamic.field.data_type(), &DataType::Int64);
+
+    // Nested types keep their inner field nullability through the round trip:
+    let dynamic =
+        Column::<List<Utf8>>::from_values([vec!["a".to_owned()], vec![]]).into_dyn("tags");
+    assert_eq!(dynamic.field.data_type(), &Column::<List<Utf8>>::datatype());
+    let column: Column<List<Utf8>> = dynamic.try_into_column().unwrap();
+    assert_eq!(column.to_vec(), [vec!["a"], vec![]]);
+}
+
+#[test]
+fn dyn_column_validation_names_the_field() {
+    // Wrong datatype → `WrongDatatype`, naming the field.
+    let dynamic = DynColumn {
+        field: Arc::new(Field::new("age", DataType::Int64, false)),
+        array: Arc::new(Int64Array::from(vec![1, 2])),
+    };
+    assert!(matches!(
+        dynamic.try_into_column::<Utf8>(),
+        Err(Error {
+            record_type: "DynColumn",
+            kind: ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. },
+        }) if column == "age"
+    ));
+
+    // Nulls at a non-`Option` level → `UnexpectedNulls`, naming the field.
+    let dynamic = DynColumn {
+        field: Arc::new(Field::new("age", DataType::Int64, true)),
+        array: Arc::new(Int64Array::from(vec![Some(1), None])),
+    };
+    assert!(matches!(
+        dynamic.try_into_column::<i64>(),
+        Err(Error {
+            record_type: "DynColumn",
+            kind: ErrorKind::UnexpectedNulls { column, null_count: 1 },
+        }) if column == "age"
+    ));
+
+    // The *array* decides, not the field flag: a nullable field with no nulls
+    // is a perfectly good `Column<i64>`.
+    let dynamic = DynColumn {
+        field: Arc::new(Field::new("age", DataType::Int64, true)),
+        array: Arc::new(Int64Array::from(vec![1, 2])),
+    };
+    let column: Column<i64> = dynamic.try_into_column().unwrap();
+    assert_eq!(column.to_vec(), [1, 2]);
 }
