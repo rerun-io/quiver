@@ -210,6 +210,7 @@ pub enum ColumnError {
 
 impl ColumnError {
     /// Attach the column name, producing an [`ErrorKind`].
+    #[must_use]
     pub fn for_column(self, column: String) -> ErrorKind {
         match self {
             Self::WrongDatatype { expected, actual } => ErrorKind::WrongDatatype {
