@@ -42,6 +42,7 @@
 )]
 
 pub use arrow;
+pub use bytemuck;
 pub use half;
 
 mod any_list;

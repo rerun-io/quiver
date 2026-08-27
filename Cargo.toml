@@ -27,6 +27,9 @@ quiver_derive = { path = "crates/quiver_derive", version = "0.6.0" }
 
 # External crates:
 arrow = { version = "58", default-features = false }
+# NOTE: `bytemuck_derive` is pinned to 1.11 in `Cargo.lock`: 1.12 moved to `syn` 3,
+# which would duplicate the `syn` 2 that `quiver_derive` uses (see `cargo deny check bans`).
+bytemuck = { version = "1.16", features = ["derive", "must_cast"] }
 document-features = "0.2"
 half = "2"
 proc-macro2 = "1.0"

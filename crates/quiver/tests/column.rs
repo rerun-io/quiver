@@ -1519,7 +1519,12 @@ impl From<SensorName> for String {
 quiver::newtype_datatype!(SensorName, Utf8);
 
 /// A `[u8; 16]`-backed newtype.
-#[derive(Debug, PartialEq, Clone, Copy)]
+///
+/// `Pod` (via the re-exported `bytemuck`) is what lets the `primitive` arm hand
+/// out `&[ChunkId]` from `as_slice`, rather than the raw `&[[u8; 16]]`.
+#[derive(Debug, PartialEq, Clone, Copy, quiver::bytemuck::Pod, quiver::bytemuck::Zeroable)]
+#[bytemuck(crate = "::quiver::bytemuck")]
+#[repr(transparent)]
 struct ChunkId([u8; 16]);
 
 impl From<[u8; 16]> for ChunkId {
@@ -1534,6 +1539,32 @@ impl From<ChunkId> for [u8; 16] {
 }
 
 quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
+
+/// A `[u8; 16]`-backed newtype that is *not* `Pod`, so the buffer cannot be
+/// reinterpreted; the hand-written `PrimitiveType` impl reads back the repr.
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct RawId([u8; 16]);
+
+impl From<[u8; 16]> for RawId {
+    fn from(id: [u8; 16]) -> Self {
+        Self(id)
+    }
+}
+impl From<RawId> for [u8; 16] {
+    fn from(id: RawId) -> Self {
+        id.0
+    }
+}
+
+quiver::newtype_datatype!(RawId, FixedSizeBinary<16>);
+
+impl quiver::PrimitiveType for RawId {
+    type Native = [u8; 16];
+
+    fn values(typed: &Self::Typed) -> &[[u8; 16]] {
+        <FixedSizeBinary<16> as quiver::PrimitiveType>::values(typed)
+    }
+}
 
 /// A `bool`-backed newtype: `bool` has no `RefType` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.
@@ -1582,9 +1613,21 @@ fn newtype_columns() {
     assert_eq!(column.to_vec(), [Some(ChunkId([7; 16])), None]);
     assert_eq!(Column::<ChunkId>::datatype(), DataType::FixedSizeBinary(16));
 
-    // The `primitive` arm enables bulk zero-copy reads, yielding the repr's values:
+    // The `primitive` arm enables bulk zero-copy reads, yielding the newtype:
     let column = Column::<ChunkId>::from_values([ChunkId([7; 16]), ChunkId([8; 16])]);
+    assert_eq!(column.as_slice(), &[ChunkId([7; 16]), ChunkId([8; 16])]);
+
+    // …while a hand-written `PrimitiveType` impl can still yield the repr's:
+    let column = Column::<RawId>::from_values([RawId([7; 16]), RawId([8; 16])]);
     assert_eq!(column.as_slice(), &[[7_u8; 16], [8; 16]]);
+
+    // Slicing still lines up with the logical window:
+    assert_eq!(
+        Column::<ChunkId>::from_values([ChunkId([7; 16]), ChunkId([8; 16])])
+            .slice(1, 1)
+            .as_slice(),
+        &[ChunkId([8; 16])]
+    );
 
     let column = Column::<List<SensorName>>::from_values([vec![SensorName("a".to_owned())]]);
     assert_eq!(column.to_vec(), [vec![SensorName("a".to_owned())]]);
@@ -1627,7 +1670,15 @@ impl From<Even> for i64 {
     }
 }
 
-quiver::try_newtype_datatype!(Even, i64, primitive);
+quiver::try_newtype_datatype!(Even, i64);
+
+impl quiver::PrimitiveType for Even {
+    type Native = i64;
+
+    fn values(typed: &Self::Typed) -> &[i64] {
+        <i64 as quiver::PrimitiveType>::values(typed)
+    }
+}
 
 #[test]
 fn fallible_newtype_columns() {
@@ -1641,7 +1692,7 @@ fn fallible_newtype_columns() {
     assert_eq!(column[1], 4_i64); // indexing borrows through the repr
     assert_eq!(column.value_owned(1), Even(4));
 
-    // The `primitive` arm still enables bulk zero-copy reads of the repr:
+    // The hand-written `PrimitiveType` impl still gives bulk zero-copy reads:
     assert_eq!(column.as_slice(), &[2_i64, 4]);
 
     // A valid array converts fine:
@@ -1677,7 +1728,7 @@ fn nonzero_and_char_columns() {
     ]);
     assert_eq!(Column::<NonZeroI64>::datatype(), DataType::Int64);
     assert_eq!(column.value(0), 1_i64); // reads the repr
-    assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy (primitive arm)
+    assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy, as the repr
     assert_eq!(
         column.to_vec(),
         [NonZeroI64::new(1).unwrap(), NonZeroI64::new(-3).unwrap()]
