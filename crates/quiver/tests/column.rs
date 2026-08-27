@@ -277,6 +277,12 @@ fn new_null() {
     assert_eq!(column.to_vec(), [None, None]);
     assert_eq!(column.metadata()["sorted"], "true");
 
+    assert_eq!(CHUNK_KEY.arrow_metadata()["sorted"], "true");
+    assert_eq!(
+        CHUNK_KEY.arrow_metadata(),
+        CHUNK_KEY.arrow_field().metadata().clone()
+    );
+
     let dyn_column = column.into_dyn(CHUNK_KEY.name);
     assert_eq!(dyn_column.field.name(), "chunk_key");
     assert!(dyn_column.field.is_nullable());
@@ -302,7 +308,7 @@ fn new_null() {
 #[test]
 #[should_panic(expected = "run-end encoding")]
 fn new_null_run_end_encoded() {
-    let _ = Column::<Option<quiver::Run<i32, Utf8>>>::new_null(2);
+    let _column: Column<Option<quiver::Run<i32, Utf8>>> = Column::new_null(2);
 }
 
 #[test]

@@ -243,18 +243,25 @@ impl<L: LogicalType> ColumnDesc<L> {
         TypedArray::try_new(array)
             .map_err(|err| Error::new(record_type, err.for_column(name.to_owned())))
     }
+
+    /// The declared [`metadata`](ColumnDesc::metadata), owned, in the shape
+    /// arrow wants it — for [`arrow_field`](ColumnDesc::arrow_field), and for
+    /// stamping it on a field you build yourself.
+    #[must_use]
+    pub fn arrow_metadata(&self) -> std::collections::HashMap<String, String> {
+        self.metadata
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+            .collect()
+    }
 }
 
 impl<L: crate::ConcreteType> ColumnDesc<L> {
     /// The arrow field of this column, including the declared metadata.
     #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE).with_metadata(
-            self.metadata
-                .iter()
-                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-                .collect(),
-        )
+        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE)
+            .with_metadata(self.arrow_metadata())
     }
 
     /// The arrow field of this column, including the declared metadata.
@@ -286,12 +293,8 @@ impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
     /// ```
     #[must_use]
     pub fn new_null(&self, len: usize) -> Column<Option<L>> {
-        Column::<Option<L>>::new_null(len).with_metadata(
-            self.metadata
-                .iter()
-                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-                .collect(),
-        )
+        Column::<Option<L>>::new_null(len)
+            .with_metadata(self.arrow_metadata().into_iter().collect())
     }
 }
 
