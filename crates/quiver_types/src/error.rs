@@ -26,6 +26,14 @@ impl Error {
     }
 }
 
+// `Error` rides in the `Err` arm of every `Result` in this crate, and embedders
+// assert on the size of error enums that hold it (see
+// <https://github.com/rerun-io/quiver/issues/28>). Keep it pointer-sized-small.
+const _: () = assert!(
+    size_of::<Error>() <= 24,
+    "`Error` grew; box the new payload instead"
+);
+
 /// What went wrong when converting between a record batch and a `#[derive(Quiver)]` struct.
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
