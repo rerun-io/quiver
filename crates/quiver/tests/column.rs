@@ -1427,8 +1427,8 @@ impl From<ChunkId> for [u8; 16] {
 
 quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
 
-/// A `[u8; 16]`-backed newtype that is *not* `Pod`, so it opts out of the
-/// buffer reinterpretation with `primitive(raw)` and reads back the repr.
+/// A `[u8; 16]`-backed newtype that is *not* `Pod`, so the buffer cannot be
+/// reinterpreted; the hand-written `PrimitiveType` impl reads back the repr.
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct RawId([u8; 16]);
 
@@ -1443,7 +1443,15 @@ impl From<RawId> for [u8; 16] {
     }
 }
 
-quiver::newtype_datatype!(RawId, FixedSizeBinary<16>, primitive(raw));
+quiver::newtype_datatype!(RawId, FixedSizeBinary<16>);
+
+impl quiver::PrimitiveType for RawId {
+    type Native = [u8; 16];
+
+    fn values(typed: &Self::Typed) -> &[[u8; 16]] {
+        <FixedSizeBinary<16> as quiver::PrimitiveType>::values(typed)
+    }
+}
 
 /// A `bool`-backed newtype: `bool` has no `RefType` (bit-packed),
 /// so the `Index` support must be opted out of with `noref`.
@@ -1496,7 +1504,7 @@ fn newtype_columns() {
     let column = Column::<ChunkId>::from_values([ChunkId([7; 16]), ChunkId([8; 16])]);
     assert_eq!(column.as_slice(), &[ChunkId([7; 16]), ChunkId([8; 16])]);
 
-    // …while `primitive(raw)` yields the repr's values:
+    // …while a hand-written `PrimitiveType` impl can still yield the repr's:
     let column = Column::<RawId>::from_values([RawId([7; 16]), RawId([8; 16])]);
     assert_eq!(column.as_slice(), &[[7_u8; 16], [8; 16]]);
 
@@ -1549,7 +1557,15 @@ impl From<Even> for i64 {
     }
 }
 
-quiver::try_newtype_datatype!(Even, i64, primitive(raw));
+quiver::try_newtype_datatype!(Even, i64);
+
+impl quiver::PrimitiveType for Even {
+    type Native = i64;
+
+    fn values(typed: &Self::Typed) -> &[i64] {
+        <i64 as quiver::PrimitiveType>::values(typed)
+    }
+}
 
 #[test]
 fn fallible_newtype_columns() {
@@ -1563,7 +1579,7 @@ fn fallible_newtype_columns() {
     assert_eq!(column[1], 4_i64); // indexing borrows through the repr
     assert_eq!(column.value_owned(1), Even(4));
 
-    // The `primitive(raw)` arm still enables bulk zero-copy reads of the repr:
+    // The hand-written `PrimitiveType` impl still gives bulk zero-copy reads:
     assert_eq!(column.as_slice(), &[2_i64, 4]);
 
     // A valid array converts fine:
@@ -1599,7 +1615,7 @@ fn nonzero_and_char_columns() {
     ]);
     assert_eq!(Column::<NonZeroI64>::datatype(), DataType::Int64);
     assert_eq!(column.value(0), 1_i64); // reads the repr
-    assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy (`primitive(raw)` arm)
+    assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy, as the repr
     assert_eq!(
         column.to_vec(),
         [NonZeroI64::new(1).unwrap(), NonZeroI64::new(-3).unwrap()]
