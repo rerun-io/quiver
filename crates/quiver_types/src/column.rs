@@ -239,6 +239,60 @@ impl<L: LogicalType> Column<L> {
         self.array
     }
 
+    /// The same column, read as nullable: `Column<L>` → `Column<Option<L>>`.
+    ///
+    /// Free — nullability lives in the validity bitmap, so nothing is
+    /// re-validated, copied, or re-downcast — and the metadata comes along.
+    ///
+    /// Nullability is idempotent: an already-nullable column is its own
+    /// `optional()`, so this never nests into `Option<Option<…>>`.
+    /// [`try_required`](Column::try_required) goes the other way.
+    ///
+    /// ```
+    /// # use quiver::Column;
+    /// let ages = Column::<i64>::from_values([30, 40]);
+    /// let maybe: Column<Option<i64>> = ages.optional();
+    /// assert_eq!(maybe.to_vec(), [Some(30), Some(40)]);
+    /// ```
+    #[must_use]
+    #[doc(alias = "nullable")]
+    pub fn optional(self) -> Column<L::Optional> {
+        let Self { array, metadata } = self;
+        Column {
+            array: array.into_optional(),
+            metadata,
+        }
+    }
+
+    /// The same column, read as non-nullable: `Column<Option<L>>` → `Column<L>`.
+    ///
+    /// The inverse of [`optional`](Column::optional), and fallible because the
+    /// column may actually contain nulls. Every `Option` layer comes off, so
+    /// this is idempotent too: an already-non-nullable column always converts.
+    ///
+    /// The metadata comes along, and nothing is copied or re-downcast.
+    ///
+    /// ```
+    /// # use quiver::Column;
+    /// let ages = Column::<Option<i64>>::from_values([Some(30), Some(40)]);
+    /// assert_eq!(ages.try_required()?.to_vec(), [30, 40]);
+    ///
+    /// let with_null = Column::<Option<i64>>::from_values([Some(30), None]);
+    /// assert!(with_null.try_required().is_err());
+    /// # Ok::<(), quiver::ColumnError>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Errors with [`ColumnError::UnexpectedNulls`] if the column contains nulls.
+    #[doc(alias = "non_nullable")]
+    pub fn try_required(self) -> Result<Column<L::Required>, ColumnError> {
+        let Self { array, metadata } = self;
+        Ok(Column {
+            array: array.try_into_required()?,
+            metadata,
+        })
+    }
+
     /// The underlying arrow array.
     #[must_use]
     pub fn as_arrow(&self) -> &ArrayRef {

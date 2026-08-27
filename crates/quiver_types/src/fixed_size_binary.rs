@@ -33,6 +33,8 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
     type Typed = arrow::array::FixedSizeBinaryArray;
     type Value<'a> = &'a [u8; N];
     type Owned = [u8; N];
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // The element width is not in `FixedSizeBinaryArray`'s Rust type, so

@@ -26,6 +26,8 @@ impl<L: LogicalType> LogicalType for Option<L> {
     where
         Self: 'a;
     type Owned = Option<L::Owned>;
+    type Optional = Self;
+    type Required = L::Required;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         L::downcast(array)

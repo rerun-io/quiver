@@ -59,6 +59,8 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
     where
         Self: 'a;
     type Owned = [L::Owned; N];
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let list = downcast_array::<arrow::array::FixedSizeListArray>(array, || {

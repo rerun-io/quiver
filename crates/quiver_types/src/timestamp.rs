@@ -101,6 +101,8 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
     where
         Self: 'a;
     type Owned = i64;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // The timezone is not in the array's Rust type (only the unit is), so

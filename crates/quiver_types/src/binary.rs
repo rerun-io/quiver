@@ -67,6 +67,8 @@ macro_rules! impl_binary_datatype {
             type Typed = $array;
             type Value<'a> = &'a [u8];
             type Owned = Vec<u8>;
+            type Optional = Option<Self>;
+            type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 downcast_array::<$array>(array, || format!("{:?}", $datatype))
@@ -177,6 +179,8 @@ impl LogicalType for AnyBinary {
     type Typed = AnyTypedBinary;
     type Value<'a> = &'a [u8];
     type Owned = Vec<u8>;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         match array.data_type() {

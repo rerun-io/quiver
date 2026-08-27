@@ -41,6 +41,34 @@ pub trait LogicalType {
     /// `String` for `Utf8`, `Option<i64>` for `Option<i64>`, `Vec<…>` for `List<…>`, etc.
     type Owned;
 
+    /// This type, made nullable: `Option<Self>` — except for `Option<L>`, which
+    /// is already nullable and is its own `Optional`.
+    ///
+    /// Nullability is idempotent, and this keeps
+    /// [`Column::optional`](crate::Column::optional) and
+    /// [`ColumnDesc::optional`](crate::ColumnDesc::optional) idempotent with it,
+    /// rather than piling up a meaningless `Option<Option<…>>`.
+    ///
+    /// Always write `type Optional = Option<Self>;`, unless you are the one
+    /// impl for a type that is already nullable.
+    ///
+    /// The `Typed` bound says what makes the conversion free: nullability is a
+    /// property of the validity bitmap, not of the downcast representation, so
+    /// both spellings of the column downcast to the very same thing.
+    type Optional: LogicalType<Typed = Self::Typed>;
+
+    /// This type, made non-nullable: `Self` — except for `Option<L>`, whose
+    /// `Required` is `L`'s (so every `Option` layer comes off).
+    ///
+    /// The counterpart of [`Optional`](LogicalType::Optional), used by
+    /// [`Column::try_required`](crate::Column::try_required) and
+    /// [`ColumnDesc::required`](crate::ColumnDesc::required), and idempotent
+    /// the same way.
+    ///
+    /// Always write `type Required = Self;`, unless you are the one impl for a
+    /// type that is already nullable.
+    type Required: LogicalType<Typed = Self::Typed>;
+
     /// Validates that `array` has an acceptable datatype, then recursively
     /// downcasts it — checking the nulls of all *children* along the way.
     ///
@@ -281,6 +309,8 @@ macro_rules! impl_flat_datatype {
             type Typed = $array;
             type Value<'a> = $value;
             type Owned = $rust;
+            type Optional = ::core::option::Option<Self>;
+            type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 downcast_array::<$array>(array, || format!("{:?}", $datatype))
@@ -365,6 +395,8 @@ macro_rules! impl_marker_datatype {
             type Typed = $array;
             type Value<'a> = $value;
             type Owned = $owned;
+            type Optional = ::core::option::Option<Self>;
+            type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 crate::datatype::downcast_array::<$array>(array, || format!("{:?}", $datatype))

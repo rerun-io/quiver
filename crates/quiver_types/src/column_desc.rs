@@ -129,6 +129,89 @@ impl<L: LogicalType> ColumnDesc<L> {
         }
     }
 
+    /// The same column, read and declared as nullable.
+    ///
+    /// A column can be declared non-nullable and still hold nulls on some code
+    /// path — concatenating a batch that has the column with one that does not,
+    /// for instance. `optional` gives you a descriptor that reads such a batch,
+    /// carrying the [`record_type`](ColumnDesc::record_type),
+    /// [`name`](ColumnDesc::name), and [`metadata`](ColumnDesc::metadata) over,
+    /// so the name stays single-sourced.
+    ///
+    /// Nullability is idempotent: `ColumnDesc<Option<L>>` is its own
+    /// `optional()`, so this never nests into `Option<Option<…>>`.
+    /// [`required`](ColumnDesc::required) goes the other way.
+    ///
+    /// ```
+    /// # use quiver::{ColumnDesc, Binary};
+    /// const CHUNK_KEY: ColumnDesc<Binary> = ColumnDesc::new("Manifest", "chunk_key");
+    ///
+    /// # let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
+    /// #     "chunk_key",
+    /// #     std::sync::Arc::new(quiver::arrow::array::BinaryArray::from(
+    /// #         vec![Some(b"k".as_slice()), None],
+    /// #     )) as quiver::arrow::array::ArrayRef,
+    /// # )])?;
+    /// // The strict descriptor rejects the nulls, the optional one reads them:
+    /// assert!(CHUNK_KEY.extract(&batch).is_err());
+    /// let keys: quiver::Column<Option<Binary>> = CHUNK_KEY.optional().extract(&batch)?;
+    /// assert_eq!(keys.to_vec(), [Some(b"k".to_vec()), None]);
+    ///
+    /// // And it declares the column nullable, under the same name:
+    /// assert!(CHUNK_KEY.optional().arrow_field().is_nullable());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    #[doc(alias = "nullable")]
+    pub const fn optional(self) -> ColumnDesc<L::Optional> {
+        let Self {
+            record_type,
+            name,
+            metadata,
+            _marker,
+        } = self;
+        ColumnDesc::new_with_metadata(record_type, name, metadata)
+    }
+
+    /// The same column, read and declared as non-nullable.
+    ///
+    /// The inverse of [`optional`](ColumnDesc::optional), for the code paths
+    /// where a column declared nullable is known to be filled in, and you want
+    /// values rather than `Option`s — with the same
+    /// [`record_type`](ColumnDesc::record_type), [`name`](ColumnDesc::name),
+    /// and [`metadata`](ColumnDesc::metadata). Every `Option` layer comes off,
+    /// so this is idempotent too.
+    ///
+    /// Nothing is checked here: it is [`extract`](ColumnDesc::extract) that
+    /// errors, with [`ErrorKind::UnexpectedNulls`], if the column does hold
+    /// nulls after all.
+    ///
+    /// ```
+    /// # use quiver::{ColumnDesc, Utf8};
+    /// const NAME: ColumnDesc<Option<Utf8>> = ColumnDesc::new("Person", "name");
+    ///
+    /// # let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
+    /// #     "name",
+    /// #     std::sync::Arc::new(quiver::arrow::array::StringArray::from(vec!["Alice"]))
+    /// #         as quiver::arrow::array::ArrayRef,
+    /// # )])?;
+    /// let names: quiver::Column<Utf8> = NAME.required().extract(&batch)?;
+    /// assert_eq!(names.value(0), "Alice"); // not `Some("Alice")`
+    /// assert!(!NAME.required().arrow_field().is_nullable());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    #[doc(alias = "non_nullable")]
+    pub const fn required(self) -> ColumnDesc<L::Required> {
+        let Self {
+            record_type,
+            name,
+            metadata,
+            _marker,
+        } = self;
+        ColumnDesc::new_with_metadata(record_type, name, metadata)
+    }
+
     /// Extracts and validates this single column of a record batch.
     ///
     /// # Errors

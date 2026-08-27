@@ -91,6 +91,8 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
     where
         Self: 'a;
     type Owned = Vec<L::Owned>;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         match array.data_type() {

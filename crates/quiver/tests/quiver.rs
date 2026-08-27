@@ -775,6 +775,130 @@ fn column_desc_is_parameterized_by_the_logical_type() {
 }
 
 #[test]
+fn column_desc_optional_and_required() {
+    // A batch where the declared-non-nullable column does hold a null:
+    let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
+        "chunk_id",
+        Arc::new(
+            FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+                [Some([1_u8; 16]), None].into_iter(),
+                16,
+            )
+            .unwrap(),
+        ) as ArrayRef,
+    )])
+    .unwrap();
+
+    // The strict descriptor rejects it, the optional one reads it:
+    let err = Annotated::COLUMN_CHUNK_ID.extract(&batch).err().unwrap();
+    assert!(
+        matches!(&*err.kind, ErrorKind::UnexpectedNulls { null_count: 1, .. }),
+        "{err}"
+    );
+    let ids = Annotated::COLUMN_CHUNK_ID
+        .optional()
+        .extract(&batch)
+        .unwrap();
+    assert_eq!(ids.to_vec(), [Some([1_u8; 16]), None]);
+
+    // Name, record type, and declared metadata all carry over — only the
+    // nullability of the arrow field changes:
+    let strict = Annotated::COLUMN_CHUNK_ID;
+    let optional = strict.optional();
+    assert_eq!(optional.name, strict.name);
+    assert_eq!(optional.record_type, strict.record_type);
+    assert_eq!(optional.metadata, strict.metadata);
+    assert!(!strict.arrow_field().is_nullable());
+    assert!(optional.arrow_field().is_nullable());
+    assert_eq!(
+        optional.arrow_field().metadata(),
+        strict.arrow_field().metadata()
+    );
+
+    // `required` is the inverse, and gets back the descriptor we started with:
+    assert_eq!(optional.required(), strict);
+    assert!(!optional.required().arrow_field().is_nullable());
+
+    // Both are idempotent — no `Option<Option<…>>` piles up, and nothing is
+    // left to strip. These annotations are the assertion:
+    let twice_optional: quiver::ColumnDesc<Option<i64>> =
+        Annotated::COLUMN_FRAME_START.optional().optional();
+    let twice_required: quiver::ColumnDesc<i64> =
+        Annotated::COLUMN_FRAME_START.required().required();
+    let already_required: quiver::ColumnDesc<quiver::FixedSizeBinary<16>> = strict.required();
+    assert_eq!(twice_optional, Annotated::COLUMN_FRAME_START.optional());
+    assert_eq!(twice_required, Annotated::COLUMN_FRAME_START.required());
+    assert_eq!(already_required, strict);
+
+    // Only `extract` checks: a nullable column that is in fact null-free reads
+    // strictly, one that isn't errors.
+    let full = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
+        "frame_nr",
+        Arc::new(Int64Array::from(vec![Some(7_i64)])) as ArrayRef,
+    )])
+    .unwrap();
+    let frames: quiver::Column<i64> = Annotated::COLUMN_FRAME_START
+        .required()
+        .extract(&full)
+        .unwrap();
+    assert_eq!(frames.to_vec(), [7]);
+    assert!(
+        Annotated::COLUMN_CHUNK_ID
+            .optional()
+            .required()
+            .extract(&batch)
+            .is_err()
+    );
+}
+
+#[test]
+fn column_optional_and_required() {
+    let ages = quiver::Column::<i64>::from_values([30_i64, 40])
+        .with_metadata([("meta:kind".to_owned(), "control".to_owned())].into());
+
+    // Widening keeps the metadata and the values, and costs nothing:
+    let maybe: quiver::Column<Option<i64>> = ages.optional();
+    assert_eq!(maybe.to_vec(), [Some(30), Some(40)]);
+    assert_eq!(maybe.metadata()["meta:kind"], "control");
+
+    // And back again, metadata included:
+    let strict: quiver::Column<i64> = maybe.try_required().unwrap();
+    assert_eq!(strict.to_vec(), [30, 40]);
+    assert_eq!(strict.metadata()["meta:kind"], "control");
+
+    // A real null is what makes the narrowing fail:
+    let err = quiver::Column::<Option<i64>>::from_values([Some(30_i64), None])
+        .try_required()
+        .err()
+        .unwrap();
+    assert!(
+        matches!(err, quiver::ColumnError::UnexpectedNulls { null_count: 1 }),
+        "{err}"
+    );
+
+    // Empty and all-null are the boundary cases: nothing to reject, everything to reject.
+    assert!(
+        quiver::Column::<Option<i64>>::from_values([] as [Option<i64>; 0])
+            .try_required()
+            .is_ok()
+    );
+    assert!(
+        quiver::Column::<Option<i64>>::from_values([None, None])
+            .try_required()
+            .is_err()
+    );
+
+    // Idempotent in both directions, exactly like the descriptors:
+    let still_optional: quiver::Column<Option<i64>> =
+        quiver::Column::<Option<i64>>::from_values([Some(1_i64)]).optional();
+    let still_required: quiver::Column<i64> = quiver::Column::<i64>::from_values([1_i64])
+        .try_required()
+        .unwrap();
+    assert_eq!(still_optional.to_vec(), [Some(1)]);
+    assert_eq!(still_required.to_vec(), [1]);
+}
+
+#[test]
 fn column_descs_are_copy_debug_and_comparable() {
     // `Utf8` and friends derive nothing, so a descriptor over one only compiles
     // here because the impls put no bound on `L`:

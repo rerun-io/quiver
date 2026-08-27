@@ -75,6 +75,8 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
     where
         Self: 'a;
     type Owned = Vec<(K::Owned, V::Owned)>;
+    type Optional = Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // `downcast_array` checks it's a `MapArray` (whose entries are, by arrow

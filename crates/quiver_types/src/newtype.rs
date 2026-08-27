@@ -110,6 +110,8 @@ macro_rules! newtype_datatype {
             where
                 Self: 'a;
             type Owned = $newtype;
+            type Optional = ::core::option::Option<Self>;
+            type Required = Self;
 
             fn downcast(
                 array: &dyn $crate::arrow::array::Array,
@@ -259,6 +261,8 @@ macro_rules! try_newtype_datatype {
             where
                 Self: 'a;
             type Owned = $newtype;
+            type Optional = ::core::option::Option<Self>;
+            type Required = Self;
 
             fn downcast(
                 array: &dyn $crate::arrow::array::Array,
@@ -386,6 +390,8 @@ where
     where
         Self: 'a;
     type Owned = T;
+    type Optional = ::core::option::Option<Self>;
+    type Required = Self;
 
     fn downcast(array: &dyn arrow::array::Array) -> Result<Self::Typed, ColumnError> {
         Repr::downcast(array)

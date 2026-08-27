@@ -203,6 +203,32 @@ impl<L: LogicalType> TypedArray<L> {
     pub fn into_arrow(self) -> ArrayRef {
         self.array
     }
+
+    /// The same array, read as nullable; backs [`Column::optional`](crate::Column::optional).
+    ///
+    /// Free: nullability lives in the validity bitmap, and
+    /// [`LogicalType::Optional`] is bound to the same `Typed`, so there is
+    /// nothing to re-validate or re-downcast.
+    pub(crate) fn into_optional(self) -> TypedArray<L::Optional> {
+        let Self { array, typed } = self;
+        TypedArray { array, typed }
+    }
+
+    /// The same array, read as non-nullable; backs
+    /// [`Column::try_required`](crate::Column::try_required).
+    ///
+    /// Only the top-level validity needs checking: the child levels were
+    /// validated when this array was built, and dropping the `Option` at this
+    /// level does not touch them.
+    pub(crate) fn try_into_required(self) -> Result<TypedArray<L::Required>, ColumnError> {
+        let null_count = self.array.null_count();
+        if 0 < null_count {
+            return Err(ColumnError::UnexpectedNulls { null_count });
+        }
+
+        let Self { array, typed } = self;
+        Ok(TypedArray { array, typed })
+    }
 }
 
 /// Construction and schema, for logical types with a single concrete arrow
