@@ -87,7 +87,11 @@ enum ColumnKind {
 
     /// `quiver::Column<L>` — a strongly-typed wrapper. Validates itself
     /// (exact datatype incl. nested types, and nullability from the logical type).
-    Wrapper { column_type: Box<syn::Type> },
+    Wrapper {
+        /// The `L` of the `Column<L>`; the column type itself is
+        /// `#krate::Column<#logical_type>`.
+        logical_type: Box<syn::Type>,
+    },
 }
 
 impl Quiver {
@@ -273,13 +277,18 @@ impl Quiver {
                 .iter()
                 .map(|(key, value)| quote! { (#key, #value) });
             let declared = quote! { &[#(#declared),*] };
+            let construct = if declared_metadata.is_empty() {
+                quote! { new(#record_type, Self::#name_const_ident) }
+            } else {
+                quote! { new_with_metadata(#record_type, Self::#name_const_ident, #declared) }
+            };
             match kind {
-                ColumnKind::Wrapper { column_type } => quote! {
+                ColumnKind::Wrapper { logical_type } => quote! {
                     #name_const
 
                     #[doc = #doc]
-                    pub const #const_ident: #krate::ColumnDesc<#column_type> =
-                        #krate::ColumnDesc::new(#record_type, Self::#name_const_ident, #declared);
+                    pub const #const_ident: #krate::ColumnDesc<#logical_type> =
+                        #krate::ColumnDesc::#construct;
                 },
                 ColumnKind::Any | ColumnKind::Typed { .. } | ColumnKind::Downcast { .. } => {
                     quote! {
@@ -324,11 +333,11 @@ impl Quiver {
                     .with_metadata([#(#declared),*].into_iter().collect())
                 };
                 let field = match kind {
-                    ColumnKind::Wrapper { column_type } => quote! {
+                    ColumnKind::Wrapper { logical_type } => quote! {
                         #krate::arrow::datatypes::Field::new(
                             #column_name,
-                            <#column_type>::datatype(),
-                            <#column_type>::NULLABLE,
+                            <#krate::Column<#logical_type>>::datatype(),
+                            <#krate::Column<#logical_type>>::NULLABLE,
                         )
                         #metadata
                     },
@@ -607,10 +616,10 @@ impl ColumnField {
         } = self;
 
         // Wrappers also need the arrow `Field` (for the metadata), so they bind differently:
-        if let ColumnKind::Wrapper { column_type } = kind {
+        if let ColumnKind::Wrapper { logical_type } = kind {
             // `array` is a `&ArrayRef`, `field` is a `&Field`:
             let convert = quote! {
-                <#column_type>::try_new(::std::sync::Arc::clone(array))
+                <#krate::Column<#logical_type>>::try_new(::std::sync::Arc::clone(array))
                     .map_err(|err| #krate::Error {
                         record_type: #record_type,
                         kind: err.for_column(#column_name.to_owned()),
@@ -771,7 +780,7 @@ impl ColumnField {
                 ));
                 columns.push(::std::sync::Arc::new(array));
             },
-            ColumnKind::Wrapper { column_type } => quote! {
+            ColumnKind::Wrapper { logical_type } => quote! {
                 // Declared metadata first; the per-instance metadata wins on key conflicts:
                 let mut metadata: ::std::collections::HashMap<::std::string::String, ::std::string::String> =
                     #declared.into_iter().collect();
@@ -784,8 +793,8 @@ impl ColumnField {
                 fields.push(::std::sync::Arc::new(
                     #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        <#column_type>::datatype(),
-                        <#column_type>::NULLABLE,
+                        <#krate::Column<#logical_type>>::datatype(),
+                        <#krate::Column<#logical_type>>::NULLABLE,
                     )
                     .with_metadata(metadata),
                 ));
@@ -861,6 +870,30 @@ fn classify_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<(bool, Column
     }
 }
 
+/// The `L` of a `quiver::Column<L>` path segment.
+fn logical_type_of_column(segment: &syn::PathSegment) -> syn::Result<syn::Type> {
+    let expected_one_type = || {
+        syn::Error::new_spanned(
+            segment,
+            "Expected exactly one logical type parameter, e.g. `Column<Utf8>` or `Column<Option<i64>>`",
+        )
+    };
+
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return Err(expected_one_type());
+    };
+
+    let mut types = arguments.args.iter().filter_map(|argument| match argument {
+        syn::GenericArgument::Type(ty) => Some(ty),
+        _ => None,
+    });
+
+    match (types.next(), types.next()) {
+        (Some(ty), None) => Ok(ty.clone()),
+        _ => Err(expected_one_type()),
+    }
+}
+
 fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnKind> {
     let unsupported = |ty: &syn::Type| {
         syn::Error::new_spanned(
@@ -884,7 +917,7 @@ fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnK
         Ok(ColumnKind::Any)
     } else if type_name == "Column" {
         Ok(ColumnKind::Wrapper {
-            column_type: Box::new(ty.clone()),
+            logical_type: Box::new(logical_type_of_column(segment)?),
         })
     } else if let Some(datatype) = datatype_of_array(krate, &type_name) {
         Ok(ColumnKind::Typed {

@@ -13,7 +13,7 @@
 //!   A [`Column<L>`](Column) is a [`TypedArray<L>`](TypedArray) plus metadata;
 //!   use a [`TypedArray<L>`](TypedArray) directly for arrays that aren't
 //!   record batch columns.
-//! * [`ColumnDesc<Column<L>>`](ColumnDesc): a named handle on one column,
+//! * [`ColumnDesc<L>`](ColumnDesc): a named handle on one column,
 //!   holding no data. It knows both the column name and `L`, so it can
 //!   [`extract`](ColumnDesc::extract) a [`Column<L>`](Column) from a record
 //!   batch, or validate a loose `ArrayRef` into a
