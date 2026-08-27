@@ -6,7 +6,7 @@
 //! fully typed, and zero-copy.
 
 use arrow::array::ArrayRef;
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Field};
 
 use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
 use crate::typed_array::TypedArray;
@@ -258,6 +258,25 @@ impl<L: crate::ConcreteType> Column<L> {
     #[must_use]
     pub fn datatype() -> DataType {
         L::datatype()
+    }
+
+    /// Forgets the static type: the same data, as a dynamically-typed column
+    /// whose arrow field is called `name`.
+    ///
+    /// The field carries the datatype and nullability of `L`, plus this
+    /// column's [`metadata`](Column::metadata). Zero-copy: the array is moved.
+    ///
+    /// The inverse is [`DynColumn::try_into_column`].
+    #[must_use]
+    pub fn into_dyn(self, name: impl Into<String>) -> crate::DynColumn {
+        let Self { array, metadata } = self;
+        crate::DynColumn {
+            field: std::sync::Arc::new(
+                Field::new(name, L::datatype(), L::NULLABLE)
+                    .with_metadata(metadata.into_iter().collect()),
+            ),
+            array: array.into_arrow(),
+        }
     }
 }
 
