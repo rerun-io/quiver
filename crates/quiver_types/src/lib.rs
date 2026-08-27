@@ -47,7 +47,7 @@ mod typed_array;
 
 pub use self::any_list::{AnyList, AnyTypedList};
 pub use self::binary::{AnyBinary, AnyTypedBinary, Binary, BinaryView, LargeBinary};
-pub use self::column::{Column, ColumnIntoIter, ColumnIter};
+pub use self::column::Column;
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::datatype::{
     ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveType, RefType,
@@ -74,6 +74,7 @@ pub use self::timestamp::{
     TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond, TimestampSecond, TimezoneSpec,
     Utc,
 };
+pub use self::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
 
 /// A single dynamically-typed column of a record batch:
 /// the field description plus the actual data.

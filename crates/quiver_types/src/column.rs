@@ -9,7 +9,7 @@ use arrow::array::ArrayRef;
 use arrow::datatypes::{DataType, Field};
 
 use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
-use crate::typed_array::TypedArray;
+use crate::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
 use crate::{ColumnError, Error, ErrorKind, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
@@ -172,12 +172,8 @@ impl<L: LogicalType> Column<L> {
     ///
     /// For owned values, see [`Column::iter_owned`].
     #[must_use]
-    pub fn iter(&self) -> ColumnIter<'_, L> {
-        ColumnIter {
-            column: self,
-            index: 0,
-            end: self.len(),
-        }
+    pub fn iter(&self) -> TypedArrayIter<'_, L> {
+        self.array.iter()
     }
 
     /// Iterates over owned values — e.g. `String` (or your newtype)
@@ -185,7 +181,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// May allocate per element (e.g. string columns).
     pub fn iter_owned(&self) -> impl Iterator<Item = L::Owned> + '_ {
-        self.iter().map(L::to_owned_value)
+        self.array.iter_owned()
     }
 
     /// Consumes the column, iterating over owned values — e.g. `String`
@@ -194,20 +190,15 @@ impl<L: LogicalType> Column<L> {
     /// May allocate per element (e.g. string columns); for borrowed views,
     /// iterate `&column` (or call [`Column::iter`]) instead.
     #[must_use]
-    pub fn into_iter_owned(self) -> ColumnIntoIter<L> {
-        let end = self.len();
-        ColumnIntoIter {
-            column: self,
-            index: 0,
-            end,
-        }
+    pub fn into_iter_owned(self) -> TypedArrayIntoIter<L> {
+        self.array.into_iter_owned()
     }
 
     /// Copies the values into a `Vec` of owned values,
     /// e.g. `Vec<String>` for a `Column<Utf8>`.
     #[must_use]
     pub fn to_vec(&self) -> Vec<L::Owned> {
-        self.iter_owned().collect()
+        self.array.to_vec()
     }
 
     /// A zero-copy slice of the rows `offset..offset + length`.
@@ -218,9 +209,22 @@ impl<L: LogicalType> Column<L> {
     /// If the range is out of bounds (like arrow's `slice`).
     #[must_use]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
-        Self::try_new(self.array.as_arrow().slice(offset, length))
-            .expect("Cannot fail: slicing preserves datatype and validity")
-            .with_metadata(self.metadata.clone())
+        Self {
+            array: self.array.slice(offset, length),
+            metadata: self.metadata.clone(),
+        }
+    }
+
+    /// The data half of this column: the typed array, without the metadata.
+    #[must_use]
+    pub fn as_typed_array(&self) -> &TypedArray<L> {
+        &self.array
+    }
+
+    /// Discards the metadata, keeping the typed array.
+    #[must_use]
+    pub fn into_typed_array(self) -> TypedArray<L> {
+        self.array
     }
 
     /// The underlying arrow array.
@@ -302,7 +306,7 @@ impl<L: RefType> std::ops::Index<usize> for Column<L> {
     type Output = L::Ref;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.array.value_ref(index)
+        &self.array[index]
     }
 }
 
@@ -324,7 +328,7 @@ impl<L: PrimitiveType> Column<L> {
     /// ```
     #[must_use]
     pub fn as_slice(&self) -> &[L::Native] {
-        self.array.values()
+        self.array.as_slice()
     }
 }
 
@@ -429,165 +433,21 @@ impl<L: LogicalType> TryFrom<ArrayRef> for Column<L> {
     }
 }
 
-/// Iterator over the values of a [`Column`].
-///
-/// The column length is fixed and was validated at construction, so each step
-/// reads with [`value_unchecked`](LogicalType::value_unchecked) — no
-/// per-element bounds check — and the combinators are overridden to skip the
-/// default `next`-based `Option` plumbing.
-pub struct ColumnIter<'a, L: LogicalType> {
-    column: &'a Column<L>,
-    index: usize,
-    end: usize,
-}
-
-impl<'a, L: LogicalType + 'a> Iterator for ColumnIter<'a, L> {
-    type Item = L::Value<'a>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.end {
-            // SAFETY: index < end <= column length.
-            let value = unsafe { self.column.array.value_unchecked(self.index) };
-            self.index += 1;
-            Some(value)
-        } else {
-            None
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.end - self.index;
-        (remaining, Some(remaining))
-    }
-
-    fn count(self) -> usize {
-        self.end - self.index
-    }
-
-    fn last(self) -> Option<Self::Item> {
-        // SAFETY: when non-empty, `end - 1` is in `index..end`.
-        (self.index < self.end).then(|| unsafe { self.column.array.value_unchecked(self.end - 1) })
-    }
-
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        match self.index.checked_add(n) {
-            Some(target) if target < self.end => {
-                self.index = target + 1;
-                // SAFETY: target < end <= column length.
-                Some(unsafe { self.column.array.value_unchecked(target) })
-            }
-            _ => {
-                self.index = self.end;
-                None
-            }
-        }
-    }
-
-    fn fold<B, F>(self, init: B, mut f: F) -> B
-    where
-        F: FnMut(B, Self::Item) -> B,
-    {
-        let Self { column, index, end } = self;
-        let mut acc = init;
-        for i in index..end {
-            // SAFETY: i < end <= column length.
-            acc = f(acc, unsafe { column.array.value_unchecked(i) });
-        }
-        acc
-    }
-}
-
-impl<'a, L: LogicalType + 'a> DoubleEndedIterator for ColumnIter<'a, L> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.index < self.end {
-            self.end -= 1;
-            // SAFETY: the new `end` is in `index..old end`, hence in bounds.
-            Some(unsafe { self.column.array.value_unchecked(self.end) })
-        } else {
-            None
+/// A typed array becomes a column with no metadata.
+impl<L: LogicalType> From<TypedArray<L>> for Column<L> {
+    fn from(array: TypedArray<L>) -> Self {
+        Self {
+            array,
+            metadata: std::collections::BTreeMap::new(),
         }
     }
 }
-
-impl<'a, L: LogicalType + 'a> ExactSizeIterator for ColumnIter<'a, L> {}
-
-impl<'a, L: LogicalType + 'a> std::iter::FusedIterator for ColumnIter<'a, L> {}
 
 impl<'a, L: LogicalType + 'a> IntoIterator for &'a Column<L> {
     type Item = L::Value<'a>;
-    type IntoIter = ColumnIter<'a, L>;
+    type IntoIter = TypedArrayIter<'a, L>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
-
-/// By-value iterator over the owned values of a [`Column`],
-/// created by [`Column::into_iter_owned`].
-///
-/// `Column` deliberately does **not** implement [`IntoIterator`] by value:
-/// `for x in column` would have to allocate (owned values), so that path is
-/// explicit via [`into_iter_owned`](Column::into_iter_owned). Iterate
-/// `&column` for the zero-copy borrowed views.
-pub struct ColumnIntoIter<L: LogicalType> {
-    column: Column<L>,
-    index: usize,
-    end: usize,
-}
-
-impl<L: LogicalType> Iterator for ColumnIntoIter<L> {
-    type Item = L::Owned;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.end {
-            // SAFETY: index < end <= column length.
-            let value = unsafe { self.column.array.value_unchecked(self.index) };
-            let value = L::to_owned_value(value);
-            self.index += 1;
-            Some(value)
-        } else {
-            None
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.end - self.index;
-        (remaining, Some(remaining))
-    }
-
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        match self.index.checked_add(n) {
-            Some(target) if target < self.end => {
-                self.index = target + 1;
-                // SAFETY: target < end <= column length.
-                Some(L::to_owned_value(unsafe {
-                    self.column.array.value_unchecked(target)
-                }))
-            }
-            _ => {
-                self.index = self.end;
-                None
-            }
-        }
-    }
-}
-
-impl<L: LogicalType> DoubleEndedIterator for ColumnIntoIter<L> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.index < self.end {
-            self.end -= 1;
-            // SAFETY: the new `end` is in `index..old end`, hence in bounds.
-            Some(L::to_owned_value(unsafe {
-                self.column.array.value_unchecked(self.end)
-            }))
-        } else {
-            None
-        }
-    }
-}
-
-impl<L: LogicalType> ExactSizeIterator for ColumnIntoIter<L> {}
-
-impl<L: LogicalType> std::iter::FusedIterator for ColumnIntoIter<L> {}
