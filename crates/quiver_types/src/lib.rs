@@ -56,6 +56,7 @@ mod duration;
 mod error;
 mod fixed_size_binary;
 mod fixed_size_list;
+mod ignore_validity;
 mod large_list;
 mod list;
 mod list_value;
@@ -87,6 +88,7 @@ pub use self::duration::{
 pub use self::error::{Error, ErrorKind};
 pub use self::fixed_size_binary::FixedSizeBinary;
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
+pub use self::ignore_validity::IgnoreValidity;
 pub use self::large_list::{LargeList, TypedLargeList};
 pub use self::list::{List, TypedList};
 pub use self::list_value::ListValue;

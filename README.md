@@ -184,7 +184,7 @@ What is checked when parsing a `RecordBatch`:
 |                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
 |----------------|------------------------------------------------------------------------------|------------------------------------------------------------------|
 | Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Structural match, recursively (`List<Utf8>` ≠ `List<i64>`; inner field names/nullability flags/metadata are not compared — actual nulls are what matters) |
-| Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
+| Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth (unless wrapped in `IgnoreValidity<L>`) |
 | Timestamps     | Unit checked; the timezone must be `None` (`TimestampNanosecondArray`)       | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
 | Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
 | Cost           | None                                                                         | One eager validation at the parse boundary; cheap (see below)     |
@@ -257,6 +257,36 @@ The supported logical types:
 | `AnyList<L>`                                 | *any* list encoding above    | An iterator over the items |
 | `Map<K, V>`                                  | `Map(…)`, recursively        | An iterator over `(key, value)` pairs |
 | `Option<L>`                                  | Nullable at this level       | `Option<…>`               |
+| `IgnoreValidity<L>`                          | As `L`, mask ignored         | As `L`                    |
+
+### Datatypes whose validity mask is meaningless
+
+A few arrow datatypes declare, as part of their contract, that their validity
+mask carries no information: every slot holds a real value, and a producer may
+attach a mask anyway. Quiver's strict default rejects such a column, so
+`IgnoreValidity<L>` exists to say "read the values regardless":
+
+```rust
+# use std::sync::Arc;
+# use quiver::arrow::array::{ArrayRef, Int64Array};
+use quiver::{Column, IgnoreValidity};
+
+let array: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None, Some(3)]));
+
+assert!(Column::<i64>::try_new(ArrayRef::clone(&array)).is_err()); // strict
+let column = Column::<IgnoreValidity<i64>>::try_new(array)?;
+assert_eq!(column.as_slice(), &[1, 0, 3]); // bulk, zero-copy, mask ignored
+# Ok::<(), quiver::ColumnError>(())
+```
+
+It changes only whether a mask is *rejected*: the declared datatype, the
+nullability of the arrow field, and the values are all `L`'s, so
+`Column<IgnoreValidity<L>>` reads exactly like `Column<L>`. It also composes
+with `newtype_datatype!`, which forwards the decision from the representation —
+so a newtype declares it once and every `Column<MyType>` inherits it.
+
+This is a read-side escape hatch: an array whose non-nullable field carries a
+mask is not valid arrow, and quiver will not emit one.
 
 ### Semi-dynamic logical types
 

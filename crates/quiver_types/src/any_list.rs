@@ -105,7 +105,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
             DataType::FixedSizeList(_, _) => {
                 let array =
                     downcast_array::<FixedSizeListArray>(array, || "FixedSizeList(…)".to_owned())?;
-                if !L::NULLABLE {
+                if L::REJECTS_NULLS {
                     let null_count = logical_item_null_count(&array);
                     if 0 < null_count {
                         return Err(ColumnError::UnexpectedNulls { null_count });

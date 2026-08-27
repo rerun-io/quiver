@@ -86,13 +86,13 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
 
         // Keys are never null in a valid arrow map, but a sliced or null-row map
         // may carry physical nulls; only *reachable* nulls would be a real error.
-        if !K::NULLABLE {
+        if K::REJECTS_NULLS {
             let null_count = logical_child_null_count(&map, map.keys());
             if 0 < null_count {
                 return Err(ColumnError::UnexpectedNulls { null_count });
             }
         }
-        if !V::NULLABLE {
+        if V::REJECTS_NULLS {
             let null_count = logical_child_null_count(&map, map.values());
             if 0 < null_count {
                 return Err(ColumnError::UnexpectedNulls { null_count });

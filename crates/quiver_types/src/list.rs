@@ -75,7 +75,7 @@ macro_rules! impl_list_datatype {
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 let list =
                     downcast_array::<$array>(array, || format!("{}(…)", stringify!($variant)))?;
-                if !L::NULLABLE {
+                if L::REJECTS_NULLS {
                     // Only count *logical* nulls: items that can actually be reached
                     // through some valid row. Sliced arrays may have nulls outside the
                     // referenced range, and null rows may cover garbage item ranges.

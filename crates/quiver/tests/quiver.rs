@@ -1186,3 +1186,60 @@ fn column_name_constants_in_patterns() {
     // Renames are honored:
     assert_eq!(Annotated::COLUMN_FRAME_START_NAME, "frame_nr");
 }
+
+/// A derived struct holding a column whose validity mask is meaningless by
+/// datatype contract — the case `IgnoreValidity` exists for.
+#[derive(Quiver)]
+struct Manifest {
+    id: quiver::Column<quiver::IgnoreValidity<quiver::FixedSizeBinary<16>>>,
+    name: quiver::Column<Utf8>,
+}
+
+#[test]
+fn derive_accepts_ignore_validity_columns() {
+    // A producer that attached a mask the datatype says nothing lives in:
+    let ids: ArrayRef = Arc::new(
+        FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+            [Some([1_u8; 16]), None].into_iter(),
+            16,
+        )
+        .unwrap(),
+    );
+    let batch = batch_of(&[
+        ("id", ids),
+        ("name", Arc::new(StringArray::from(vec!["a", "b"]))),
+    ]);
+
+    let manifest = Manifest::try_from(batch).unwrap();
+    assert_eq!(manifest.id.as_slice(), &[[1_u8; 16], [0; 16]]);
+    assert_eq!(manifest.name.to_vec(), ["a", "b"]);
+
+    // The schema the derive declares is the plain non-nullable one:
+    let field = Manifest::COLUMN_ID.arrow_field();
+    assert!(!field.is_nullable());
+    assert_eq!(field.data_type(), &DataType::FixedSizeBinary(16));
+
+    // Writing back is where the leniency stops: the mask rides along on the
+    // validated array, and arrow will not put a masked array in the
+    // non-nullable field the schema declares. The error is arrow's, and clear.
+    let err = manifest.into_record_batch().unwrap_err();
+    assert_eq!(err.record_type, "Manifest");
+    assert!(
+        matches!(&*err.kind, ErrorKind::BuildRecordBatch(inner)
+            if inner.to_string().contains("declared as non-nullable")),
+        "{err}"
+    );
+
+    // A column that never had a mask round-trips as any other column does:
+    let manifest = Manifest {
+        id: quiver::Column::from_values([[1_u8; 16]]),
+        name: quiver::Column::from_values(["a"]),
+    };
+    let batch = manifest.into_record_batch().unwrap();
+    assert_eq!(batch.column(0).null_count(), 0);
+    assert!(!batch.schema_ref().field(0).is_nullable());
+    assert_eq!(
+        Manifest::try_from(batch).unwrap().id.as_slice(),
+        &[[1_u8; 16]]
+    );
+}

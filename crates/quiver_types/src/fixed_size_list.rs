@@ -75,7 +75,7 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
                 actual: array.data_type().clone(),
             });
         }
-        if !L::NULLABLE {
+        if L::REJECTS_NULLS {
             // Only count *logical* nulls: items reachable through valid rows.
             // (Null rows have placeholder item slots; slicing leaves items
             // outside the window.)

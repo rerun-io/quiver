@@ -96,7 +96,7 @@ macro_rules! impl_list_view_datatype {
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 let list =
                     downcast_array::<$array>(array, || format!("{}(…)", stringify!($variant)))?;
-                if !L::NULLABLE {
+                if L::REJECTS_NULLS {
                     // Only count *logical* nulls: items reachable through some
                     // valid row. List-view ranges can overlap or be unordered,
                     // so this is summed per row, not over a single window.

@@ -25,7 +25,30 @@ use crate::ErrorKind;
 /// ```
 pub trait LogicalType {
     /// May the values at this level be null? (`true` only for `Option<…>`)
+    ///
+    /// This is the *read* side of nullability: it decides whether
+    /// [`Value`](LogicalType::Value) is an `Option`, and what
+    /// [`arrow_field`](crate::ColumnDesc::arrow_field) declares. Whether a
+    /// validity mask is *rejected* is the separate
+    /// [`REJECTS_NULLS`](LogicalType::REJECTS_NULLS).
     const NULLABLE: bool = false;
+
+    /// Is a validity mask at this level an error?
+    ///
+    /// The default — reject nulls at every level that is not an `Option` — is
+    /// what makes a [`Column`](crate::Column) null-free by construction, and is
+    /// right for every logical type in this crate.
+    ///
+    /// [`IgnoreValidity<L>`](crate::IgnoreValidity) sets it to `false`: for an
+    /// arrow datatype whose contract declares the validity mask meaningless,
+    /// the values are read regardless. Setting this yourself is the same
+    /// assertion, and the same responsibility — every slot must hold a value
+    /// you are happy to read.
+    ///
+    /// Consulted by [`Column::try_new`](crate::Column::try_new) for the column
+    /// itself, and by each nested datatype's
+    /// [`downcast`](LogicalType::downcast) for its children.
+    const REJECTS_NULLS: bool = !Self::NULLABLE;
 
     /// The fully-downcast, validated representation of one column of this datatype.
     /// Cheap to clone (arrow arrays are reference-counted).

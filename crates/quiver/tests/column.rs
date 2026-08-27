@@ -12,8 +12,8 @@ use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema};
 use quiver::arrow::error::ArrowError;
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnError, Duration, DynColumn, ErrorKind, FixedSizeBinary, List, Millisecond,
-    Nanosecond, Second, Timestamp, Utc, Utf8,
+    Column, ColumnError, Duration, DynColumn, ErrorKind, FixedSizeBinary, IgnoreValidity, List,
+    Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
 #[test]
@@ -2044,4 +2044,193 @@ fn dyn_column_validation_names_the_field() {
     };
     let column: Column<i64> = dynamic.try_into_column().unwrap();
     assert_eq!(column.to_vec(), [1, 2]);
+}
+
+// ----------------------------------------------------------------------------
+// `IgnoreValidity<L>`: arrow datatypes whose validity mask carries no
+// information.
+
+/// A `[u8; 16]`-backed newtype whose datatype contract declares the validity
+/// mask meaningless — the decision lives in the representation, so every
+/// `Column<Tuid>` inherits it.
+#[derive(Debug, PartialEq, Clone, Copy, quiver::bytemuck::Pod, quiver::bytemuck::Zeroable)]
+#[bytemuck(crate = "::quiver::bytemuck")]
+#[repr(transparent)]
+struct Tuid([u8; 16]);
+
+impl From<[u8; 16]> for Tuid {
+    fn from(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl From<Tuid> for [u8; 16] {
+    fn from(tuid: Tuid) -> Self {
+        tuid.0
+    }
+}
+
+quiver::newtype_datatype!(Tuid, IgnoreValidity<FixedSizeBinary<16>>, primitive);
+
+/// A fixed-size-binary array whose mask says the middle element is null, while
+/// the value buffer is fully populated — the shape a datatype that declares its
+/// validity meaningless produces.
+fn masked_ids() -> ArrayRef {
+    let values: Vec<u8> = [[1_u8; 16], [2; 16], [3; 16]].concat();
+    let nulls = quiver::arrow::buffer::NullBuffer::from(vec![true, false, true]);
+    Arc::new(FixedSizeBinaryArray::new(
+        16,
+        quiver::arrow::buffer::Buffer::from(values),
+        Some(nulls),
+    ))
+}
+
+#[test]
+fn ignore_validity_reads_through_the_mask() {
+    let array: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None, Some(3)]));
+
+    // Strict is still strict:
+    assert!(matches!(
+        Column::<i64>::try_new(ArrayRef::clone(&array)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+
+    // …and the escape hatch reads the values as they are, mask and all.
+    let column = Column::<IgnoreValidity<i64>>::try_new(ArrayRef::clone(&array)).unwrap();
+    assert_eq!(column.len(), 3);
+    assert_eq!(column.value(1), 0); // arrow zero-fills the masked slot
+    assert_eq!(column.to_vec(), [1, 0, 3]);
+    assert_eq!(column.as_slice(), &[1, 0, 3]); // the whole point: bulk, zero-copy
+    assert_eq!(&column[2], &3);
+    assert_eq!(column.iter().collect::<Vec<i64>>(), [1, 0, 3]);
+
+    // The mask is still there on the arrow side, for anyone who wants to look:
+    assert_eq!(column.as_arrow().null_count(), 1);
+
+    // An array with no mask at all is the common case, and behaves the same:
+    let unmasked = Column::<IgnoreValidity<i64>>::from_values([1_i64, 0, 3]);
+    assert_eq!(unmasked.as_arrow().null_count(), 0);
+    assert_eq!(unmasked.to_vec(), column.to_vec());
+
+    // Slicing follows the logical window, as for any other primitive column:
+    assert_eq!(column.slice(1, 2).as_slice(), &[0, 3]);
+}
+
+#[test]
+fn ignore_validity_keeps_the_declared_datatype() {
+    const IDS: quiver::ColumnDesc<IgnoreValidity<FixedSizeBinary<16>>> =
+        quiver::ColumnDesc::new("Manifest", "id");
+
+    // Not nullable: the field is not nullable, the mask is just noise.
+    const { assert!(!Column::<IgnoreValidity<i64>>::NULLABLE) };
+    assert_eq!(
+        Column::<IgnoreValidity<i64>>::datatype(),
+        Column::<i64>::datatype()
+    );
+
+    assert!(!IDS.arrow_field().is_nullable());
+    assert_eq!(
+        IDS.arrow_field().data_type(),
+        &DataType::FixedSizeBinary(16)
+    );
+
+    // Extraction through a descriptor accepts the masked array…
+    let batch = RecordBatch::try_from_iter_with_nullable([("id", masked_ids(), true)]).unwrap();
+    assert_eq!(IDS.extract(&batch).unwrap().len(), 3);
+    // …where the strict descriptor for the same column does not.
+    let strict = quiver::ColumnDesc::<FixedSizeBinary<16>>::new("Manifest", "id");
+    assert!(matches!(
+        *strict.extract(&batch).unwrap_err().kind,
+        ErrorKind::UnexpectedNulls { null_count: 1, .. }
+    ));
+}
+
+#[test]
+fn ignore_validity_through_a_newtype() {
+    // The issue this exists for: a masked array, read as `&[Tuid]`, zero-copy.
+    // The masked slot reads back whatever the producer left in the buffer —
+    // here real bytes, not the zeros arrow happens to write when *it* builds
+    // the array (see `derive_accepts_ignore_validity_columns`).
+    let column = Column::<Tuid>::try_new(masked_ids()).unwrap();
+    let tuids: &[Tuid] = column.as_slice();
+    assert_eq!(tuids, &[Tuid([1; 16]), Tuid([2; 16]), Tuid([3; 16])]);
+
+    // …and the newtype is still an ordinary non-nullable column otherwise.
+    const { assert!(!Column::<Tuid>::NULLABLE) };
+    assert_eq!(Column::<Tuid>::datatype(), DataType::FixedSizeBinary(16));
+    assert_eq!(column.value_owned(0), Tuid([1; 16]));
+
+    // Building goes through the representation, so it produces no mask:
+    let built = Column::<Tuid>::from_values([Tuid([7; 16])]);
+    assert_eq!(built.as_arrow().null_count(), 0);
+    assert_eq!(built.as_slice(), &[Tuid([7; 16])]);
+}
+
+#[test]
+fn ignore_validity_speaks_only_for_its_own_level() {
+    // A list column whose *rows* are masked, and whose items are all present.
+    let items = Int64Array::from(vec![1, 2, 3]);
+    let offsets = quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
+    let nulls = quiver::arrow::buffer::NullBuffer::from(vec![true, false]);
+    let rows: ArrayRef = Arc::new(ListArray::new(
+        Arc::new(Field::new("item", DataType::Int64, false)),
+        offsets,
+        Arc::new(items),
+        Some(nulls),
+    ));
+
+    // The row mask is what `IgnoreValidity` at the outer level ignores:
+    assert!(matches!(
+        Column::<List<i64>>::try_new(ArrayRef::clone(&rows)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    let column = Column::<IgnoreValidity<List<i64>>>::try_new(rows).unwrap();
+    assert_eq!(column.value(0).to_vec(), [1, 2]);
+    assert_eq!(column.value(1).to_vec(), [3]); // read regardless of the mask
+
+    // Masked *items* are a different level, and the outer wrapper does not
+    // reach them:
+    let masked_items: ArrayRef = Arc::new(ListArray::new(
+        Arc::new(Field::new("item", DataType::Int64, true)),
+        quiver::arrow::buffer::OffsetBuffer::new(vec![0, 2].into()),
+        Arc::new(Int64Array::from(vec![Some(1), None])),
+        None,
+    ));
+    assert!(matches!(
+        Column::<IgnoreValidity<List<i64>>>::try_new(ArrayRef::clone(&masked_items)),
+        Err(ColumnError::UnexpectedNulls { null_count: 1 })
+    ));
+    // Put it at the item level instead:
+    let column = Column::<List<IgnoreValidity<i64>>>::try_new(masked_items).unwrap();
+    assert_eq!(column.value(0).to_vec(), [1, 0]);
+}
+
+#[test]
+fn ignore_validity_never_reads_as_null() {
+    let array: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
+
+    // `is_null` is `false` by contract, so wrapping in `Option` — which is a
+    // contradiction in terms — reads as all-`Some` rather than following the mask.
+    let optional = Column::<Option<IgnoreValidity<i64>>>::try_new(ArrayRef::clone(&array)).unwrap();
+    assert_eq!(optional.to_vec(), [Some(1), Some(0)]);
+
+    // …and narrowing back cannot fail, even though the mask is still there:
+    let required = optional.try_required().unwrap();
+    assert_eq!(required.as_slice(), &[1, 0]);
+
+    // Whereas plain `Option<i64>` follows the mask, and refuses to narrow:
+    let honest = Column::<Option<i64>>::try_new(array).unwrap();
+    assert_eq!(honest.to_vec(), [Some(1), None]);
+    assert!(honest.try_required().is_err());
+}
+
+#[test]
+fn ignore_validity_nests_harmlessly() {
+    // Not idempotent in the type, but idempotent in behaviour: wrapping twice
+    // is the same column.
+    let array: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
+    let twice =
+        Column::<IgnoreValidity<IgnoreValidity<i64>>>::try_new(ArrayRef::clone(&array)).unwrap();
+    let once = Column::<IgnoreValidity<i64>>::try_new(array).unwrap();
+    assert_eq!(twice.as_slice(), once.as_slice());
 }
