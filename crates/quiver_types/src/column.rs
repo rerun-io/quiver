@@ -266,7 +266,7 @@ impl<L: crate::ConcreteType> Column<L> {
     /// The field carries the datatype and nullability of `L`, plus this
     /// column's [`metadata`](Column::metadata). Zero-copy: the array is moved.
     ///
-    /// The inverse is [`DynColumn::try_into_column`].
+    /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
     #[must_use]
     pub fn into_dyn(self, column_name: impl Into<String>) -> crate::DynColumn {
         let Self { array, metadata } = self;
