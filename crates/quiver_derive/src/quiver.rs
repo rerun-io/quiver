@@ -461,12 +461,12 @@ impl Quiver {
                 #known_columns
                 for field in batch.schema_ref().fields() {
                     if !KNOWN_COLUMNS.contains(&field.name().as_str()) {
-                        return ::core::result::Result::Err(#krate::Error {
-                            record_type: #record_type,
-                            kind: #krate::ErrorKind::UnexpectedColumn {
+                        return ::core::result::Result::Err(#krate::Error::new(
+                            #record_type,
+                            #krate::ErrorKind::UnexpectedColumn {
                                 column: field.name().clone(),
                             },
-                        });
+                        ));
                     }
                 }
             }
@@ -578,9 +578,8 @@ impl Quiver {
                         ::std::sync::Arc::new(schema),
                         columns,
                     )
-                    .map_err(|err| #krate::Error {
-                        record_type: #record_type,
-                        kind: #krate::ErrorKind::BuildRecordBatch(err),
+                    .map_err(|err| {
+                        #krate::Error::new(#record_type, #krate::ErrorKind::BuildRecordBatch(err))
                     })
                 }
             }
@@ -620,9 +619,8 @@ impl ColumnField {
             // `array` is a `&ArrayRef`, `field` is a `&Field`:
             let convert = quote! {
                 <#krate::Column<#logical_type>>::try_new(::std::sync::Arc::clone(array))
-                    .map_err(|err| #krate::Error {
-                        record_type: #record_type,
-                        kind: err.for_column(#column_name.to_owned()),
+                    .map_err(|err| {
+                        #krate::Error::new(#record_type, err.for_column(#column_name.to_owned()))
                     })?
                     .with_metadata(
                         field
@@ -648,12 +646,12 @@ impl ColumnField {
                         let (index, field) = batch
                             .schema_ref()
                             .column_with_name(#column_name)
-                            .ok_or_else(|| #krate::Error {
-                                record_type: #record_type,
-                                kind: #krate::ErrorKind::MissingColumn {
+                            .ok_or_else(|| #krate::Error::new(
+                                #record_type,
+                                #krate::ErrorKind::MissingColumn {
                                     column: #column_name.to_owned(),
                                 },
-                            })?;
+                            ))?;
                         let array = batch.column(index);
                         #convert
                     };
@@ -679,14 +677,14 @@ impl ColumnField {
                     {
                         let actual = #krate::arrow::array::Array::data_type(&**array);
                         if actual != &#datatype {
-                            return ::core::result::Result::Err(#krate::Error {
-                                record_type: #record_type,
-                                kind: #krate::ErrorKind::WrongDatatype {
+                            return ::core::result::Result::Err(#krate::Error::new(
+                                #record_type,
+                                #krate::ErrorKind::WrongDatatype {
                                     column: #column_name.to_owned(),
                                     expected: ::std::format!("{:?}", #datatype),
                                     actual: actual.clone(),
                                 },
-                            });
+                            ));
                         }
                         #downcast
                     }
@@ -713,12 +711,12 @@ impl ColumnField {
                 let #ident = {
                     let array = batch
                         .column_by_name(#column_name)
-                        .ok_or_else(|| #krate::Error {
-                            record_type: #record_type,
-                            kind: #krate::ErrorKind::MissingColumn {
+                        .ok_or_else(|| #krate::Error::new(
+                            #record_type,
+                            #krate::ErrorKind::MissingColumn {
                                 column: #column_name.to_owned(),
                             },
-                        })?;
+                        ))?;
                     #convert
                 };
             }
@@ -830,14 +828,14 @@ fn downcast(
     quote! {
         #krate::arrow::array::Array::as_any(&**array)
             .downcast_ref::<#array_type>()
-            .ok_or_else(|| #krate::Error {
-                record_type: #record_type,
-                kind: #krate::ErrorKind::WrongArrayType {
+            .ok_or_else(|| #krate::Error::new(
+                #record_type,
+                #krate::ErrorKind::WrongArrayType {
                     column: #column_name.to_owned(),
                     expected: #expected.to_owned(),
                     actual: #krate::arrow::array::Array::data_type(&**array).clone(),
                 },
-            })?
+            ))?
             .clone()
     }
 }
