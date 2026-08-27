@@ -88,9 +88,8 @@ enum ColumnKind {
     /// `quiver::Column<L>` — a strongly-typed wrapper. Validates itself
     /// (exact datatype incl. nested types, and nullability from the logical type).
     Wrapper {
-        column_type: Box<syn::Type>,
-
-        /// The `L` of the `Column<L>`, for `ColumnDesc<L>`.
+        /// The `L` of the `Column<L>`; the column type itself is
+        /// `#krate::Column<#logical_type>`.
         logical_type: Box<syn::Type>,
     },
 }
@@ -329,11 +328,11 @@ impl Quiver {
                     .with_metadata([#(#declared),*].into_iter().collect())
                 };
                 let field = match kind {
-                    ColumnKind::Wrapper { column_type, .. } => quote! {
+                    ColumnKind::Wrapper { logical_type } => quote! {
                         #krate::arrow::datatypes::Field::new(
                             #column_name,
-                            <#column_type>::datatype(),
-                            <#column_type>::NULLABLE,
+                            <#krate::Column<#logical_type>>::datatype(),
+                            <#krate::Column<#logical_type>>::NULLABLE,
                         )
                         #metadata
                     },
@@ -612,10 +611,10 @@ impl ColumnField {
         } = self;
 
         // Wrappers also need the arrow `Field` (for the metadata), so they bind differently:
-        if let ColumnKind::Wrapper { column_type, .. } = kind {
+        if let ColumnKind::Wrapper { logical_type } = kind {
             // `array` is a `&ArrayRef`, `field` is a `&Field`:
             let convert = quote! {
-                <#column_type>::try_new(::std::sync::Arc::clone(array))
+                <#krate::Column<#logical_type>>::try_new(::std::sync::Arc::clone(array))
                     .map_err(|err| #krate::Error {
                         record_type: #record_type,
                         kind: err.for_column(#column_name.to_owned()),
@@ -776,7 +775,7 @@ impl ColumnField {
                 ));
                 columns.push(::std::sync::Arc::new(array));
             },
-            ColumnKind::Wrapper { column_type, .. } => quote! {
+            ColumnKind::Wrapper { logical_type } => quote! {
                 // Declared metadata first; the per-instance metadata wins on key conflicts:
                 let mut metadata: ::std::collections::HashMap<::std::string::String, ::std::string::String> =
                     #declared.into_iter().collect();
@@ -789,8 +788,8 @@ impl ColumnField {
                 fields.push(::std::sync::Arc::new(
                     #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        <#column_type>::datatype(),
-                        <#column_type>::NULLABLE,
+                        <#krate::Column<#logical_type>>::datatype(),
+                        <#krate::Column<#logical_type>>::NULLABLE,
                     )
                     .with_metadata(metadata),
                 ));
@@ -913,7 +912,6 @@ fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnK
         Ok(ColumnKind::Any)
     } else if type_name == "Column" {
         Ok(ColumnKind::Wrapper {
-            column_type: Box::new(ty.clone()),
             logical_type: Box::new(logical_type_of_column(segment)?),
         })
     } else if let Some(datatype) = datatype_of_array(krate, &type_name) {
