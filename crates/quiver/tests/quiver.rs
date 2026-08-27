@@ -746,6 +746,55 @@ fn column_desc_to_dyn() {
     ));
 }
 
+#[test]
+fn column_desc_typed_array() {
+    // The descriptor supplies the logical type, so a loose array needs no turbofish:
+    let array = Annotated::COLUMN_FRAME_START
+        .typed_array(Arc::new(Int64Array::from(vec![Some(7_i64), None])) as ArrayRef)
+        .unwrap();
+    assert_eq!(array.len(), 2);
+    assert_eq!(array.value(0), Some(7));
+    assert_eq!(array.value(1), None);
+
+    // Wrong datatype: labeled with the column name (the renamed one) and record type.
+    let err = Annotated::COLUMN_FRAME_START
+        .typed_array(Arc::new(StringArray::from(vec!["7"])) as ArrayRef)
+        .err()
+        .unwrap();
+    assert!(
+        matches!(
+            &err,
+            Error {
+                record_type: "Annotated",
+                kind: ErrorKind::WrongDatatype { column, .. },
+            } if column == "frame_nr"
+        ),
+        "{err}"
+    );
+
+    // Nulls in a non-nullable column:
+    let err = Annotated::COLUMN_CHUNK_ID
+        .typed_array(Arc::new(
+            FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+                [None, Some([1_u8; 16])].into_iter(),
+                16,
+            )
+            .unwrap(),
+        ) as ArrayRef)
+        .err()
+        .unwrap();
+    assert!(
+        matches!(
+            err,
+            Error {
+                record_type: "Annotated",
+                kind: ErrorKind::UnexpectedNulls { null_count: 1, .. },
+            }
+        ),
+        "{err}"
+    );
+}
+
 /// All columns required: unlike `Typed`, this gets `empty_record_batch`.
 #[derive(Quiver)]
 struct AllRequired {

@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use arrow::array::ArrayRef;
 
-use crate::{Column, DynColumn, Error, ErrorKind, LogicalType};
+use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 
 // Column descriptors
 
@@ -53,6 +53,29 @@ impl<L: LogicalType> ColumnDesc<Column<L>> {
             record_type, name, ..
         } = *self;
         Column::extract_named(batch, name, record_type)
+    }
+
+    /// Validates a loose arrow array against this column's logical type,
+    /// then downcasts it (zero-copy).
+    ///
+    /// The descriptor supplies the logical type, so you don't have to name it,
+    /// and labels any error with the column and record type.
+    ///
+    /// The result is a [`TypedArray`], not a [`Column`]: a bare array carries no
+    /// field metadata. Use [`ColumnDesc::extract`] when you have the whole
+    /// record batch, and want the metadata too.
+    ///
+    /// # Errors
+    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    pub fn typed_array(&self, array: ArrayRef) -> Result<TypedArray<L>, Error> {
+        let Self {
+            record_type, name, ..
+        } = *self;
+
+        TypedArray::try_new(array).map_err(|err| Error {
+            record_type,
+            kind: err.for_column(name.to_owned()),
+        })
     }
 }
 
