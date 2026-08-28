@@ -453,7 +453,9 @@ impl Quiver {
                         .map(|(field, array)| #krate::DynColumn::try_new(
                             ::std::sync::Arc::clone(field),
                             ::std::sync::Arc::clone(array),
-                        ))
+                        )
+                        // Report the struct being parsed, not `DynColumn`:
+                        .map_err(|err| #krate::Error::new(#record_type, *err.kind)))
                         .collect::<::core::result::Result<_, _>>()?;
             }
         } else if *exhaustiveness == Exhaustiveness::Exhaustive {
@@ -679,7 +681,7 @@ impl ColumnField {
                                 #record_type,
                                 #krate::ErrorKind::WrongDataType {
                                     column: #column_name.to_owned(),
-                                    expected: ::std::format!("{:?}", #data_type),
+                                    expected: ::std::format!("{}", #data_type),
                                     actual: actual.clone(),
                                 },
                             ));

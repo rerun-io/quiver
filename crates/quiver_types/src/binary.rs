@@ -71,7 +71,7 @@ macro_rules! impl_binary_data_type {
             type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array, || format!("{:?}", $data_type))
+                downcast_array::<$array>(array, || format!("{}", $data_type))
             }
 
             fn slice_typed(

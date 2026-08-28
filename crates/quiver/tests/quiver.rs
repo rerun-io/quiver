@@ -700,10 +700,21 @@ fn column_desc_to_dyn() {
     assert_eq!(dynamic.record_type, Typed::COLUMN_NAME.record_type);
     assert_eq!(dynamic.extract(&batch).unwrap().field().name(), "name");
 
-    // `From` is the same conversion:
+    // `From` is the same conversion, by reference or by value:
     assert_eq!(
         DynColumnDesc::from(&Typed::COLUMN_MAYBE_AGE).name,
         "maybe_age"
+    );
+    assert_eq!(
+        DynColumnDesc::from(Annotated::COLUMN_CHUNK_ID),
+        Annotated::COLUMN_CHUNK_ID.to_dyn()
+    );
+
+    // The declared metadata is dropped, there being nowhere to put it:
+    assert!(!Annotated::COLUMN_CHUNK_ID.metadata.is_empty());
+    assert_eq!(
+        Annotated::COLUMN_CHUNK_ID.to_dyn(),
+        quiver::ColumnDesc::<quiver::FixedSizeBinary<16>>::new("Annotated", "chunk_id").to_dyn()
     );
 
     // A missing column still errors under the struct's own name:
@@ -908,6 +919,35 @@ fn column_optional_and_required() {
     assert_eq!(still_required.to_vec(), [1]);
 }
 
+/// The declared metadata is compared as the map it becomes on the arrow field:
+/// key order does not matter, and a repeated key takes its last value.
+#[test]
+fn column_desc_metadata_compares_as_a_map() {
+    type Desc = quiver::ColumnDesc<Utf8>;
+    const DECLARED: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "2")]);
+    const REORDERED: Desc = Desc::new_with_metadata("R", "c", &[("b", "2"), ("a", "1")]);
+    const REPEATED: Desc = Desc::new_with_metadata("R", "c", &[("a", "9"), ("a", "1"), ("b", "2")]);
+    const OTHER_VALUE: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "9")]);
+    const SHORTER: Desc = Desc::new_with_metadata("R", "c", &[("a", "1")]);
+
+    assert_eq!(DECLARED, REORDERED);
+    assert_eq!(DECLARED, REPEATED);
+    assert_ne!(DECLARED, OTHER_VALUE);
+    assert_ne!(DECLARED, SHORTER);
+
+    // Which is exactly when the arrow fields agree:
+    assert_eq!(DECLARED.arrow_field(), REORDERED.arrow_field());
+    assert_eq!(DECLARED.arrow_field(), REPEATED.arrow_field());
+    assert_ne!(DECLARED.arrow_field(), OTHER_VALUE.arrow_field());
+    assert_ne!(DECLARED.arrow_field(), SHORTER.arrow_field());
+}
+
+/// Holds a descriptor without naming `LogicalType`: the struct definition of
+/// `ColumnDesc` puts no bound on `L`, only its impls do.
+struct Wrapper<L> {
+    desc: quiver::ColumnDesc<L>,
+}
+
 #[test]
 fn column_descs_are_copy_debug_and_comparable() {
     // `Utf8` and friends derive nothing, so a descriptor over one only compiles
@@ -935,6 +975,11 @@ fn column_descs_are_copy_debug_and_comparable() {
     let shown = format!("{desc:?}");
     assert!(shown.contains("maybe_age"), "{shown}");
     assert!(!shown.contains("PhantomData"), "{shown}");
+
+    // The struct definition carries no bound either, so `Wrapper` below holds a
+    // descriptor without repeating `L: LogicalType`:
+    let wrapper = Wrapper { desc };
+    assert_eq!(wrapper.desc, desc);
 
     // `DynColumnDesc` gets the same treatment:
     let dynamic = desc.to_dyn();

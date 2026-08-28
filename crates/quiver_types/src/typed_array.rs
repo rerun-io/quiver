@@ -316,14 +316,24 @@ impl<L: crate::ConcreteType> TypedArray<Option<L>> {
     ///
     /// # Panics
     /// Panics for run-end encoding, which has no validity of its own — see
-    /// [`Column::new_null`](crate::Column::new_null).
+    /// [`Column::new_null`](crate::Column::new_null). For any `len`, including
+    /// zero.
     #[must_use]
     pub fn new_null(len: usize) -> Self {
-        let array = arrow::array::new_null_array(&L::data_type(), len);
-        Self::try_new(array).expect(
-            "An all-null array of the right data type is valid, \
-             except for run-end encoding: use `Run<K, Option<V>>`",
-        )
+        let data_type = L::data_type();
+
+        // Checked up front so the panic does not depend on `len`: a zero-length
+        // run-end array has no child nulls for `downcast` to reject, so the
+        // `try_new` below would accept it.
+        assert!(
+            !matches!(data_type, DataType::RunEndEncoded(..)),
+            "Cannot build an all-null run-end column: a `RunArray` has no \
+             validity of its own, so the nulls belong in the values — \
+             use `Run<K, Option<V>>`"
+        );
+
+        let array = arrow::array::new_null_array(&data_type, len);
+        Self::try_new(array).expect("An all-null array of the right data type is valid")
     }
 
     /// Builds a nullable array from optional values; the fallible form of
@@ -568,6 +578,11 @@ impl<'a, L: LogicalType + 'a> IntoIterator for &'a TypedArray<L> {
 /// By-value iterator over the owned values of a [`TypedArray`],
 /// created by [`TypedArray::into_iter_owned`].
 ///
+/// Like [`TypedArrayIter`], the length is fixed and was validated at
+/// construction, so each step reads with
+/// [`value_unchecked`](LogicalType::value_unchecked) and the combinators skip
+/// the default `next`-based `Option` plumbing.
+///
 /// [`TypedArray`] deliberately does **not** implement [`IntoIterator`] by value:
 /// `for x in array` would have to allocate (owned values), so that path is
 /// explicit via [`into_iter_owned`](TypedArray::into_iter_owned). Iterate
@@ -599,6 +614,16 @@ impl<L: LogicalType> Iterator for TypedArrayIntoIter<L> {
         (remaining, Some(remaining))
     }
 
+    fn count(self) -> usize {
+        self.end - self.index
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        // SAFETY: when non-empty, `end - 1` is in `index..end`.
+        (self.index < self.end)
+            .then(|| L::to_owned_value(unsafe { self.array.value_unchecked(self.end - 1) }))
+    }
+
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         match self.index.checked_add(n) {
             Some(target) if target < self.end => {
@@ -613,6 +638,19 @@ impl<L: LogicalType> Iterator for TypedArrayIntoIter<L> {
                 None
             }
         }
+    }
+
+    fn fold<B, F>(self, init: B, mut f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let Self { array, index, end } = self;
+        let mut acc = init;
+        for i in index..end {
+            // SAFETY: i < end <= array length.
+            acc = f(acc, L::to_owned_value(unsafe { array.value_unchecked(i) }));
+        }
+        acc
     }
 }
 

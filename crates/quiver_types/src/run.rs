@@ -27,6 +27,14 @@ use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array};
 /// So nullable rows are `Run<R, Option<V>>` (a null run value is a null row) —
 /// `Option<Run<R, V>>` is not the way to express it.
 ///
+/// Nothing forbids that spelling, though:
+/// [`optional()`](crate::Column::optional) is generic over every logical type,
+/// so it will hand you a `Column<Option<Run<R, V>>>` — one that reads every row
+/// as `Some`, forever, because there is no validity buffer for the `Option`
+/// layer to consult. Reach for `Run<R, Option<V>>` if the rows may be null.
+/// (Building one from nulls is refused outright:
+/// [`new_null`](crate::Column::new_null) panics.)
+///
 /// ```
 /// use quiver::{Run, TypedArray, Utf8};
 ///

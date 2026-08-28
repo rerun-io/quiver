@@ -231,7 +231,7 @@ pub trait InfallibleBuild: ConcreteType {}
 /// Does not know which column it concerns — see [`ColumnError::for_column`].
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
-    #[error("Expected {expected}, found {actual:?}")]
+    #[error("Expected {expected}, found {actual}")]
     WrongDataType {
         /// A description of the data type the logical type expected, produced by
         /// the failing [`LogicalType::downcast`] (e.g. `"Utf8"`, `"List(…)"`).
@@ -330,7 +330,7 @@ macro_rules! impl_flat_data_type {
             type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array, || format!("{:?}", $data_type))
+                downcast_array::<$array>(array, || format!("{}", $data_type))
             }
 
             fn slice_typed(
@@ -425,7 +425,7 @@ macro_rules! impl_marker_data_type {
             type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                crate::data_type::downcast_array::<$array>(array, || format!("{:?}", $data_type))
+                crate::data_type::downcast_array::<$array>(array, || format!("{}", $data_type))
             }
 
             fn slice_typed(

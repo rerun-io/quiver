@@ -9,12 +9,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use quiver::arrow::array::Array as _;
-use quiver::arrow::array::{ArrayRef, Int64Array, StringArray};
+use quiver::arrow::array::{ArrayRef, Int64Array, StringArray, StringViewArray};
 use quiver::arrow::datatypes::{DataType, Field, Schema};
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnDesc, DynColumn, DynColumnDesc, ErrorKind, FixedSizeBinary, List, TypedArray,
-    Utf8,
+    AnyUtf8, Column, ColumnDesc, DynColumn, DynColumnDesc, ErrorKind, FixedSizeBinary, List,
+    TypedArray, Utf8,
 };
 
 #[test]
@@ -203,6 +203,9 @@ fn static_data_type() {
     assert_eq!(names.data_type(), Column::<List<Option<Utf8>>>::data_type());
     assert_eq!(names.data_type(), names.arrow_field().data_type().clone());
 
+    // The `FieldRef` form describes the very same field:
+    assert_eq!(names.arrow_field_ref().as_ref(), &names.arrow_field());
+
     // Nullability lives on the field, not in the data type, so `optional`
     // leaves the data type alone:
     assert_eq!(names.optional().data_type(), names.data_type());
@@ -222,9 +225,16 @@ fn deref_to_slice() {
     assert_eq!(takes_slice(&column), 6);
     assert_eq!(takes_as_ref(&column), 3);
 
-    // Slice methods that `Column` does not have come along…
-    assert_eq!(column.first(), Some(&1));
+    // Slice methods that `Column` does not have come along. These yield the
+    // slice's element type (`&u64`, not `u64`): giving `Column` an inherent
+    // method of any of these names would silently change that at every call
+    // site, so this list is the guard against it.
+    let first: Option<&u64> = column.first();
+    let last: Option<&u64> = column.last();
+    assert_eq!((first, last), (Some(&1), Some(&3)));
+    assert!(column.contains(&2));
     assert_eq!(column.chunks(2).count(), 2);
+    assert_eq!(column.windows(2).count(), 2);
 
     // …though `column[1..]` does not: `Index<usize>` is already implemented,
     // so indexing never reaches the slice. Deref explicitly for that:
@@ -406,6 +416,16 @@ fn column_to_dyn_and_back() {
     );
     let column: Column<List<Utf8>> = dynamic.try_into_column().unwrap();
     assert_eq!(column.to_vec(), [vec!["a"], vec![]]);
+
+    // The parse-only types get out too: the field's data type comes from the
+    // array, so `L` needing no `data_type()` of its own is no obstacle.
+    let views: ArrayRef = Arc::new(StringViewArray::from(vec!["alice"]));
+    let dynamic = Column::<AnyUtf8>::try_new("name", views)
+        .unwrap()
+        .into_dyn();
+    assert_eq!(dynamic.field().data_type(), &DataType::Utf8View);
+    let column: Column<AnyUtf8> = dynamic.try_into_column().unwrap();
+    assert_eq!(column.value(0), "alice");
 }
 
 #[test]
@@ -435,6 +455,12 @@ fn dyn_column_try_new_validation() {
     assert!(
         matches!(*err.kind, ErrorKind::WrongDataType { .. }),
         "{err}"
+    );
+    // Nested data types are named with arrow's `Display`, not its `Debug`
+    // (which spells this `List(Field { data_type: Utf8, nullable: true })`):
+    assert_eq!(
+        err.to_string(),
+        "DynColumn: Column \"tags\": expected List(Utf8), found List(non-null Utf8)"
     );
 
     // A non-nullable field may not hold nulls…

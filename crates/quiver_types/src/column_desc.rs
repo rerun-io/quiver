@@ -45,7 +45,7 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 /// column to arrow.
 ///
 /// Dynamically-typed columns get a [`DynColumnDesc`] and a [`DynColumn`] instead.
-pub struct ColumnDesc<L: LogicalType> {
+pub struct ColumnDesc<L> {
     /// What owns the column — the `#[derive(Quiver)]` struct, or whatever you
     /// want error messages to name.
     pub record_type: &'static str,
@@ -63,15 +63,15 @@ pub struct ColumnDesc<L: LogicalType> {
 // Hand-written rather than derived: `#[derive]` would put the trait's own bound
 // on `L`, but a descriptor holds no `L` — only a `PhantomData<fn() -> L>`, which
 // is `Copy`, `Eq`, and `Debug` whatever `L` is.
-impl<L: LogicalType> Clone for ColumnDesc<L> {
+impl<L> Clone for ColumnDesc<L> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<L: LogicalType> Copy for ColumnDesc<L> {}
+impl<L> Copy for ColumnDesc<L> {}
 
-impl<L: LogicalType> std::fmt::Debug for ColumnDesc<L> {
+impl<L> std::fmt::Debug for ColumnDesc<L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let Self {
             record_type,
@@ -87,7 +87,11 @@ impl<L: LogicalType> std::fmt::Debug for ColumnDesc<L> {
     }
 }
 
-impl<L: LogicalType> PartialEq for ColumnDesc<L> {
+/// The declared metadata is compared as the map it becomes on the arrow field,
+/// not as the slice it is written as: the order of the keys does not matter, and
+/// a repeated key takes its last value — so two descriptors compare equal
+/// exactly when their [`arrow_field`](ColumnDesc::arrow_field)s do.
+impl<L> PartialEq for ColumnDesc<L> {
     fn eq(&self, other: &Self) -> bool {
         let Self {
             record_type,
@@ -95,11 +99,30 @@ impl<L: LogicalType> PartialEq for ColumnDesc<L> {
             metadata,
             _marker,
         } = self;
-        *record_type == other.record_type && *name == other.name && *metadata == other.metadata
+        *record_type == other.record_type
+            && *name == other.name
+            && metadata_eq(metadata, other.metadata)
     }
 }
 
-impl<L: LogicalType> Eq for ColumnDesc<L> {}
+/// Compares two declared-metadata slices as maps; see [`ColumnDesc`]'s
+/// [`PartialEq`].
+fn metadata_eq(left: &[(&str, &str)], right: &[(&str, &str)]) -> bool {
+    // The last value of a repeated key wins, exactly as collecting the pairs
+    // into the arrow field's map does.
+    fn value_of<'a>(pairs: &[(&str, &'a str)], key: &str) -> Option<&'a str> {
+        pairs
+            .iter()
+            .rev()
+            .find_map(|(candidate, value)| (*candidate == key).then_some(*value))
+    }
+
+    left.iter()
+        .chain(right)
+        .all(|(key, _)| value_of(left, key) == value_of(right, key))
+}
+
+impl<L> Eq for ColumnDesc<L> {}
 
 impl<L: LogicalType> ColumnDesc<L> {
     /// Describes the column `name` of `record_type`, which labels the errors
@@ -294,7 +317,8 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
             .with_metadata(self.arrow_metadata())
     }
 
-    /// The arrow field of this column, including the declared metadata.
+    /// The same as [`arrow_field`](ColumnDesc::arrow_field), as an `Arc`, for
+    /// the arrow APIs that take a [`FieldRef`](arrow::datatypes::FieldRef).
     #[must_use]
     pub fn arrow_field_ref(&self) -> arrow::datatypes::FieldRef {
         // TODO(emilk): it would be nice if this just `Arc::clone`d an existing `FieldRef` instead of allocating a new one on each call.
@@ -383,6 +407,14 @@ impl<L: LogicalType> ColumnDesc<L> {
 
 impl<L: LogicalType> From<&ColumnDesc<L>> for DynColumnDesc {
     fn from(desc: &ColumnDesc<L>) -> Self {
+        desc.to_dyn()
+    }
+}
+
+/// A descriptor is [`Copy`], so it converts by value too — the spelling
+/// [`to_dyn`](ColumnDesc::to_dyn) already uses.
+impl<L: LogicalType> From<ColumnDesc<L>> for DynColumnDesc {
+    fn from(desc: ColumnDesc<L>) -> Self {
         desc.to_dyn()
     }
 }

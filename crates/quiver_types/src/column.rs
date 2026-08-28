@@ -298,6 +298,38 @@ impl<L: LogicalType> Column<L> {
         self.array
     }
 
+    /// Forgets the static type: the same data, as a dynamically-typed column.
+    ///
+    /// The field carries this column's [`name`](Column::name) and
+    /// [`metadata`](Column::metadata), the data type of the array, and the
+    /// nullability of `L`. Zero-copy: the array is moved. To rename on the way
+    /// out, go through [`with_name`](Column::with_name).
+    ///
+    /// Works for every logical type, the parse-only ones
+    /// ([`AnyUtf8`](crate::AnyUtf8), [`AnyList`](crate::AnyList), …) included:
+    /// the field's data type comes from the array, not from `L`.
+    ///
+    /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
+    #[must_use]
+    pub fn into_dyn(self) -> crate::DynColumn {
+        let Self {
+            array,
+            name,
+            metadata,
+        } = self;
+        let array = array.into_arrow();
+
+        // The array's own data type rather than `L::data_type()`: the two agree
+        // on everything `L` pins down, but a validated array may still differ
+        // in a detail the logical type does not constrain (the name of a list's
+        // inner field, say) — and a `DynColumn`'s field must describe the array
+        // it is paired with, exactly.
+        let field = Field::new(name.as_str(), array.data_type().clone(), L::NULLABLE)
+            .with_metadata(Arc::unwrap_or_clone(metadata).into_iter().collect());
+
+        crate::DynColumn::new_unvalidated(Arc::new(field), array)
+    }
+
     /// The same column, read as nullable: `Column<L>` → `Column<Option<L>>`.
     ///
     /// Free — nullability lives in the validity bitmap, so nothing is
@@ -408,34 +440,6 @@ impl<L: crate::ConcreteType> Column<L> {
     pub fn data_type() -> DataType {
         L::data_type()
     }
-
-    /// Forgets the static type: the same data, as a dynamically-typed column.
-    ///
-    /// The field carries this column's [`name`](Column::name) and
-    /// [`metadata`](Column::metadata), the data type of the array, and the
-    /// nullability of `L`. Zero-copy: the array is moved. To rename on the way
-    /// out, go through [`with_name`](Column::with_name).
-    ///
-    /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
-    #[must_use]
-    pub fn into_dyn(self) -> crate::DynColumn {
-        let Self {
-            array,
-            name,
-            metadata,
-        } = self;
-        let array = array.into_arrow();
-
-        // The array's own data type rather than `L::data_type()`: the two agree
-        // on everything `L` pins down, but a validated array may still differ
-        // in a detail the logical type does not constrain (the name of a list's
-        // inner field, say) — and a `DynColumn`'s field must describe the array
-        // it is paired with, exactly.
-        let field = Field::new(name.as_str(), array.data_type().clone(), L::NULLABLE)
-            .with_metadata(Arc::unwrap_or_clone(metadata).into_iter().collect());
-
-        crate::DynColumn::new_unvalidated(Arc::new(field), array)
-    }
 }
 
 /// `column[index]`: like [`Column::value`], but borrows from the array —
@@ -517,6 +521,11 @@ impl<L: PrimitiveType> Column<L> {
 /// and `to_vec` still read the column, not the raw slice. Indexing likewise
 /// stays with `Index<usize>`, so range slicing needs an explicit
 /// `&(*column)[a..b]`.
+///
+/// Rule: `Column` never gains an inherent method that `[T]` already has.
+/// An inherent `first()` would silently change what every existing
+/// `column.first()` call site returns. The `deref_to_slice` test pins those
+/// names, so CI catches it.
 impl<L: PrimitiveType> std::ops::Deref for Column<L> {
     type Target = [L::Native];
 
@@ -586,9 +595,11 @@ impl<L: crate::ConcreteType> Column<Option<L>> {
     /// ```
     ///
     /// # Panics
-    /// Panics for run-end encoding: a `RunArray` has no validity buffer of its
-    /// own, so its nulls live in the values — `Run<K, Option<V>>`, not
-    /// `Option<Run<K, V>>`, which no constructor can build.
+    /// Panics for run-end encoding, at any `len`: a `RunArray` has no validity
+    /// buffer of its own, so its nulls live in the values —
+    /// `Run<K, Option<V>>`, not `Option<Run<K, V>>`. That spelling is still
+    /// *reachable*, through [`optional`](Column::optional); see
+    /// [`Run`](crate::Run) for what it reads as.
     #[must_use]
     pub fn new_null(name: impl Into<String>, len: usize) -> Self {
         Self::new(name, TypedArray::<Option<L>>::new_null(len))

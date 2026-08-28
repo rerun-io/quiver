@@ -325,11 +325,37 @@ fn nullable_timestamp_array() {
 }
 
 /// Run-end encoding has no validity of its own: the nulls belong in the values,
-/// so `Option<Run<K, V>>` is unbuildable by any route, `new_null` included.
+/// so `new_null` refuses to build an `Option<Run<K, V>>`.
 #[test]
-#[should_panic(expected = "run-end encoding")]
+#[should_panic(expected = "all-null run-end column")]
 fn new_null_run_end_encoded() {
-    let _column: TypedArray<Option<quiver::Run<i32, Utf8>>> = TypedArray::new_null(2);
+    let _array: TypedArray<Option<quiver::Run<i32, Utf8>>> = TypedArray::new_null(2);
+}
+
+/// `optional()` is generic over every logical type, so `Option<Run<K, V>>` is
+/// reachable after all — and reads every row as `Some`, there being no validity
+/// buffer for the `Option` layer to consult.
+#[test]
+fn optional_run_end_encoded_reads_as_all_some() {
+    let array = TypedArray::<quiver::Run<i32, Utf8>>::try_from_values(["a", "a", "b"]).unwrap();
+    let nullable = array.optional();
+    assert_eq!(
+        nullable.to_vec(),
+        [
+            Some("a".to_owned()),
+            Some("a".to_owned()),
+            Some("b".to_owned())
+        ]
+    );
+    assert_eq!(nullable.value(0), Some("a"));
+}
+
+/// …at every length: a zero-length run array holds no nulls for the validation
+/// to trip over, so the check cannot be left to it.
+#[test]
+#[should_panic(expected = "all-null run-end column")]
+fn new_null_run_end_encoded_at_zero_length() {
+    let _array: TypedArray<Option<quiver::Run<i32, Utf8>>> = TypedArray::new_null(0);
 }
 
 #[test]
@@ -467,8 +493,14 @@ fn iter_combinators_and_double_ended() {
     assert_eq!(cursor.next(), None);
     assert_eq!(cursor.next_back(), None);
 
-    // Owning iterator (`TypedArray::into_iter_owned`): nth, rev, next_back.
+    // Owning iterator (`TypedArray::into_iter_owned`): the same overrides.
     assert_eq!(array.clone().into_iter_owned().nth(1), Some(20));
+    assert_eq!(array.clone().into_iter_owned().count(), 4);
+    assert_eq!(array.clone().into_iter_owned().last(), Some(40));
+    assert_eq!(array.clone().into_iter_owned().sum::<i64>(), 100); // `fold`
+    let mut cursor = array.clone().into_iter_owned();
+    assert_eq!(cursor.nth(1), Some(20));
+    assert_eq!(cursor.count(), 2);
     let owned_rev: Vec<i64> = array.clone().into_iter_owned().rev().collect();
     assert_eq!(owned_rev, [40, 30, 20, 10]);
 
@@ -1609,6 +1641,13 @@ fn fallible_newtype_arrays() {
     let batch = RecordBatch::try_from_iter([("level", arrow_array as ArrayRef)]).unwrap();
     let err = Column::<Even>::from_record_batch_and_name(&batch, "level").unwrap_err();
     assert!(matches!(*err.kind, quiver::ErrorKind::Conversion { .. }));
+
+    // …and the cause stays reachable, not just printable:
+    let kind = std::error::Error::source(&err).expect("the kind is the source");
+    let cause = kind
+        .source()
+        .expect("the conversion error is the kind's source");
+    assert_eq!(cause.downcast_ref::<NotEven>(), Some(&NotEven(1)));
 }
 
 #[test]
