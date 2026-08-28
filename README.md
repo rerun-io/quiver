@@ -95,8 +95,9 @@ struct Thing {
 // * `fn empty_record_batch()` - when, additionally, all columns are required (min == max)
 ```
 
-Building columns from values is infallible. Every constructor takes the column
-name, since that is half of what makes a column a column:
+Building columns from values is infallible.
+Every column has a name.
+A column without a name is just an array.
 
 ``` rust
 use quiver::{Column, List, TypedArray, Utf8};
