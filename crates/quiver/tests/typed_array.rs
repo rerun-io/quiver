@@ -1497,6 +1497,20 @@ fn newtype_arrays() {
     let array = TypedArray::<ChunkId>::from_values([ChunkId([7; 16]), ChunkId([8; 16])]);
     assert_eq!(array.as_slice(), &[ChunkId([7; 16]), ChunkId([8; 16])]);
 
+    // …and indexing borrows the newtype, so element access agrees with the
+    // bulk read whichever way it is spelled:
+    assert_eq!(array[1], ChunkId([8; 16]));
+    assert_eq!(&array[1], &array.as_slice()[1]);
+    assert_eq!(array.value_owned(1), ChunkId([8; 16]));
+
+    // `value()` / `get()` still hand out the representation's view:
+    assert_eq!(array.value(1), &[8_u8; 16]);
+    assert_eq!(array.get(1), Some(&[8_u8; 16]));
+
+    // A `noref`/plain newtype indexes as the representation, as before:
+    let raw = TypedArray::<RawId>::from_values([RawId([7; 16]), RawId([8; 16])]);
+    assert_eq!(raw[1], [8_u8; 16]);
+
     // …while a hand-written `PrimitiveType` impl can still yield the repr's:
     let array = TypedArray::<RawId>::from_values([RawId([7; 16]), RawId([8; 16])]);
     assert_eq!(array.as_slice(), &[[7_u8; 16], [8; 16]]);

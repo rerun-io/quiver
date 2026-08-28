@@ -16,7 +16,8 @@
 /// (e.g. `&str` for a `Utf8`-backed newtype);
 /// owned values ([`Column::to_vec`](crate::Column::to_vec) etc.) are the newtype.
 ///
-/// `column[index]` works too, borrowing through the representation.
+/// `column[index]` works too, borrowing through the representation (the
+/// `primitive` arm below borrows the newtype instead).
 /// That requires the representation to implement
 /// [`RefType`] — most do, but not e.g. `bool` or
 /// `List<…>`; for those, add a trailing `noref` to skip the `Index` support.
@@ -25,7 +26,8 @@
 /// (primitives, [`FixedSizeBinary<N>`](crate::FixedSizeBinary)), add a trailing
 /// `primitive` to also enable the bulk zero-copy
 /// [`Column::as_slice`](crate::Column::as_slice), which yields the *newtype*
-/// (e.g. `&[Uuid]` for a `FixedSizeBinary<16>`-backed `Uuid`).
+/// (e.g. `&[Uuid]` for a `FixedSizeBinary<16>`-backed `Uuid`) — and then
+/// `column[index]` borrows the newtype as well, so the two agree.
 ///
 /// That reinterprets the representation's buffer as the newtype, so the newtype
 /// must be layout-compatible with the representation's native type and accept
@@ -59,6 +61,7 @@
 ///
 /// let array = quiver::TypedArray::<Uuid>::from_values([Uuid([7; 16])]);
 /// assert_eq!(array.as_slice(), &[Uuid([7; 16])]); // bulk, zero-copy
+/// assert_eq!(array[0], Uuid([7; 16])); // and element-wise, the same type
 /// ```
 ///
 /// A newtype that cannot be `Pod` — because it is not layout-compatible, or
@@ -122,7 +125,20 @@ macro_rules! newtype_data_type {
     };
 
     ($newtype:ty, $repr:ty, primitive) => {
-        $crate::newtype_data_type!($newtype, $repr);
+        $crate::newtype_data_type!($newtype, $repr, noref);
+
+        impl $crate::RefType for $newtype {
+            // The newtype itself, not the representation's `Ref`: the arm
+            // already requires the two to be layout-compatible, so `column[i]`
+            // can hand back the newtype, agreeing with `as_slice`.
+            type Ref = Self;
+
+            fn value_ref(typed: &Self::Typed, index: usize) -> &Self {
+                // Checked at compile time: `Self` has the same size and
+                // alignment as the representation's native type.
+                $crate::bytemuck::must_cast_ref(<$repr as $crate::RefType>::value_ref(typed, index))
+            }
+        }
 
         impl $crate::PrimitiveType for $newtype {
             type Native = Self;
@@ -278,7 +294,18 @@ macro_rules! try_newtype_data_type {
     };
 
     ($newtype:ty, $repr:ty, primitive) => {
-        $crate::try_newtype_data_type!($newtype, $repr);
+        $crate::try_newtype_data_type!($newtype, $repr, noref);
+
+        impl $crate::RefType for $newtype {
+            // The newtype itself; see `newtype_data_type!`'s `primitive` arm.
+            type Ref = Self;
+
+            fn value_ref(typed: &Self::Typed, index: usize) -> &Self {
+                // Checked at compile time: `Self` has the same size and
+                // alignment as the representation's native type.
+                $crate::bytemuck::must_cast_ref(<$repr as $crate::RefType>::value_ref(typed, index))
+            }
+        }
 
         impl $crate::PrimitiveType for $newtype {
             type Native = Self;
