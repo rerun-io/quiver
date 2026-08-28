@@ -10,7 +10,9 @@ Do NOT add entries here manually — they are generated from PR titles and label
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.5.0..0.6.0
 
-Two themes. A column of a record batch is now a *named* column: `Column<L>` carries the name, so every constructor takes one and the descriptors, the column, and `DynColumn` all agree on where it comes from. And the data half of a column is a type of its own, `TypedArray<L>` — the same validated array with the same value API, minus the name and metadata — which is what a bare arrow array validates into.
+A `Column` (and `DynColumn`) now always carries a name. A column without a name is an array.
+
+To that end, `TypedArray<L>` has been added. (A dynamic column is just an arrow `ArrayRef`).
 
 Breaking, in brief: `Column::from_values(values)` becomes `Column::from_values(name, values)`, `datatype` is spelled `data_type` throughout, `err.kind` is boxed, and `DynColumn`'s fields are behind accessors.
 
