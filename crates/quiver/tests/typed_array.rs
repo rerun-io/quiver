@@ -1726,6 +1726,71 @@ fn as_adapter_for_foreign_types() {
     assert_eq!(array.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
 }
 
+/// A non-empty string: `TryFrom<String>`, but no `From<String>`.
+#[derive(Debug, PartialEq)]
+struct NonEmpty(String);
+
+impl TryFrom<String> for NonEmpty {
+    type Error = ();
+
+    fn try_from(value: String) -> Result<Self, ()> {
+        if value.is_empty() {
+            Err(())
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+#[test]
+fn transparent_adapter_is_only_a_tag() {
+    use quiver::Transparent;
+
+    type Evens = TypedArray<Transparent<Even, i64>>;
+
+    assert_eq!(Evens::data_type(), DataType::Int64);
+    let array = Evens::from_values([2, 4]);
+
+    // Borrowed *and* owned values are the repr's: nothing converts:
+    assert_eq!(array.value(0), 2);
+    assert_eq!(array.to_vec(), [2, 4]);
+    assert_eq!(array.as_slice(), &[2, 4]); // bulk, zero-copy
+    assert_eq!(array[1], 4); // indexing, through the repr
+
+    // `Column<Even>` (`try_newtype_data_type!`) validates every value at
+    // construction; `Transparent<Even, i64>` validates nothing, so an odd value
+    // is accepted and only fails where *you* convert it:
+    let odd: ArrayRef = Arc::new(Int64Array::from(vec![3]));
+    assert!(TypedArray::<Even>::try_new(Arc::clone(&odd)).is_err());
+    let array = Evens::try_new(odd).unwrap();
+    assert_eq!(Even::try_from(array.value(0)), Err(NotEven(3)));
+
+    // The empty case: an empty column tags just as well.
+    assert_eq!(Evens::from_values([] as [i64; 0]).to_vec(), []);
+
+    // Composes and nullable-wraps like any other logical type:
+    let array = TypedArray::<Option<Transparent<Even, i64>>>::from_nullable_values([Some(2), None]);
+    assert_eq!(array.to_vec(), [Some(2), None]);
+
+    let array = TypedArray::<List<Transparent<Even, i64>>>::from_values([vec![2, 4]]);
+    assert_eq!(array.to_vec(), [vec![2, 4]]);
+
+    // A representation whose owned value is not its borrowed one keeps both:
+    let array = TypedArray::<Transparent<NonEmpty, Utf8>>::from_values(["hi".to_owned()]);
+    assert_eq!(
+        TypedArray::<Transparent<NonEmpty, Utf8>>::data_type(),
+        DataType::Utf8
+    );
+    assert_eq!(array.value(0), "hi"); // `&str`
+    assert_eq!(array.to_vec(), ["hi".to_owned()]); // `String`, not `NonEmpty`
+    assert_eq!(&array[0], "hi");
+
+    // No validation runs, so a value that `NonEmpty` would reject goes right in:
+    let array = TypedArray::<Transparent<NonEmpty, Utf8>>::from_values([String::new()]);
+    assert_eq!(array.value(0), "");
+    assert_eq!(NonEmpty::try_from(array.value(0).to_owned()), Err(()));
+}
+
 /// A custom logical type whose `downcast` accepts *several* data types:
 /// both `Int32` and `Int64` arrays, reading every value as `i64`.
 struct AnyInt;

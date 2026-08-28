@@ -242,7 +242,9 @@ More of the `Column` API:
   wins on key conflicts), included in `min_schema()`/`max_schema()`, never validated on parse
 * Domain newtypes: `newtype_data_type!(SensorName, Utf8)` makes `Column<SensorName>` work,
   with all of the above; for *foreign* types (orphan rule), use the `As` adapter:
-  `Column<As<Ipv4Addr, u32>>`
+  `Column<As<Ipv4Addr, u32>>`. The `Transparent` adapter tags a column with a domain
+  type without converting anything: `Column<Transparent<Even, i64>>` reads as plain
+  `i64`, so a type that is only `TryFrom` its representation costs no up-front validation
 * Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
   into `arrow::error::ArrowError` (as `ExternalError`), so `?` works in
   functions returning arrow results
