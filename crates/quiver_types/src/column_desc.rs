@@ -294,7 +294,8 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
             .with_metadata(self.arrow_metadata())
     }
 
-    /// The arrow field of this column, including the declared metadata.
+    /// The same as [`arrow_field`](ColumnDesc::arrow_field), as an `Arc`, for
+    /// the arrow APIs that take a [`FieldRef`](arrow::datatypes::FieldRef).
     #[must_use]
     pub fn arrow_field_ref(&self) -> arrow::datatypes::FieldRef {
         // TODO(emilk): it would be nice if this just `Arc::clone`d an existing `FieldRef` instead of allocating a new one on each call.

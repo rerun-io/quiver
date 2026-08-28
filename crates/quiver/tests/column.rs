@@ -203,6 +203,9 @@ fn static_data_type() {
     assert_eq!(names.data_type(), Column::<List<Option<Utf8>>>::data_type());
     assert_eq!(names.data_type(), names.arrow_field().data_type().clone());
 
+    // The `FieldRef` form describes the very same field:
+    assert_eq!(names.arrow_field_ref().as_ref(), &names.arrow_field());
+
     // Nullability lives on the field, not in the data type, so `optional`
     // leaves the data type alone:
     assert_eq!(names.optional().data_type(), names.data_type());
