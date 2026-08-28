@@ -62,8 +62,8 @@
 /// ```
 ///
 /// A newtype that cannot be `Pod` — because it is not layout-compatible, or
-/// because it upholds an invariant that not every bit pattern satisfies — has
-/// no bulk read here. Where handing back the *representation's* values is
+/// because its type has a *niche*, a bit pattern the compiler treats as
+/// impossible (`NonZero*`, [`char`]) — has no bulk read here. Where handing back the *representation's* values is
 /// still useful, write the three-line [`PrimitiveType`] impl by hand:
 ///
 /// ```
@@ -222,13 +222,19 @@ macro_rules! newtype_data_type {
 /// is known. After that, element access is infallible, as usual.
 ///
 /// The trailing `noref` / `primitive` arguments work exactly as in
-/// [`newtype_data_type!`](crate::newtype_data_type). A validating newtype rarely
-/// accepts every bit pattern, so `primitive` is rarely available here; the
-/// hand-written [`PrimitiveType`] impl shown there is the way to a bulk read,
-/// and it is what the built-in `NonZero*` and [`char`] columns use.
+/// [`newtype_data_type!`](crate::newtype_data_type). `primitive` asks for
+/// [`bytemuck::Pod`], which is about the *layout*, not about the domain: the
+/// validating `Even` below is `Pod` all the same — every bit pattern is a valid
+/// `Even` **struct**, and evenness is checked once per element at construction,
+/// so `&[Even]` is sound and correct. What rules `Pod` out is a *niche*, a bit
+/// pattern the compiler treats as impossible — which is why the built-in
+/// `NonZero*` and [`char`] columns use the hand-written [`PrimitiveType`] impl
+/// shown there instead.
 ///
 /// ```
-/// #[derive(Debug, PartialEq)]
+/// #[derive(Debug, PartialEq, Clone, Copy, quiver::bytemuck::Pod, quiver::bytemuck::Zeroable)]
+/// #[bytemuck(crate = "::quiver::bytemuck")]
+/// #[repr(transparent)]
 /// struct Even(i64);
 ///
 /// #[derive(Debug)]
@@ -252,11 +258,15 @@ macro_rules! newtype_data_type {
 ///     }
 /// }
 ///
-/// quiver::try_newtype_data_type!(Even, i64);
+/// quiver::try_newtype_data_type!(Even, i64, primitive);
 ///
 /// // Building goes through the infallible `From<Even> for i64`:
 /// let array = quiver::TypedArray::<Even>::from_values([Even(2), Even(4)]);
 /// assert_eq!(array.to_vec(), [Even(2), Even(4)]);
+///
+/// // Validation is not layout: `primitive` gives the bulk zero-copy read,
+/// // and every element has already been checked.
+/// assert_eq!(array.as_slice(), &[Even(2), Even(4)]);
 ///
 /// // A array whose values don't all convert is rejected at construction:
 /// use quiver::arrow::array::Int64Array;
