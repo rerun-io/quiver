@@ -522,13 +522,10 @@ impl<L: PrimitiveType> Column<L> {
 /// stays with `Index<usize>`, so range slicing needs an explicit
 /// `&(*column)[a..b]`.
 ///
-/// That resolution order is also the hazard, so: **`Column` never gains an
-/// inherent method whose name `[T]` already has.** Adding an inherent
-/// `first()` returning `Option<L::Value<'_>>` — for symmetry with `get` —
-/// would silently change the type and the meaning of every existing
-/// `column.first()` call site, with no deprecation and no error wherever the
-/// two coerce. The `deref_to_slice` test pins the slice-flavored types of the
-/// names that currently reach the slice, so CI says so if one is taken.
+/// Rule: `Column` never gains an inherent method that `[T]` already has.
+/// An inherent `first()` would silently change what every existing
+/// `column.first()` call site returns. The `deref_to_slice` test pins those
+/// names, so CI catches it.
 impl<L: PrimitiveType> std::ops::Deref for Column<L> {
     type Target = [L::Native];
 
