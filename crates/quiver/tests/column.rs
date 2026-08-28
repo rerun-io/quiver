@@ -391,7 +391,7 @@ fn dyn_column_try_new_validation() {
 
     // The array must have *exactly* the field's data type:
     let err = DynColumn::try_new(
-        Arc::new(Field::new("age", DataType::Int32, false)),
+        Field::new("age", DataType::Int32, false),
         ArrayRef::clone(&ints),
     )
     .err()
@@ -403,11 +403,7 @@ fn dyn_column_try_new_validation() {
     // Inner-field nullability is part of the data type, so it is checked too:
     let list = TypedArray::<List<Utf8>>::from_values([vec!["a".to_owned()]]).into_arrow();
     let err = DynColumn::try_new(
-        Arc::new(Field::new(
-            "tags",
-            TypedArray::<List<Option<Utf8>>>::data_type(),
-            false,
-        )),
+        Field::new("tags", TypedArray::<List<Option<Utf8>>>::data_type(), false),
         list,
     )
     .err()
@@ -419,7 +415,7 @@ fn dyn_column_try_new_validation() {
 
     // A non-nullable field may not hold nulls…
     let err = DynColumn::try_new(
-        Arc::new(Field::new("age", DataType::Int64, false)),
+        Field::new("age", DataType::Int64, false),
         ArrayRef::clone(&with_null),
     )
     .err()
@@ -429,15 +425,8 @@ fn dyn_column_try_new_validation() {
     );
 
     // …but a nullable one may, and may equally hold none:
-    assert!(
-        DynColumn::try_new(
-            Arc::new(Field::new("age", DataType::Int64, true)),
-            with_null,
-        )
-        .is_ok()
-    );
-    let column =
-        DynColumn::try_new(Arc::new(Field::new("age", DataType::Int64, true)), ints).unwrap();
+    assert!(DynColumn::try_new(Field::new("age", DataType::Int64, true), with_null).is_ok());
+    let column = DynColumn::try_new(Field::new("age", DataType::Int64, true), ints).unwrap();
 
     // Field and array agree, so the pair always fits a record batch:
     let (field, array) = column.into_parts();
@@ -449,7 +438,7 @@ fn dyn_column_try_new_validation() {
 fn dyn_column_validation_names_the_field() {
     // Wrong data type → `WrongDataType`, naming the field.
     let dynamic = DynColumn::try_new(
-        Arc::new(Field::new("age", DataType::Int64, false)),
+        Field::new("age", DataType::Int64, false),
         Arc::new(Int64Array::from(vec![1, 2])),
     )
     .unwrap();
@@ -461,7 +450,7 @@ fn dyn_column_validation_names_the_field() {
 
     // Nulls at a non-`Option` level → `UnexpectedNulls`, naming the field.
     let dynamic = DynColumn::try_new(
-        Arc::new(Field::new("age", DataType::Int64, true)),
+        Field::new("age", DataType::Int64, true),
         Arc::new(Int64Array::from(vec![Some(1), None])),
     )
     .unwrap();
@@ -474,7 +463,7 @@ fn dyn_column_validation_names_the_field() {
     // The *array* decides, not the field flag: a nullable field with no nulls
     // is a perfectly good `Column<i64>`.
     let dynamic = DynColumn::try_new(
-        Arc::new(Field::new("age", DataType::Int64, true)),
+        Field::new("age", DataType::Int64, true),
         Arc::new(Int64Array::from(vec![1, 2])),
     )
     .unwrap();
