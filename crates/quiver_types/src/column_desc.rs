@@ -318,8 +318,7 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
         &self,
         values: impl IntoIterator<Item = impl Into<L::Owned>>,
     ) -> Result<Column<L>, crate::ColumnError> {
-        Ok(Column::try_from_values(self.name, values)?
-            .with_metadata(self.arrow_metadata().into_iter().collect()))
+        Ok(Column::try_from_values(self.name, values)?.with_metadata(self.arrow_metadata()))
     }
 }
 
@@ -340,8 +339,7 @@ impl<L: crate::InfallibleBuild> ColumnDesc<L> {
         &self,
         values: impl IntoIterator<Item = impl Into<L::Owned>>,
     ) -> Column<L> {
-        Column::from_values(self.name, values)
-            .with_metadata(self.arrow_metadata().into_iter().collect())
+        Column::from_values(self.name, values).with_metadata(self.arrow_metadata())
     }
 }
 
@@ -368,8 +366,7 @@ impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
     /// ```
     #[must_use]
     pub fn new_null(&self, len: usize) -> Column<Option<L>> {
-        Column::<Option<L>>::new_null(self.name, len)
-            .with_metadata(self.arrow_metadata().into_iter().collect())
+        Column::<Option<L>>::new_null(self.name, len).with_metadata(self.arrow_metadata())
     }
 }
 

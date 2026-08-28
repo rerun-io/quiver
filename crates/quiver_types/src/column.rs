@@ -116,13 +116,7 @@ impl<L: LogicalType> Column<L> {
         let column = Self::try_new(name, ArrayRef::clone(batch.column(index)))
             .map_err(|err| Error::new(record_type, err.for_column(name.to_owned())))?;
 
-        Ok(column.with_metadata(
-            field
-                .metadata()
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect(),
-        ))
+        Ok(column.with_metadata(field.metadata().clone()))
     }
 
     /// The name of the column, stored on the arrow
@@ -152,9 +146,27 @@ impl<L: LogicalType> Column<L> {
     }
 
     /// Replace the per-column metadata.
+    ///
+    /// Takes anything that iterates key-value pairs, so an arrow
+    /// [`HashMap`](std::collections::HashMap), a
+    /// [`BTreeMap`](std::collections::BTreeMap), or a plain array of
+    /// `&str` pairs all work:
+    ///
+    /// ```
+    /// # use quiver::{Column, Utf8};
+    /// let column = Column::<Utf8>::from_values("sensor", ["kitchen"])
+    ///     .with_metadata([("unit", "celsius")]);
+    /// assert_eq!(column.metadata()["unit"], "celsius");
+    /// ```
     #[must_use]
-    pub fn with_metadata(mut self, metadata: std::collections::BTreeMap<String, String>) -> Self {
-        self.metadata = metadata;
+    pub fn with_metadata(
+        mut self,
+        metadata: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) -> Self {
+        self.metadata = metadata
+            .into_iter()
+            .map(|(key, value)| (key.into(), value.into()))
+            .collect();
         self
     }
 

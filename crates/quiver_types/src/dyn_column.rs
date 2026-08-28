@@ -118,12 +118,6 @@ impl DynColumn {
         let column = Column::<L>::try_new(field.name(), array)
             .map_err(|err| Error::new("DynColumn", err.for_column(field.name().clone())))?;
 
-        Ok(column.with_metadata(
-            field
-                .metadata()
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect(),
-        ))
+        Ok(column.with_metadata(field.metadata().clone()))
     }
 }

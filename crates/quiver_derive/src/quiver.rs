@@ -626,13 +626,7 @@ impl ColumnField {
                     .map_err(|err| {
                         #krate::Error::new(#record_type, err.for_column(#column_name.to_owned()))
                     })?
-                    .with_metadata(
-                        field
-                            .metadata()
-                            .iter()
-                            .map(|(key, value)| (key.clone(), value.clone()))
-                            .collect(),
-                    )
+                    .with_metadata(field.metadata().clone())
             };
             return if *optional {
                 quote! {

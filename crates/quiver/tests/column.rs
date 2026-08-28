@@ -21,10 +21,7 @@ use quiver::{
 fn column_metadata() {
     let column = Column::<i64>::try_new("elapsed", Arc::new(Int64Array::from(vec![1])) as ArrayRef)
         .unwrap()
-        .with_metadata(std::collections::BTreeMap::from([(
-            "unit".to_owned(),
-            "seconds".to_owned(),
-        )]));
+        .with_metadata([("unit", "seconds")]);
     assert_eq!(column.name(), "elapsed");
     assert_eq!(column.metadata()["unit"], "seconds");
 
@@ -242,10 +239,7 @@ fn column_partial_eq() {
     assert_ne!(a, b.clone().with_name("other"));
 
     // …and so does the metadata:
-    let annotated = b.with_metadata(std::collections::BTreeMap::from([(
-        "k".to_owned(),
-        "v".to_owned(),
-    )]));
+    let annotated = b.with_metadata([("k", "v")]);
     assert_ne!(a, annotated);
 
     // The data half compares on the values alone:
