@@ -75,6 +75,14 @@ impl DynColumn {
         Self { field, array }
     }
 
+    /// The name of the column in the record batch.
+    ///
+    /// Shorthand for `self.field().name()`.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        self.field.name()
+    }
+
     /// The arrow field: the column's name, data type, nullability, and metadata.
     #[must_use]
     pub fn field(&self) -> &FieldRef {

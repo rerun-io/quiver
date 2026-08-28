@@ -12,8 +12,8 @@ use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema};
 use quiver::arrow::error::ArrowError;
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnDesc, ColumnError, Duration, DynColumn, ErrorKind, FixedSizeBinary, List,
-    Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
+    Column, ColumnDesc, ColumnError, Duration, DynColumn, DynColumnDesc, ErrorKind,
+    FixedSizeBinary, List, Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
 #[test]
@@ -1993,6 +1993,32 @@ fn list_value_index_out_of_bounds() {
     let column = Column::<List<i64>>::from_values([vec![1, 2]]);
     let value: i64 = column.value(0).value(2);
     assert_eq!(value, 0); // unreachable: the line above panics
+}
+
+#[test]
+fn names() {
+    const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
+    const RAW: DynColumnDesc = DynColumnDesc::new("Measurements", "raw");
+
+    // `const`, and the same as the field:
+    const NAME: &str = SENSOR.name();
+    assert_eq!(NAME, SENSOR.name);
+    assert_eq!(RAW.name(), RAW.name);
+
+    // Changing the nullability keeps the name:
+    assert_eq!(SENSOR.optional().name(), "sensor");
+    assert_eq!(SENSOR.optional().required().name(), "sensor");
+    assert_eq!(SENSOR.to_dyn().name(), "sensor");
+
+    // A `DynColumn` reads its name off the field, wherever the field came from:
+    let column = Column::<Utf8>::from_values(["kitchen"]).into_dyn(SENSOR.name());
+    assert_eq!(column.name(), "sensor");
+    assert_eq!(column.name(), column.field().name());
+
+    let batch =
+        RecordBatch::try_from_iter([("raw", Arc::new(Int64Array::from(vec![1])) as ArrayRef)])
+            .unwrap();
+    assert_eq!(RAW.extract(&batch).unwrap().name(), "raw");
 }
 
 #[test]
