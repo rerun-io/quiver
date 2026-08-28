@@ -309,7 +309,7 @@ impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
     /// assert_eq!(column.to_vec(), [None, None, None]);
     ///
     /// let dyn_column = column.into_dyn(CHUNK_KEY.name);
-    /// assert!(dyn_column.field.is_nullable());
+    /// assert!(dyn_column.field().is_nullable());
     /// ```
     #[must_use]
     pub fn new_null(&self, len: usize) -> Column<Option<L>> {
@@ -342,8 +342,8 @@ impl<L: LogicalType> From<&ColumnDesc<L>> for DynColumnDesc {
 /// [`DynColumnDesc::new`] is `const`.
 ///
 /// The untyped counterpart of [`ColumnDesc`]: it extracts a
-/// [`DynColumn`] (field plus array), with no datatype or
-/// nullability validation.
+/// [`DynColumn`] (field plus array), checking nothing beyond what the record
+/// batch already guarantees — no logical type is involved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DynColumnDesc {
     /// The name of the `#[derive(Quiver)]` struct, for error messages.
@@ -377,9 +377,11 @@ impl DynColumnDesc {
             )
         })?;
 
-        Ok(DynColumn {
-            field: std::sync::Arc::clone(&batch.schema_ref().fields()[index]),
-            array: ArrayRef::clone(batch.column(index)),
-        })
+        // Unvalidated: a record batch has already checked that each column's
+        // array matches the schema's field, datatype and nullability both.
+        Ok(DynColumn::new_unvalidated(
+            std::sync::Arc::clone(&batch.schema_ref().fields()[index]),
+            ArrayRef::clone(batch.column(index)),
+        ))
     }
 }

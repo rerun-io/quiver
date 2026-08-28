@@ -75,10 +75,13 @@ fn roundtrip_full() {
         metadata: BTreeMap::from([("key".to_owned(), "value".to_owned())]),
         name: StringArray::from(vec!["Alice", "Bob"]),
         dob: Some(TimestampNanosecondArray::from(vec![1, 2])),
-        other_columns: vec![DynColumn {
-            field: Arc::new(Field::new("age", DataType::Int64, true)),
-            array: Arc::new(Int64Array::from(vec![30, 40])),
-        }],
+        other_columns: vec![
+            DynColumn::try_new(
+                Arc::new(Field::new("age", DataType::Int64, true)),
+                Arc::new(Int64Array::from(vec![30, 40])),
+            )
+            .unwrap(),
+        ],
     };
 
     let batch = RecordBatch::try_from(thing).unwrap();
@@ -91,7 +94,7 @@ fn roundtrip_full() {
     assert_eq!(thing.name, StringArray::from(vec!["Alice", "Bob"]));
     assert_eq!(thing.dob, Some(TimestampNanosecondArray::from(vec![1, 2])));
     assert_eq!(thing.other_columns.len(), 1);
-    assert_eq!(thing.other_columns[0].field.name(), "age");
+    assert_eq!(thing.other_columns[0].field().name(), "age");
 }
 
 #[test]
@@ -172,8 +175,8 @@ fn extra_columns_are_collected() {
     ]);
     let thing = Thing::try_from(batch).unwrap();
     assert_eq!(thing.other_columns.len(), 1);
-    assert_eq!(thing.other_columns[0].field.name(), "age");
-    assert_eq!(thing.other_columns[0].field.data_type(), &DataType::Int64);
+    assert_eq!(thing.other_columns[0].field().name(), "age");
+    assert_eq!(thing.other_columns[0].field().data_type(), &DataType::Int64);
 }
 
 #[test]
@@ -673,7 +676,7 @@ fn column_descriptors() {
     };
     let batch = strict.into_record_batch().unwrap();
     let column = Strict::COLUMN_NAME.extract(&batch).unwrap();
-    assert_eq!(column.field.name(), "name");
+    assert_eq!(column.field().name(), "name");
 }
 
 #[test]
@@ -690,7 +693,7 @@ fn column_desc_to_dyn() {
     let dynamic = Typed::COLUMN_NAME.to_dyn();
     assert_eq!(dynamic.name, "name");
     assert_eq!(dynamic.record_type, Typed::COLUMN_NAME.record_type);
-    assert_eq!(dynamic.extract(&batch).unwrap().field.name(), "name");
+    assert_eq!(dynamic.extract(&batch).unwrap().field().name(), "name");
 
     // `From` is the same conversion:
     assert_eq!(

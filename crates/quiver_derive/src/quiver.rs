@@ -450,11 +450,11 @@ impl Quiver {
                 let #extra_ident: ::std::vec::Vec<#krate::DynColumn> =
                     ::std::iter::zip(batch.schema_ref().fields(), batch.columns())
                         .filter(|(field, _)| !KNOWN_COLUMNS.contains(&field.name().as_str()))
-                        .map(|(field, array)| #krate::DynColumn {
-                            field: ::std::sync::Arc::clone(field),
-                            array: ::std::sync::Arc::clone(array),
-                        })
-                        .collect();
+                        .map(|(field, array)| #krate::DynColumn::try_new(
+                            ::std::sync::Arc::clone(field),
+                            ::std::sync::Arc::clone(array),
+                        ))
+                        .collect::<::core::result::Result<_, _>>()?;
             }
         } else if *exhaustiveness == Exhaustiveness::Exhaustive {
             quote! {
@@ -546,8 +546,9 @@ impl Quiver {
         let push_extra = extra_columns_field.as_ref().map(|extra_ident| {
             quote! {
                 for column in value.#extra_ident {
-                    fields.push(column.field);
-                    columns.push(column.array);
+                    let (field, array) = column.into_parts();
+                    fields.push(field);
+                    columns.push(array);
                 }
             }
         });

@@ -333,20 +333,25 @@ impl<L: crate::ConcreteType> Column<L> {
     /// Forgets the static type: the same data, as a dynamically-typed column
     /// whose arrow field is called `column_name`.
     ///
-    /// The field carries the datatype and nullability of `L`, plus this
-    /// column's [`metadata`](Column::metadata). Zero-copy: the array is moved.
+    /// The field carries the datatype of the array and the nullability of `L`,
+    /// plus this column's [`metadata`](Column::metadata).
+    /// Zero-copy: the array is moved.
     ///
     /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
     #[must_use]
     pub fn into_dyn(self, column_name: impl Into<String>) -> crate::DynColumn {
         let Self { array, metadata } = self;
-        crate::DynColumn {
-            field: std::sync::Arc::new(
-                Field::new(column_name, L::datatype(), L::NULLABLE)
-                    .with_metadata(metadata.into_iter().collect()),
-            ),
-            array: array.into_arrow(),
-        }
+        let array = array.into_arrow();
+
+        // The array's own datatype rather than `L::datatype()`: the two agree
+        // on everything `L` pins down, but a validated array may still differ
+        // in a detail the logical type does not constrain (the name of a list's
+        // inner field, say) — and a `DynColumn`'s field must describe the array
+        // it is paired with, exactly.
+        let field = Field::new(column_name, array.data_type().clone(), L::NULLABLE)
+            .with_metadata(metadata.into_iter().collect());
+
+        crate::DynColumn::new_unvalidated(std::sync::Arc::new(field), array)
     }
 }
 
