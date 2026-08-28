@@ -257,6 +257,26 @@ impl<L: LogicalType> ColumnDesc<L> {
 }
 
 impl<L: crate::ConcreteType> ColumnDesc<L> {
+    /// The exact arrow datatype of this column.
+    ///
+    /// The same as [`Column::datatype`] and
+    /// [`TypedArray::datatype`](crate::TypedArray::datatype), reachable from the
+    /// descriptor so you don't have to name the logical type at the call site.
+    ///
+    /// ```
+    /// # use quiver::{arrow::datatypes::DataType, ColumnDesc, Utf8};
+    /// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
+    /// assert_eq!(SENSOR.datatype(), DataType::Utf8);
+    /// ```
+    #[must_use]
+    #[expect(
+        clippy::unused_self,
+        reason = "a method, so it can be called on a descriptor value without naming `L`"
+    )]
+    pub fn datatype(&self) -> arrow::datatypes::DataType {
+        L::datatype()
+    }
+
     /// The arrow field of this column, including the declared metadata.
     #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {

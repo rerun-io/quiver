@@ -12,8 +12,8 @@ use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema};
 use quiver::arrow::error::ArrowError;
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnError, Duration, DynColumn, ErrorKind, FixedSizeBinary, List, Millisecond,
-    Nanosecond, Second, Timestamp, Utc, Utf8,
+    Column, ColumnDesc, ColumnError, Duration, DynColumn, ErrorKind, FixedSizeBinary, List,
+    Millisecond, Nanosecond, Second, Timestamp, Utc, Utf8,
 };
 
 #[test]
@@ -474,6 +474,16 @@ fn static_datatype() {
         assert!(Column::<Option<i64>>::NULLABLE);
         assert!(!Column::<i64>::NULLABLE);
     }
+
+    // A descriptor reports the same datatype, without naming the logical type:
+    let names: ColumnDesc<List<Option<Utf8>>> = ColumnDesc::new("Record", "names");
+    assert_eq!(names.datatype(), Column::<List<Option<Utf8>>>::datatype());
+    assert_eq!(names.datatype(), names.arrow_field().data_type().clone());
+
+    // Nullability lives on the field, not in the datatype, so `optional`
+    // leaves the datatype alone:
+    assert_eq!(names.optional().datatype(), names.datatype());
+    assert!(names.optional().arrow_field().is_nullable());
 }
 
 #[test]
