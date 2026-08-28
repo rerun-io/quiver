@@ -1,5 +1,5 @@
 //! [`TypedArray<L>`]: the data half of a [`Column`](crate::Column) —
-//! the arrow array plus its downcast view, without the metadata.
+//! the arrow array plus its downcast view, with no name and no metadata.
 
 use arrow::array::{Array as _, ArrayRef};
 use arrow::datatypes::DataType;
@@ -8,7 +8,7 @@ use crate::data_type::{InfallibleBuild, PrimitiveType, RefType};
 use crate::{ColumnError, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one arrow array:
-/// a [`Column`](crate::Column) minus the per-column metadata.
+/// a [`Column`](crate::Column) minus the name and the per-column metadata.
 ///
 /// Validates the array **once, eagerly** at construction
 /// (exact data type, including the inner types of nested arrays, plus nulls at
@@ -16,13 +16,17 @@ use crate::{ColumnError, LogicalType};
 /// fully typed, and zero-copy.
 ///
 /// # Relationship to the other main types
-/// [`Column<L>`](crate::Column) is this type plus the field metadata of a
-/// record batch column, and forwards every value method here. Prefer a
-/// `TypedArray` for an array that isn't a record batch column, and so has no
-/// metadata to carry; call
-/// [`Column::as_typed_array`](crate::Column::as_typed_array) or
-/// [`Column::into_typed_array`](crate::Column::into_typed_array) to get at the
-/// data half of a column, and `Column::from` to go back.
+/// A column has a name and metadata; an array has neither.
+/// [`Column<L>`](crate::Column) is this type plus those two — what a record
+/// batch stores on the arrow `Field` — and forwards every value method here.
+/// Prefer a `TypedArray` for an array that isn't a record batch column: it is
+/// the one with the `Default`, `From<Vec<_>>`, `FromIterator`, and
+/// `TryFrom<ArrayRef>` impls, since none of those could supply a name.
+///
+/// [`Column::new`](crate::Column::new) names an array, making it a column;
+/// [`Column::as_typed_array`](crate::Column::as_typed_array) and
+/// [`Column::into_typed_array`](crate::Column::into_typed_array) get the data
+/// half back.
 ///
 /// [`ColumnDesc::typed_array`](crate::ColumnDesc::typed_array) validates a
 /// loose arrow array against a named column's `L`, without you naming that `L`.
@@ -204,23 +208,45 @@ impl<L: LogicalType> TypedArray<L> {
         self.array
     }
 
-    /// The same array, read as nullable; backs [`Column::optional`](crate::Column::optional).
+    /// The same array, read as nullable: `TypedArray<L>` → `TypedArray<Option<L>>`.
     ///
     /// Free: nullability lives in the validity bitmap, and
     /// [`LogicalType::Optional`] is bound to the same `Typed`, so there is
-    /// nothing to re-validate or re-downcast.
-    pub(crate) fn into_optional(self) -> TypedArray<L::Optional> {
+    /// nothing to re-validate or re-downcast. Idempotent, and the inverse of
+    /// [`try_required`](TypedArray::try_required).
+    ///
+    /// ```
+    /// # use quiver::TypedArray;
+    /// let ages = TypedArray::<i64>::from_values([30, 40]);
+    /// assert_eq!(ages.optional().to_vec(), [Some(30), Some(40)]);
+    /// ```
+    #[must_use]
+    #[doc(alias = "nullable")]
+    pub fn optional(self) -> TypedArray<L::Optional> {
         let Self { array, typed } = self;
         TypedArray { array, typed }
     }
 
-    /// The same array, read as non-nullable; backs
-    /// [`Column::try_required`](crate::Column::try_required).
+    /// The same array, read as non-nullable: `TypedArray<Option<L>>` → `TypedArray<L>`.
     ///
     /// Only the top-level validity needs checking: the child levels were
     /// validated when this array was built, and dropping the `Option` at this
     /// level does not touch them.
-    pub(crate) fn try_into_required(self) -> Result<TypedArray<L::Required>, ColumnError> {
+    ///
+    /// ```
+    /// # use quiver::TypedArray;
+    /// let ages = TypedArray::<Option<i64>>::from_values([Some(30), Some(40)]);
+    /// assert_eq!(ages.try_required()?.to_vec(), [30, 40]);
+    ///
+    /// let with_null = TypedArray::<Option<i64>>::from_values([Some(30), None]);
+    /// assert!(with_null.try_required().is_err());
+    /// # Ok::<(), quiver::ColumnError>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Errors with [`ColumnError::UnexpectedNulls`] if the array contains nulls.
+    #[doc(alias = "non_nullable")]
+    pub fn try_required(self) -> Result<TypedArray<L::Required>, ColumnError> {
         let null_count = self.array.null_count();
         if 0 < null_count {
             return Err(ColumnError::UnexpectedNulls { null_count });
