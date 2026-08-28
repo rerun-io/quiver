@@ -222,9 +222,16 @@ fn deref_to_slice() {
     assert_eq!(takes_slice(&column), 6);
     assert_eq!(takes_as_ref(&column), 3);
 
-    // Slice methods that `Column` does not have come along…
-    assert_eq!(column.first(), Some(&1));
+    // Slice methods that `Column` does not have come along. These yield the
+    // slice's element type (`&u64`, not `u64`): giving `Column` an inherent
+    // method of any of these names would silently change that at every call
+    // site, so this list is the guard against it.
+    let first: Option<&u64> = column.first();
+    let last: Option<&u64> = column.last();
+    assert_eq!((first, last), (Some(&1), Some(&3)));
+    assert!(column.contains(&2));
     assert_eq!(column.chunks(2).count(), 2);
+    assert_eq!(column.windows(2).count(), 2);
 
     // …though `column[1..]` does not: `Index<usize>` is already implemented,
     // so indexing never reaches the slice. Deref explicitly for that:
