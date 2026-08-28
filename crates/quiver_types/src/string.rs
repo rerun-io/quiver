@@ -166,6 +166,15 @@ impl LogicalType for AnyUtf8 {
         }
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        // Whichever encoding it is, the array slices itself.
+        Some(match typed {
+            AnyTypedUtf8::Utf8(array) => AnyTypedUtf8::Utf8(array.slice(offset, length)),
+            AnyTypedUtf8::LargeUtf8(array) => AnyTypedUtf8::LargeUtf8(array.slice(offset, length)),
+            AnyTypedUtf8::Utf8View(array) => AnyTypedUtf8::Utf8View(array.slice(offset, length)),
+        })
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         match typed {

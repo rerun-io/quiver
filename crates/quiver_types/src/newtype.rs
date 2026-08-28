@@ -178,6 +178,14 @@ macro_rules! newtype_data_type {
             fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
                 ::core::convert::From::from(<$repr as $crate::LogicalType>::to_owned_value(value))
             }
+
+            fn slice_typed(
+                typed: &Self::Typed,
+                offset: usize,
+                length: usize,
+            ) -> ::core::option::Option<Self::Typed> {
+                <$repr as $crate::LogicalType>::slice_typed(typed, offset, length)
+            }
         }
 
         impl $crate::ConcreteType for $newtype
@@ -362,6 +370,14 @@ macro_rules! try_newtype_data_type {
                     )),
                 }
             }
+
+            fn slice_typed(
+                typed: &Self::Typed,
+                offset: usize,
+                length: usize,
+            ) -> ::core::option::Option<Self::Typed> {
+                <$repr as $crate::LogicalType>::slice_typed(typed, offset, length)
+            }
         }
 
         impl $crate::ConcreteType for $newtype
@@ -460,6 +476,10 @@ where
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
         T::from(Repr::to_owned_value(value))
+    }
+
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        Repr::slice_typed(typed, offset, length)
     }
 }
 

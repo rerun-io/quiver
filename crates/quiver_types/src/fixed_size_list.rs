@@ -88,6 +88,21 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
         Ok(TypedFixedSizeList { list, values })
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        // Unlike the offset-based lists, arrow re-bases a fixed-size list's
+        // values on slice, so the child view has to move by the same window,
+        // scaled by the element width.
+        let values = L::slice_typed(
+            &typed.values,
+            offset.checked_mul(N)?,
+            length.checked_mul(N)?,
+        )?;
+        Some(TypedFixedSizeList {
+            list: typed.list.slice(offset, length),
+            values,
+        })
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         typed.list.is_null(index)

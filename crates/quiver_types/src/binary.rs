@@ -74,6 +74,15 @@ macro_rules! impl_binary_data_type {
                 downcast_array::<$array>(array, || format!("{:?}", $data_type))
             }
 
+            fn slice_typed(
+                typed: &Self::Typed,
+                offset: usize,
+                length: usize,
+            ) -> Option<Self::Typed> {
+                // A leaf array slices itself; nothing to re-validate.
+                Some(typed.slice(offset, length))
+            }
+
             #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 typed.is_null(index)
@@ -205,6 +214,22 @@ impl LogicalType for AnyBinary {
                 actual: actual.clone(),
             }),
         }
+    }
+
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        // Whichever encoding it is, the array slices itself.
+        Some(match typed {
+            AnyTypedBinary::Binary(array) => AnyTypedBinary::Binary(array.slice(offset, length)),
+            AnyTypedBinary::LargeBinary(array) => {
+                AnyTypedBinary::LargeBinary(array.slice(offset, length))
+            }
+            AnyTypedBinary::BinaryView(array) => {
+                AnyTypedBinary::BinaryView(array.slice(offset, length))
+            }
+            AnyTypedBinary::FixedSizeBinary(array) => {
+                AnyTypedBinary::FixedSizeBinary(array.slice(offset, length))
+            }
+        })
     }
 
     #[inline]

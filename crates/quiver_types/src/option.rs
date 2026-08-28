@@ -33,6 +33,10 @@ impl<L: LogicalType> LogicalType for Option<L> {
         L::downcast(array)
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        L::slice_typed(typed, offset, length)
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         L::is_null(typed, index)

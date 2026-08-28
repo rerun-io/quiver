@@ -122,6 +122,36 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
         }
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        Some(match typed {
+            AnyTypedList::List(list) => {
+                AnyTypedList::List(List::<L>::slice_typed(list, offset, length)?)
+            }
+            AnyTypedList::LargeList(list) => {
+                AnyTypedList::LargeList(LargeList::<L>::slice_typed(list, offset, length)?)
+            }
+            AnyTypedList::ListView(list) => {
+                AnyTypedList::ListView(ListView::<L>::slice_typed(list, offset, length)?)
+            }
+            AnyTypedList::LargeListView(list) => {
+                AnyTypedList::LargeListView(LargeListView::<L>::slice_typed(list, offset, length)?)
+            }
+            AnyTypedList::FixedSizeList { array, values } => {
+                // Arrow re-bases a fixed-size list's values on slice, so the
+                // child view moves with it, scaled by the element width.
+                let width = usize::try_from(array.value_length()).ok()?;
+                AnyTypedList::FixedSizeList {
+                    array: array.slice(offset, length),
+                    values: L::slice_typed(
+                        values,
+                        offset.checked_mul(width)?,
+                        length.checked_mul(width)?,
+                    )?,
+                }
+            }
+        })
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         match typed {

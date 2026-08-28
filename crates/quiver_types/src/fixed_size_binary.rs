@@ -52,6 +52,12 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         }
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        // A leaf array slices itself; nothing to re-validate. Arrow normalizes
+        // the value data on slice, so the element width still holds.
+        Some(typed.slice(offset, length))
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         typed.is_null(index)
