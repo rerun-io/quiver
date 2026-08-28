@@ -679,7 +679,7 @@ impl ColumnField {
                                 #record_type,
                                 #krate::ErrorKind::WrongDataType {
                                     column: #column_name.to_owned(),
-                                    expected: ::std::format!("{:?}", #data_type),
+                                    expected: ::std::format!("{}", #data_type),
                                     actual: actual.clone(),
                                 },
                             ));

@@ -45,11 +45,11 @@ pub enum ErrorKind {
     )]
     MissingColumn { column: String },
 
-    #[error("Column {column:?}: expected {expected}, found {actual:?}")]
+    #[error("Column {column:?}: expected {expected}, found {actual}")]
     WrongDataType {
         column: String,
 
-        /// A description of the expected data type, e.g. `"Utf8"` or `"List(…)"`.
+        /// A description of the expected data type, e.g. `"Utf8"` or `"List(Int64)"`.
         expected: String,
 
         actual: DataType,
@@ -65,7 +65,7 @@ pub enum ErrorKind {
     )]
     UnexpectedNulls { column: String, null_count: usize },
 
-    #[error("Column {column:?}: expected a {expected}, found data type {actual:?}")]
+    #[error("Column {column:?}: expected a {expected}, found data type {actual}")]
     WrongArrayType {
         column: String,
 

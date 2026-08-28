@@ -436,6 +436,12 @@ fn dyn_column_try_new_validation() {
         matches!(*err.kind, ErrorKind::WrongDataType { .. }),
         "{err}"
     );
+    // Nested data types are named with arrow's `Display`, not its `Debug`
+    // (which spells this `List(Field { data_type: Utf8, nullable: true })`):
+    assert_eq!(
+        err.to_string(),
+        "DynColumn: Column \"tags\": expected List(Utf8), found List(non-null Utf8)"
+    );
 
     // A non-nullable field may not hold nulls…
     let err = DynColumn::try_new(

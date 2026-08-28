@@ -55,7 +55,7 @@ impl DynColumn {
                 "DynColumn",
                 ErrorKind::WrongDataType {
                     column,
-                    expected: format!("{:?}", field.data_type()),
+                    expected: format!("{}", field.data_type()),
                     actual: array.data_type().clone(),
                 },
             ));
