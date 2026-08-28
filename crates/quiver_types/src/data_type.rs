@@ -133,6 +133,23 @@ pub trait LogicalType {
         Self::value(typed, index)
     }
 
+    /// The downcast view of the rows `offset..offset + length`, when this
+    /// encoding can produce it without re-validating.
+    ///
+    /// [`TypedArray::slice`](crate::TypedArray::slice) slices the arrow array and
+    /// then needs the matching view. `None` — the default — means "re-run
+    /// [`downcast`](LogicalType::downcast) on the sliced array": always correct,
+    /// but it re-validates, which for a nested type recurses into the children
+    /// and can rescan a child validity bitmap the whole array was already
+    /// checked against.
+    ///
+    /// An override must return the view of exactly those rows, and may skip only
+    /// validation that slicing cannot invalidate: a slice reaches a subset of the
+    /// rows, so a null-free array stays null-free.
+    fn slice_typed(_typed: &Self::Typed, _offset: usize, _length: usize) -> Option<Self::Typed> {
+        None
+    }
+
     /// Converts a borrowed element value into an owned one,
     /// e.g. `&str` → `String`.
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
@@ -316,6 +333,15 @@ macro_rules! impl_flat_data_type {
                 downcast_array::<$array>(array, || format!("{:?}", $data_type))
             }
 
+            fn slice_typed(
+                typed: &Self::Typed,
+                offset: usize,
+                length: usize,
+            ) -> Option<Self::Typed> {
+                // A leaf array slices itself; nothing to re-validate.
+                Some(typed.slice(offset, length))
+            }
+
             #[inline]
             fn is_null(typed: &Self::Typed, index: usize) -> bool {
                 typed.is_null(index)
@@ -400,6 +426,15 @@ macro_rules! impl_marker_data_type {
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
                 crate::data_type::downcast_array::<$array>(array, || format!("{:?}", $data_type))
+            }
+
+            fn slice_typed(
+                typed: &Self::Typed,
+                offset: usize,
+                length: usize,
+            ) -> Option<Self::Typed> {
+                // A leaf array slices itself; nothing to re-validate.
+                Some(typed.slice(offset, length))
             }
 
             #[inline]

@@ -188,12 +188,19 @@ impl<L: LogicalType> TypedArray<L> {
 
     /// A zero-copy slice of the rows `offset..offset + length`.
     ///
+    /// Cheap: most encodings re-slice their downcast view directly
+    /// ([`LogicalType::slice_typed`]) rather than re-validating, which for a
+    /// nested type would recurse into the children.
+    ///
     /// # Panics
     /// If the range is out of bounds (like arrow's `slice`).
     #[must_use]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
-        Self::try_new(self.array.slice(offset, length))
-            .expect("Cannot fail: slicing preserves the data type and validity")
+        let array = self.array.slice(offset, length);
+        let typed = L::slice_typed(&self.typed, offset, length).unwrap_or_else(|| {
+            L::downcast(&*array).expect("Cannot fail: slicing preserves the data type and validity")
+        });
+        Self { array, typed }
     }
 
     /// The underlying arrow array.

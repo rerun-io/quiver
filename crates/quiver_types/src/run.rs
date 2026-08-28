@@ -106,6 +106,16 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         Ok(TypedRun { run, values })
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        // Slicing moves the logical window; the run ends and values are shared
+        // whole, and `get_physical_index` accounts for the offset — so the
+        // values' view carries over.
+        Some(TypedRun {
+            run: typed.run.slice(offset, length),
+            values: typed.values.clone(),
+        })
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         let physical = typed.run.get_physical_index(index);

@@ -1879,3 +1879,139 @@ fn list_value_index_out_of_bounds() {
     let value: i64 = array.value(0).value(2);
     assert_eq!(value, 0); // unreachable: the line above panics
 }
+
+/// `TypedArray::slice` re-slices the downcast view instead of re-validating
+/// (`LogicalType::slice_typed`). For every encoding, that has to agree with
+/// validating the sliced arrow array from scratch.
+#[test]
+fn slice_agrees_with_a_full_downcast() {
+    use quiver::{AnyUtf8, Date32, Dictionary, LargeList, LargeUtf8, ListView, Map, Run, Utf8View};
+
+    fn check<L>(array: &TypedArray<L>)
+    where
+        L: quiver::LogicalType,
+        L::Owned: std::fmt::Debug + PartialEq,
+    {
+        let len = array.len();
+        assert!(2 <= len, "give the check something to slice");
+
+        for (offset, length) in [(0, len), (0, len - 1), (1, len - 1), (1, 1), (len, 0)] {
+            let fast = array.slice(offset, length);
+            let slow = TypedArray::<L>::try_new(array.as_arrow().slice(offset, length))
+                .expect("a slice of a valid array is valid");
+
+            assert_eq!(fast.len(), slow.len(), "{offset}..{}", offset + length);
+            assert_eq!(
+                fast.to_vec(),
+                slow.to_vec(),
+                "{offset}..{}",
+                offset + length
+            );
+        }
+
+        // Slicing an already-sliced array must land in the same place as
+        // slicing once — the window has to compose, not restart.
+        assert_eq!(
+            array.slice(1, len - 1).slice(1, len - 2).to_vec(),
+            array.slice(2, len - 2).to_vec()
+        );
+    }
+
+    // Leaves:
+    check(&TypedArray::<i64>::from_values([1, 2, 3]));
+    check(&TypedArray::<bool>::from_values([true, false, true]));
+    check(&TypedArray::<Utf8>::from_values(["a", "bb", "ccc"]));
+    check(&TypedArray::<LargeUtf8>::from_values(["a", "bb", "ccc"]));
+    check(&TypedArray::<Utf8View>::from_values(["a", "bb", "ccc"]));
+    check(
+        &TypedArray::<AnyUtf8>::try_new(Arc::new(StringArray::from(vec!["a", "b", "c"]))).unwrap(),
+    );
+    check(&TypedArray::<FixedSizeBinary<2>>::from_values([
+        [1_u8, 2],
+        [3, 4],
+        [5, 6],
+    ]));
+    check(&TypedArray::<Timestamp<Nanosecond, Utc>>::from_values([
+        1_i64, 2, 3,
+    ]));
+    check(&TypedArray::<Date32>::from_values([1_i32, 2, 3]));
+
+    // Nullability, newtypes, and the adapters:
+    check(&TypedArray::<Option<i64>>::from_nullable_values([
+        Some(1),
+        None,
+        Some(3),
+    ]));
+    check(&TypedArray::<ChunkId>::from_values([
+        ChunkId([1; 16]),
+        ChunkId([2; 16]),
+        ChunkId([3; 16]),
+    ]));
+    check(&TypedArray::<SensorName>::from_values([
+        SensorName("a".to_owned()),
+        SensorName("b".to_owned()),
+        SensorName("c".to_owned()),
+    ]));
+
+    // Nested, where the fast path skips recursing into the children:
+    check(&TypedArray::<List<i64>>::from_values([
+        vec![1_i64, 2],
+        vec![],
+        vec![3],
+    ]));
+    check(&TypedArray::<List<Option<i64>>>::from_values([
+        vec![Some(1_i64), None],
+        vec![],
+        vec![Some(3)],
+    ]));
+    check(&TypedArray::<List<List<i64>>>::from_values([
+        vec![vec![1_i64], vec![2]],
+        vec![],
+        vec![vec![3]],
+    ]));
+    check(&TypedArray::<LargeList<Utf8>>::from_values([
+        vec!["a".to_owned()],
+        vec![],
+        vec!["b".to_owned(), "c".to_owned()],
+    ]));
+    check(&TypedArray::<ListView<i64>>::from_values([
+        vec![1_i64, 2],
+        vec![],
+        vec![3],
+    ]));
+    check(&TypedArray::<quiver::FixedSizeList<i64, 2>>::from_values([
+        [1_i64, 2],
+        [3, 4],
+        [5, 6],
+    ]));
+    check(&TypedArray::<Map<Utf8, i64>>::from_values([
+        vec![("a".to_owned(), 1_i64)],
+        vec![],
+        vec![("b".to_owned(), 2), ("c".to_owned(), 3)],
+    ]));
+    check(&TypedArray::<Dictionary<i32, Utf8>>::try_from_values(["a", "a", "b"]).unwrap());
+
+    // The multi-encoding types, which dispatch per variant:
+    let lists: ArrayRef =
+        TypedArray::<List<i64>>::from_values([vec![1_i64, 2], vec![], vec![3]]).into_arrow();
+    check(&TypedArray::<quiver::AnyList<i64>>::try_new(lists).unwrap());
+    let fixed: ArrayRef =
+        TypedArray::<quiver::FixedSizeList<i64, 2>>::from_values([[1_i64, 2], [3, 4], [5, 6]])
+            .into_arrow();
+    check(&TypedArray::<quiver::AnyList<i64>>::try_new(fixed).unwrap());
+    let bytes: ArrayRef =
+        TypedArray::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4], [5, 6]]).into_arrow();
+    check(&TypedArray::<quiver::AnyBinary>::try_new(bytes).unwrap());
+    check(&TypedArray::<Run<i32, Utf8>>::try_from_values(["a", "a", "b"]).unwrap());
+
+    // The case the fast path exists for: non-nullable items whose child array
+    // still carries a validity buffer, so `downcast` has to scan it.
+    let items = Int64Array::new(
+        vec![1_i64, 2, 3, 4, 5, 6].into(),
+        Some(quiver::arrow::buffer::NullBuffer::new_valid(6)),
+    );
+    let offsets = quiver::arrow::buffer::OffsetBuffer::from_lengths([2_usize, 2, 2]);
+    let field = Arc::new(Field::new("item", DataType::Int64, false));
+    let with_buffer: ArrayRef = Arc::new(ListArray::new(field, offsets, Arc::new(items), None));
+    check(&TypedArray::<List<i64>>::try_new(with_buffer).unwrap());
+}

@@ -48,6 +48,11 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
         })
     }
 
+    fn slice_typed(typed: &Self::Typed, offset: usize, length: usize) -> Option<Self::Typed> {
+        // A leaf array slices itself; nothing to re-validate.
+        Some(typed.slice(offset, length))
+    }
+
     #[inline]
     fn is_null(typed: &Self::Typed, index: usize) -> bool {
         typed.is_null(index)
