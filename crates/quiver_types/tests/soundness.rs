@@ -14,11 +14,11 @@ use std::sync::Arc;
 
 use quiver_types::arrow::array::{ArrayRef, LargeListArray};
 use quiver_types::arrow::datatypes::Int64Type;
-use quiver_types::{AnyList, Column, Dictionary, FixedSizeBinary, List, Utf8};
+use quiver_types::{AnyList, Dictionary, FixedSizeBinary, List, TypedArray, Utf8};
 
 /// Drive a fresh iterator (via `iter`, which doesn't consume) through every
 /// overridden combinator and check each against `expected`.
-fn check_iter<'a, L>(column: &'a Column<L>, expected: &[L::Value<'a>])
+fn check_iter<'a, L>(column: &'a TypedArray<L>, expected: &[L::Value<'a>])
 where
     L: quiver_types::LogicalType + 'a,
     L::Value<'a>: PartialEq + Clone + std::fmt::Debug,
@@ -85,7 +85,7 @@ impl<T: Clone> CopiedRef<T> for Option<&T> {
 
 #[test]
 fn primitive_column_sliced() {
-    let column = Column::<i64>::from_values([0, 1, 2, 3, 4, 5, 6, 7]);
+    let column = TypedArray::<i64>::from_values([0, 1, 2, 3, 4, 5, 6, 7]);
 
     check_iter(&column, &[0, 1, 2, 3, 4, 5, 6, 7]);
     check_iter(&column.slice(2, 4), &[2, 3, 4, 5]);
@@ -112,7 +112,7 @@ fn primitive_column_sliced() {
 #[test]
 fn string_column_sliced() {
     // Variable-length: exercises the offset-buffer reads in `value_unchecked`.
-    let column = Column::<Utf8>::from_values(["a", "bb", "ccc", "dddd", "eeeee"]);
+    let column = TypedArray::<Utf8>::from_values(["a", "bb", "ccc", "dddd", "eeeee"]);
 
     check_iter(&column, &["a", "bb", "ccc", "dddd", "eeeee"]);
     check_iter(&column.slice(1, 3), &["bb", "ccc", "dddd"]);
@@ -123,7 +123,7 @@ fn string_column_sliced() {
 fn nullable_column_sliced() {
     // Exercises `Option::value_unchecked`'s per-element `is_null` branch.
     let column =
-        Column::<Option<i64>>::from_values([Some(0), None, Some(2), None, Some(4), Some(5)]);
+        TypedArray::<Option<i64>>::from_values([Some(0), None, Some(2), None, Some(4), Some(5)]);
 
     check_iter(&column, &[Some(0), None, Some(2), None, Some(4), Some(5)]);
     check_iter(&column.slice(1, 4), &[None, Some(2), None, Some(4)]);
@@ -134,7 +134,7 @@ fn nullable_string_column_sliced() {
     // Like `nullable_column_sliced`, but over a variable-length (byte-buffer)
     // encoding, so `Option::value_unchecked`'s `is_null_unchecked` probe runs
     // against a sliced validity bitmap on a non-primitive leaf.
-    let column = Column::<Option<Utf8>>::from_values([
+    let column = TypedArray::<Option<Utf8>>::from_values([
         Some("a".to_owned()),
         None,
         Some("ccc".to_owned()),
@@ -165,7 +165,7 @@ fn any_list_column_sliced() {
         Some(vec![Some(9)]),
     ];
     let array = LargeListArray::from_iter_primitive::<Int64Type, _, _>(rows);
-    let column = Column::<AnyList<i64>>::try_from(Arc::new(array) as ArrayRef)
+    let column = TypedArray::<AnyList<i64>>::try_from(Arc::new(array) as ArrayRef)
         .expect("a LargeList of i64 parses as AnyList<i64>");
 
     // Forward, over a row-sliced column.
@@ -203,10 +203,10 @@ fn nullable_any_list_column_sliced() {
         Some(vec![Some(3), Some(4), Some(5)]),
     ];
     let array = LargeListArray::from_iter_primitive::<Int64Type, _, _>(rows);
-    let column = Column::<Option<AnyList<i64>>>::try_from(Arc::new(array) as ArrayRef)
+    let column = TypedArray::<Option<AnyList<i64>>>::try_from(Arc::new(array) as ArrayRef)
         .expect("a nullable LargeList of i64 parses as Option<AnyList<i64>>");
 
-    let collect = |column: &Column<Option<AnyList<i64>>>| -> Vec<Option<Vec<i64>>> {
+    let collect = |column: &TypedArray<Option<AnyList<i64>>>| -> Vec<Option<Vec<i64>>> {
         column
             .iter()
             .map(|row| row.map(|items| items.iter().collect()))
@@ -229,7 +229,7 @@ fn nullable_any_list_column_sliced() {
 #[test]
 fn fixed_size_binary_column_sliced() {
     // Exercises the `first_chunk::<N>` path in `value_unchecked`.
-    let column = Column::<FixedSizeBinary<2>>::from_values([[0, 1], [2, 3], [4, 5], [6, 7]]);
+    let column = TypedArray::<FixedSizeBinary<2>>::from_values([[0, 1], [2, 3], [4, 5], [6, 7]]);
 
     check_iter(&column, &[&[0, 1], &[2, 3], &[4, 5], &[6, 7]]);
     check_iter(&column.slice(1, 2), &[&[2, 3], &[4, 5]]);
@@ -239,7 +239,7 @@ fn fixed_size_binary_column_sliced() {
 fn dictionary_column_sliced() {
     // Exercises the dictionary key path: `keys().value_unchecked(i)` then a
     // bounds-checked value lookup.
-    let column = Column::<Dictionary<i32, Utf8>>::try_from_values(["x", "y", "x", "z", "y"])
+    let column = TypedArray::<Dictionary<i32, Utf8>>::try_from_values(["x", "y", "x", "z", "y"])
         .expect("dictionary fits an i32 key");
 
     check_iter(&column, &["x", "y", "x", "z", "y"]);
@@ -250,7 +250,7 @@ fn dictionary_column_sliced() {
 fn list_column_and_list_value_sliced() {
     // Exercises both the list `value_unchecked` (`offsets.get_unchecked(i)` /
     // `(i + 1)`) and the `ListValue` iterator over a sliced row.
-    let column = Column::<List<i64>>::from_values([
+    let column = TypedArray::<List<i64>>::from_values([
         vec![0, 1, 2],
         vec![],
         vec![3, 4],

@@ -27,10 +27,10 @@ use crate::data_type::{
 /// accept an array with the timezone "+00:00".
 ///
 /// ```
-/// use quiver::{Column, Nanosecond, Timestamp, Utc};
+/// use quiver::{Nanosecond, Timestamp, TypedArray, Utc};
 ///
-/// let column = Column::<Timestamp<Nanosecond, Utc>>::from_values([1, 2, 3]);
-/// assert_eq!(column.value(0), 1); // raw `i64` ticks since the epoch
+/// let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_values([1, 2, 3]);
+/// assert_eq!(array.value(0), 1); // raw `i64` ticks since the epoch
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.

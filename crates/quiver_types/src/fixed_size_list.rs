@@ -23,11 +23,11 @@ use crate::list::ListValue;
 /// Item nullability: `FixedSizeList<Option<L>, N>`.
 ///
 /// ```
-/// use quiver::{Column, FixedSizeList};
+/// use quiver::{FixedSizeList, TypedArray};
 ///
 /// // 3D positions:
-/// let column = Column::<FixedSizeList<f32, 3>>::from_values([[1.0, 2.0, 3.0]]);
-/// let first: Vec<f32> = column.value(0).collect();
+/// let array = TypedArray::<FixedSizeList<f32, 3>>::from_values([[1.0, 2.0, 3.0]]);
+/// let first: Vec<f32> = array.value(0).collect();
 /// assert_eq!(first, [1.0, 2.0, 3.0]);
 /// ```
 ///

@@ -30,10 +30,10 @@ pub(crate) use crate::list_value::ListValue;
 /// Item nullability: `List<Option<L>>`.
 ///
 /// ```
-/// use quiver::{Column, List};
+/// use quiver::{List, TypedArray};
 ///
-/// let column = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
-/// let first: Vec<i64> = column.value(0).collect();
+/// let array = TypedArray::<List<i64>>::from_values([vec![1, 2], vec![3]]);
+/// let first: Vec<i64> = array.value(0).collect();
 /// assert_eq!(first, [1, 2]);
 /// ```
 ///

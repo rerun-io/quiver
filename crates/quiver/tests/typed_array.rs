@@ -61,15 +61,18 @@ fn nested_and_slices() {
 
 #[test]
 fn converts_to_and_from_column() {
-    let mut column = Column::<Utf8>::from_values(["foo"]);
+    let mut column = Column::<Utf8>::from_values("sensor", ["foo"]);
     column
         .metadata_mut()
         .insert("unit".to_owned(), "name".to_owned());
 
-    // Dropping to the data half loses the metadata; going back gets none.
+    // Dropping to the data half loses the name and the metadata;
+    // naming it again gets neither back.
     let array: TypedArray<Utf8> = column.clone().into_typed_array();
     assert_eq!(column.as_typed_array(), &array);
-    assert!(Column::from(array).metadata().is_empty());
+    let renamed = Column::new("other", array);
+    assert_eq!(renamed.name(), "other");
+    assert!(renamed.metadata().is_empty());
 
     // The arrow array survives the round trip:
     assert_eq!(
@@ -85,7 +88,7 @@ fn converts_to_and_from_column() {
 #[test]
 #[expect(deprecated)]
 fn deprecated_iterator_aliases() {
-    let column = Column::<Utf8>::from_values(["foo", "bar"]);
+    let column = Column::<Utf8>::from_values("sensor", ["foo", "bar"]);
     let borrowed: quiver::ColumnIter<'_, Utf8> = column.iter();
     assert_eq!(borrowed.count(), 2);
 

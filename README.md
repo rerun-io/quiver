@@ -95,14 +95,20 @@ struct Thing {
 // * `fn empty_record_batch()` - when, additionally, all columns are required (min == max)
 ```
 
-Building columns from values is infallible:
+Building columns from values is infallible. Every constructor takes the column
+name, since that is half of what makes a column a column:
 
 ``` rust
-use quiver::{Column, List, Utf8};
+use quiver::{Column, List, TypedArray, Utf8};
 
-let names: Column<Utf8> = vec!["Alice", "Bob"].into();
-let scores = Column::<List<i64>>::from_values([vec![1, 2], vec![3]]);
-let maybe: Column<Option<f64>> = [Some(1.5), None].into_iter().collect();
+let names = Column::<Utf8>::from_values("name", ["Alice", "Bob"]);
+let scores = Column::<List<i64>>::from_values("scores", [vec![1, 2], vec![3]]);
+let maybe = Column::<Option<f64>>::from_values("weight", [Some(1.5), None]);
+
+// `TypedArray` is the unnamed data half, and has the `Default`, `From<Vec<_>>`,
+// `FromIterator`, and `TryFrom<ArrayRef>` impls that cannot name a column:
+let unnamed: TypedArray<Utf8> = vec!["Alice", "Bob"].into();
+let named = Column::new("name", unnamed);
 ```
 
 Single columns can be extracted without parsing the whole batch — two ways:
@@ -116,7 +122,7 @@ struct Reading {
 }
 
 let batch = Reading {
-    sensor: vec!["kitchen".to_owned()].into(),
+    sensor: Reading::COLUMN_SENSOR.new_from_values(["kitchen"]),
 }
 .into_record_batch()?;
 
@@ -151,7 +157,7 @@ let dynamic_arrow_array: ArrayRef = Arc::new(ListArray::from_iter_primitive::<In
     vec![Some(vec![Some(1), Some(2)]), Some(vec![Some(3)])],
 ));
 
-let column = Column::<List<Option<i32>>>::try_from(dynamic_arrow_array)?;
+let column = Column::<List<Option<i32>>>::try_new("scores", dynamic_arrow_array)?;
 for list in &column {
     for number in list {
         // `number` is an `Option<i32>`; validation already happened, up front
@@ -160,10 +166,11 @@ for list in &column {
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-For an array that isn't a record batch column, and so has no field metadata to carry,
-use `quiver::TypedArray<L>`: the same validated, zero-copy view, with the same value API.
-A `Column<L>` is a `TypedArray<L>` plus the per-column metadata
-(`column.as_typed_array()` and `column.into_typed_array()` get you the data half).
+For an array that isn't a record batch column, and so has neither a name nor field
+metadata to carry, use `quiver::TypedArray<L>`: the same validated, zero-copy view,
+with the same value API. A `Column<L>` is a `TypedArray<L>` plus the column's name and
+per-column metadata (`Column::new` names one; `column.as_typed_array()` and
+`column.into_typed_array()` get you the data half back).
 
 ## Quiver types vs. arrow types
 
@@ -210,11 +217,15 @@ obvious empty batch, and a round-trip would silently turn `None` into `Some(empt
 
 More of the `Column` API:
 
-* Construction is infallible: `from_values`, `From<Vec<T>>`, `FromIterator`,
-  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), `Default` (empty),
-  and `new_null` (all nulls, e.g. to pad a batch that is missing the column).
-  The exceptions: building a `Dictionary` (key overflow) or `Run` (run-end
-  overflow) column can fail, so those use `try_from_values` instead
+* Construction is infallible, and always names the column: `from_values`,
+  `from_nullable_values` (for e.g. `Option<&str>` → `Option<String>`), `empty`,
+  `new_null` (all nulls, e.g. to pad a batch that is missing the column), and
+  `Column::new` (naming a `TypedArray`). The exceptions: building a `Dictionary`
+  (key overflow) or `Run` (run-end overflow) column can fail, so those use
+  `try_from_values` instead. The `COLUMN_*` descriptors have `new_from_values`
+  and `new_null` too, taking the name and declared metadata from the descriptor
+* The name: `name()`/`with_name()`, stored on the arrow `Field` alongside the
+  metadata. `TypedArray<L>` is the same data with neither
 * Single-column extraction from a `RecordBatch`, no derive needed:
   `Column::<L>::from_record_batch_and_name(&batch, name)` — looks the column up by
   name (a missing one gives a helpful `MissingColumn` error), validates it against `L`,
@@ -277,7 +288,7 @@ use quiver::{AnyList, Column};
 #     vec![Some(vec![Some(1), Some(2)])],
 # ));
 // `array` may be a List / LargeList / ListView / LargeListView / FixedSizeList:
-let column = Column::<AnyList<i64>>::try_from(array)?;
+let column = Column::<AnyList<i64>>::try_new("scores", array)?;
 for list in &column {
     for _item in list { /* i64 */ }
 }
@@ -285,8 +296,8 @@ for list in &column {
 ```
 
 Because it has no single arrow data type, `AnyList` is **parse-only**: it implements
-`LogicalType` (so `try_from`/reading work) but not `ConcreteType`, so it has no
-`data_type()`, `from_values`, `Default`, or schema generation. To *build* a column,
+`LogicalType` (so `try_new`/reading work) but not `ConcreteType`, so it has no
+`data_type()`, `from_values`, `empty()`, or schema generation. To *build* a column,
 pick a concrete encoding such as `Column<List<L>>`.
 
 `AnyBinary` is the same idea for byte strings: it accepts any of `Binary`,

@@ -26,10 +26,10 @@ use crate::list::ListValue;
 /// Item nullability: `ListView<Option<L>>`.
 ///
 /// ```
-/// use quiver::{Column, ListView};
+/// use quiver::{ListView, TypedArray};
 ///
-/// let column = Column::<ListView<i64>>::from_values([vec![1, 2], vec![3]]);
-/// let first: Vec<i64> = column.value(0).collect();
+/// let array = TypedArray::<ListView<i64>>::from_values([vec![1, 2], vec![3]]);
+/// let first: Vec<i64> = array.value(0).collect();
 /// assert_eq!(first, [1, 2]);
 /// ```
 ///
@@ -51,10 +51,10 @@ pub struct TypedListView<L: LogicalType> {
 /// Item nullability: `LargeListView<Option<L>>`.
 ///
 /// ```
-/// use quiver::{Column, LargeListView};
+/// use quiver::{LargeListView, TypedArray};
 ///
-/// let column = Column::<LargeListView<i64>>::from_values([vec![1, 2], vec![3]]);
-/// let second: Vec<i64> = column.value(1).collect();
+/// let array = TypedArray::<LargeListView<i64>>::from_values([vec![1, 2], vec![3]]);
+/// let second: Vec<i64> = array.value(1).collect();
 /// assert_eq!(second, [3]);
 /// ```
 ///

@@ -1,4 +1,4 @@
-//! Benchmarks for summing the values of a [`Column`], comparing the access
+//! Benchmarks for summing the values of a [`TypedArray`], comparing the access
 //! strategies — so the cost of the typesafe iterator (which skips per-element
 //! bounds checks, see `TypedArrayIter`) can be weighed against the alternatives.
 //!
@@ -13,7 +13,7 @@
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-use quiver::{Column, List};
+use quiver::{List, TypedArray};
 
 /// Number of `i64`s in the flat column.
 const FLAT_LEN: usize = 1_000_000;
@@ -40,10 +40,10 @@ fn make_values(n: usize) -> Vec<i64> {
 }
 
 fn bench_flat() {
-    let column = Column::<i64>::from_values(make_values(FLAT_LEN));
+    let column = TypedArray::<i64>::from_values(make_values(FLAT_LEN));
     let expected: i64 = column.as_slice().iter().sum();
 
-    println!("\nSum of a `Column<i64>` ({FLAT_LEN} elements):");
+    println!("\nSum of a `TypedArray<i64>` ({FLAT_LEN} elements):");
 
     // The fast path: one contiguous, zero-copy slice — no per-element dispatch.
     run("as_slice().iter().sum()", FLAT_LEN, expected, || {
@@ -100,14 +100,14 @@ fn bench_list() {
         .map(|_| make_values(LIST_ITEMS_PER_ROW))
         .collect();
     let total_items = LIST_ROWS * LIST_ITEMS_PER_ROW;
-    let column = Column::<List<i64>>::from_values(rows);
+    let column = TypedArray::<List<i64>>::from_values(rows);
     let expected: i64 = column
         .iter()
         .map(|row| row.as_slice().iter().sum::<i64>())
         .sum();
 
     println!(
-        "\nSum of all items of a `Column<List<i64>>` ({LIST_ROWS} rows × {LIST_ITEMS_PER_ROW} items):"
+        "\nSum of all items of a `TypedArray<List<i64>>` ({LIST_ROWS} rows × {LIST_ITEMS_PER_ROW} items):"
     );
 
     // Per row, the items are one contiguous slice.

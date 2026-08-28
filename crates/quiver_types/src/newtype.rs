@@ -57,8 +57,8 @@
 ///
 /// quiver::newtype_data_type!(Uuid, FixedSizeBinary<16>, primitive);
 ///
-/// let column = quiver::Column::<Uuid>::from_values([Uuid([7; 16])]);
-/// assert_eq!(column.as_slice(), &[Uuid([7; 16])]); // bulk, zero-copy
+/// let array = quiver::TypedArray::<Uuid>::from_values([Uuid([7; 16])]);
+/// assert_eq!(array.as_slice(), &[Uuid([7; 16])]); // bulk, zero-copy
 /// ```
 ///
 /// A newtype that cannot be `Pod` — because it is not layout-compatible, or
@@ -79,8 +79,8 @@
 ///     }
 /// }
 ///
-/// let column = quiver::Column::<Even>::from_values([Even(2), Even(4)]);
-/// assert_eq!(column.as_slice(), &[2_i64, 4]);
+/// let array = quiver::TypedArray::<Even>::from_values([Even(2), Even(4)]);
+/// assert_eq!(array.as_slice(), &[2_i64, 4]);
 /// ```
 ///
 /// ```
@@ -100,12 +100,12 @@
 ///
 /// quiver::newtype_data_type!(SensorName, quiver::Utf8);
 ///
-/// let column = quiver::Column::<SensorName>::from_values([
+/// let array = quiver::TypedArray::<SensorName>::from_values([
 ///     SensorName("kitchen".to_owned()),
 /// ]);
-/// assert_eq!(column.value(0), "kitchen"); // borrowed: the repr's value
-/// assert_eq!(&column[0], "kitchen"); // indexing, also borrowed
-/// assert_eq!(column.to_vec(), [SensorName("kitchen".to_owned())]); // owned: the newtype
+/// assert_eq!(array.value(0), "kitchen"); // borrowed: the repr's value
+/// assert_eq!(&array[0], "kitchen"); // indexing, also borrowed
+/// assert_eq!(array.to_vec(), [SensorName("kitchen".to_owned())]); // owned: the newtype
 /// ```
 #[macro_export]
 macro_rules! newtype_data_type {
@@ -255,13 +255,13 @@ macro_rules! newtype_data_type {
 /// quiver::try_newtype_data_type!(Even, i64);
 ///
 /// // Building goes through the infallible `From<Even> for i64`:
-/// let column = quiver::Column::<Even>::from_values([Even(2), Even(4)]);
-/// assert_eq!(column.to_vec(), [Even(2), Even(4)]);
+/// let array = quiver::TypedArray::<Even>::from_values([Even(2), Even(4)]);
+/// assert_eq!(array.to_vec(), [Even(2), Even(4)]);
 ///
-/// // A column whose values don't all convert is rejected at construction:
+/// // A array whose values don't all convert is rejected at construction:
 /// use quiver::arrow::array::Int64Array;
 /// let array = std::sync::Arc::new(Int64Array::from(vec![2, 3]));
-/// assert!(quiver::Column::<Even>::try_new(array).is_err());
+/// assert!(quiver::TypedArray::<Even>::try_new(array).is_err());
 /// ```
 #[macro_export]
 macro_rules! try_newtype_data_type {
@@ -396,13 +396,13 @@ use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, PrimitiveType,
 /// ```
 /// use std::net::Ipv4Addr;
 ///
-/// use quiver::{As, Column};
+/// use quiver::{As, TypedArray};
 ///
-/// type IpColumn = Column<As<Ipv4Addr, u32>>; // u32: the arrow representation
+/// type IpColumn = TypedArray<As<Ipv4Addr, u32>>; // u32: the arrow representation
 ///
-/// let column = IpColumn::from_values([Ipv4Addr::LOCALHOST]);
-/// assert_eq!(column.value(0), u32::from(Ipv4Addr::LOCALHOST)); // borrowed: the repr's value
-/// assert_eq!(column.to_vec(), [Ipv4Addr::LOCALHOST]); // owned: the foreign type
+/// let array = IpColumn::from_values([Ipv4Addr::LOCALHOST]);
+/// assert_eq!(array.value(0), u32::from(Ipv4Addr::LOCALHOST)); // borrowed: the repr's value
+/// assert_eq!(array.to_vec(), [Ipv4Addr::LOCALHOST]); // owned: the foreign type
 /// ```
 ///
 /// Requires `From` conversions between the foreign type and the representation's

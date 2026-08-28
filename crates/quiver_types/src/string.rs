@@ -23,10 +23,10 @@ use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array, impl_m
 /// UTF-8 text: an arrow [`DataType::Utf8`] column with `String` values.
 ///
 /// ```
-/// use quiver::{Column, Utf8};
+/// use quiver::{TypedArray, Utf8};
 ///
-/// let column = Column::<Utf8>::from_values(["alice", "bob"]);
-/// assert_eq!(column.value(0), "alice"); // borrowed `&str`, zero-copy
+/// let array = TypedArray::<Utf8>::from_values(["alice", "bob"]);
+/// assert_eq!(array.value(0), "alice"); // borrowed `&str`, zero-copy
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -44,10 +44,10 @@ impl_marker_data_type!(
 /// (for single columns holding more than 2 `GiB` of text in total).
 ///
 /// ```
-/// use quiver::{Column, LargeUtf8};
+/// use quiver::{LargeUtf8, TypedArray};
 ///
-/// let column = Column::<LargeUtf8>::from_values(["alice", "bob"]);
-/// assert_eq!(column.value(1), "bob");
+/// let array = TypedArray::<LargeUtf8>::from_values(["alice", "bob"]);
+/// assert_eq!(array.value(1), "bob");
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -66,10 +66,10 @@ impl_marker_data_type!(
 /// and out-of-order writes.
 ///
 /// ```
-/// use quiver::{Column, Utf8View};
+/// use quiver::{TypedArray, Utf8View};
 ///
-/// let column = Column::<Utf8View>::from_values(["alice", "bob"]);
-/// assert_eq!(column.value(0), "alice");
+/// let array = TypedArray::<Utf8View>::from_values(["alice", "bob"]);
+/// assert_eq!(array.value(0), "alice");
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -119,14 +119,14 @@ impl RefType for Utf8View {
 /// schema; to build, pick a concrete encoding such as `Column<Utf8>`.
 ///
 /// ```
-/// use quiver::{AnyUtf8, Column};
+/// use quiver::{AnyUtf8, TypedArray};
 /// use quiver::arrow::array::{ArrayRef, LargeStringArray};
 /// # use std::sync::Arc;
 ///
 /// // `array` may be a Utf8 / LargeUtf8 / Utf8View:
 /// let array: ArrayRef = Arc::new(LargeStringArray::from(vec!["alice", "bob"]));
-/// let column = Column::<AnyUtf8>::try_from(array).unwrap();
-/// assert_eq!(column.value(0), "alice");
+/// let array = TypedArray::<AnyUtf8>::try_from(array).unwrap();
+/// assert_eq!(array.value(0), "alice");
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
