@@ -28,12 +28,12 @@ use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array};
 /// `Option<Run<R, V>>` is not the way to express it.
 ///
 /// ```
-/// use quiver::{Column, Run, Utf8};
+/// use quiver::{Run, TypedArray, Utf8};
 ///
 /// // Consecutive duplicates collapse into runs (building can fail on overflow):
-/// let column = Column::<Run<i32, Utf8>>::try_from_values(["a", "a", "a", "b"]).unwrap();
-/// assert_eq!(column.value(0), "a");
-/// assert_eq!(column.to_vec(), ["a", "a", "a", "b"]);
+/// let array = TypedArray::<Run<i32, Utf8>>::try_from_values(["a", "a", "a", "b"]).unwrap();
+/// assert_eq!(array.value(0), "a");
+/// assert_eq!(array.to_vec(), ["a", "a", "a", "b"]);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -167,10 +167,13 @@ impl<R: RunEndType + 'static, V: RefType + 'static> RefType for Run<R, V> {
     }
 }
 
-/// `vec.try_into()` support for run-end-encoded columns,
+/// `vec.try_into()` support for run-end-encoded arrays,
 /// whose building is fallible (run-end overflow) — see
-/// [`crate::Column::try_from_values`].
-impl<R, V, T> TryFrom<Vec<T>> for crate::Column<Run<R, V>>
+/// [`crate::TypedArray::try_from_values`].
+///
+/// There is no `Column` counterpart: a column needs a name, which a `Vec` does
+/// not carry. Use [`Column::try_from_values`](crate::Column::try_from_values).
+impl<R, V, T> TryFrom<Vec<T>> for crate::TypedArray<Run<R, V>>
 where
     R: RunEndType + 'static,
     V: crate::ConcreteType + 'static,

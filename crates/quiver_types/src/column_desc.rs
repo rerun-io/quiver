@@ -143,7 +143,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// [`required`](ColumnDesc::required) goes the other way.
     ///
     /// ```
-    /// # use quiver::{ColumnDesc, Binary};
+    /// # use quiver::{Binary, ColumnDesc};
     /// const CHUNK_KEY: ColumnDesc<Binary> = ColumnDesc::new("Manifest", "chunk_key");
     ///
     /// # let batch = quiver::arrow::record_batch::RecordBatch::try_from_iter([(
@@ -274,7 +274,7 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
     /// descriptor so you don't have to name the logical type at the call site.
     ///
     /// ```
-    /// # use quiver::{arrow::datatypes::DataType, ColumnDesc, Utf8};
+    /// # use quiver::{ColumnDesc, Utf8, arrow::datatypes::DataType};
     /// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
     /// assert_eq!(SENSOR.data_type(), DataType::Utf8);
     /// ```
@@ -302,8 +302,52 @@ impl<L: crate::ConcreteType> ColumnDesc<L> {
     }
 }
 
+impl<L: crate::ConcreteType> ColumnDesc<L> {
+    /// Builds this column from owned values; the fallible form of
+    /// [`ColumnDesc::new_from_values`], needed only for fallible encodings
+    /// (dictionary key overflow).
+    ///
+    /// The descriptor supplies the column name and the declared
+    /// [`metadata`](ColumnDesc::metadata), so neither is repeated at the call
+    /// site — handy for the `COLUMN_*` constants the derive generates.
+    ///
+    /// # Errors
+    /// Errors if the encoding fails, e.g. too many distinct values
+    /// for the dictionary key type.
+    pub fn try_new_from_values(
+        &self,
+        values: impl IntoIterator<Item = impl Into<L::Owned>>,
+    ) -> Result<Column<L>, crate::ColumnError> {
+        Ok(Column::try_from_values(self.name, values)?
+            .with_metadata(self.arrow_metadata().into_iter().collect()))
+    }
+}
+
+impl<L: crate::InfallibleBuild> ColumnDesc<L> {
+    /// Builds this column from owned values, under the descriptor's name and
+    /// declared [`metadata`](ColumnDesc::metadata).
+    ///
+    /// ```
+    /// # use quiver::{ColumnDesc, Utf8};
+    /// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
+    ///
+    /// let sensors = SENSOR.new_from_values(["kitchen", "attic"]);
+    /// assert_eq!(sensors.name(), "sensor");
+    /// assert_eq!(sensors.to_vec(), ["kitchen", "attic"]);
+    /// ```
+    #[must_use]
+    pub fn new_from_values(
+        &self,
+        values: impl IntoIterator<Item = impl Into<L::Owned>>,
+    ) -> Column<L> {
+        Column::from_values(self.name, values)
+            .with_metadata(self.arrow_metadata().into_iter().collect())
+    }
+}
+
 impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
-    /// A column of `len` nulls, carrying this descriptor's declared
+    /// A column of `len` nulls, carrying this descriptor's
+    /// [`name`](ColumnDesc::name) and declared
     /// [`metadata`](ColumnDesc::metadata).
     ///
     /// Pads a record batch that is missing this column — typically reached
@@ -317,13 +361,14 @@ impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
     ///
     /// let column = CHUNK_KEY.optional().new_null(3);
     /// assert_eq!(column.to_vec(), [None, None, None]);
+    /// assert_eq!(column.name(), "chunk_key");
     ///
-    /// let dyn_column = column.into_dyn(CHUNK_KEY.name);
+    /// let dyn_column = column.into_dyn();
     /// assert!(dyn_column.field().is_nullable());
     /// ```
     #[must_use]
     pub fn new_null(&self, len: usize) -> Column<Option<L>> {
-        Column::<Option<L>>::new_null(len)
+        Column::<Option<L>>::new_null(self.name, len)
             .with_metadata(self.arrow_metadata().into_iter().collect())
     }
 }
