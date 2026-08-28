@@ -98,7 +98,7 @@ pub use self::list::{List, TypedList};
 pub use self::list_value::ListValue;
 pub use self::list_view::{LargeListView, ListView, TypedLargeListView, TypedListView};
 pub use self::map::{Map, MapValue, TypedMap};
-pub use self::newtype::As;
+pub use self::newtype::{As, Transparent};
 pub use self::run::{Run, RunEndType, TypedRun};
 pub use self::string::{AnyTypedUtf8, AnyUtf8, LargeUtf8, Utf8, Utf8View};
 pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
