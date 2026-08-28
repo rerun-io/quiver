@@ -700,10 +700,21 @@ fn column_desc_to_dyn() {
     assert_eq!(dynamic.record_type, Typed::COLUMN_NAME.record_type);
     assert_eq!(dynamic.extract(&batch).unwrap().field().name(), "name");
 
-    // `From` is the same conversion:
+    // `From` is the same conversion, by reference or by value:
     assert_eq!(
         DynColumnDesc::from(&Typed::COLUMN_MAYBE_AGE).name,
         "maybe_age"
+    );
+    assert_eq!(
+        DynColumnDesc::from(Annotated::COLUMN_CHUNK_ID),
+        Annotated::COLUMN_CHUNK_ID.to_dyn()
+    );
+
+    // The declared metadata is dropped, there being nowhere to put it:
+    assert!(!Annotated::COLUMN_CHUNK_ID.metadata.is_empty());
+    assert_eq!(
+        Annotated::COLUMN_CHUNK_ID.to_dyn(),
+        quiver::ColumnDesc::<quiver::FixedSizeBinary<16>>::new("Annotated", "chunk_id").to_dyn()
     );
 
     // A missing column still errors under the struct's own name:

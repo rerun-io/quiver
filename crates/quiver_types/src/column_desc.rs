@@ -388,6 +388,14 @@ impl<L: LogicalType> From<&ColumnDesc<L>> for DynColumnDesc {
     }
 }
 
+/// A descriptor is [`Copy`], so it converts by value too — the spelling
+/// [`to_dyn`](ColumnDesc::to_dyn) already uses.
+impl<L: LogicalType> From<ColumnDesc<L>> for DynColumnDesc {
+    fn from(desc: ColumnDesc<L>) -> Self {
+        desc.to_dyn()
+    }
+}
+
 /// Identifies a dynamically-typed column by name.
 ///
 /// `#[derive(Quiver)]` generates one per raw arrow array field, as a `COLUMN_*`
