@@ -919,6 +919,29 @@ fn column_optional_and_required() {
     assert_eq!(still_required.to_vec(), [1]);
 }
 
+/// The declared metadata is compared as the map it becomes on the arrow field:
+/// key order does not matter, and a repeated key takes its last value.
+#[test]
+fn column_desc_metadata_compares_as_a_map() {
+    type Desc = quiver::ColumnDesc<Utf8>;
+    const AB: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "2")]);
+    const BA: Desc = Desc::new_with_metadata("R", "c", &[("b", "2"), ("a", "1")]);
+    const TWICE: Desc = Desc::new_with_metadata("R", "c", &[("a", "9"), ("a", "1"), ("b", "2")]);
+    const OTHER: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "9")]);
+    const SHORTER: Desc = Desc::new_with_metadata("R", "c", &[("a", "1")]);
+
+    assert_eq!(AB, BA);
+    assert_eq!(AB, TWICE);
+    assert_ne!(AB, OTHER);
+    assert_ne!(AB, SHORTER);
+
+    // Which is exactly when the arrow fields agree:
+    assert_eq!(AB.arrow_field(), BA.arrow_field());
+    assert_eq!(AB.arrow_field(), TWICE.arrow_field());
+    assert_ne!(AB.arrow_field(), OTHER.arrow_field());
+    assert_ne!(AB.arrow_field(), SHORTER.arrow_field());
+}
+
 /// Holds a descriptor without naming `LogicalType`: the struct definition of
 /// `ColumnDesc` puts no bound on `L`, only its impls do.
 struct Wrapper<L> {

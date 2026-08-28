@@ -87,6 +87,10 @@ impl<L> std::fmt::Debug for ColumnDesc<L> {
     }
 }
 
+/// The declared metadata is compared as the map it becomes on the arrow field,
+/// not as the slice it is written as: the order of the keys does not matter, and
+/// a repeated key takes its last value — so two descriptors compare equal
+/// exactly when their [`arrow_field`](ColumnDesc::arrow_field)s do.
 impl<L> PartialEq for ColumnDesc<L> {
     fn eq(&self, other: &Self) -> bool {
         let Self {
@@ -95,8 +99,27 @@ impl<L> PartialEq for ColumnDesc<L> {
             metadata,
             _marker,
         } = self;
-        *record_type == other.record_type && *name == other.name && *metadata == other.metadata
+        *record_type == other.record_type
+            && *name == other.name
+            && metadata_eq(metadata, other.metadata)
     }
+}
+
+/// Compares two declared-metadata slices as maps; see [`ColumnDesc`]'s
+/// [`PartialEq`].
+fn metadata_eq(left: &[(&str, &str)], right: &[(&str, &str)]) -> bool {
+    // The last value of a repeated key wins, exactly as collecting the pairs
+    // into the arrow field's map does.
+    fn value_of<'a>(pairs: &[(&str, &'a str)], key: &str) -> Option<&'a str> {
+        pairs
+            .iter()
+            .rev()
+            .find_map(|(candidate, value)| (*candidate == key).then_some(*value))
+    }
+
+    left.iter()
+        .chain(right)
+        .all(|(key, _)| value_of(left, key) == value_of(right, key))
 }
 
 impl<L> Eq for ColumnDesc<L> {}
