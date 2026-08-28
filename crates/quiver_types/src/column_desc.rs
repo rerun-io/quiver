@@ -244,6 +244,16 @@ impl<L: LogicalType> ColumnDesc<L> {
             .map_err(|err| Error::new(record_type, err.for_column(name.to_owned())))
     }
 
+    /// The name of the column in the record batch.
+    ///
+    /// The same as the [`name`](ColumnDesc::name) field, as a method — so a
+    /// descriptor, a [`DynColumnDesc`], and a [`DynColumn`] can all be asked
+    /// the same way.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
     /// The declared [`metadata`](ColumnDesc::metadata), owned, in the shape
     /// arrow wants it — for [`arrow_field`](ColumnDesc::arrow_field), and for
     /// stamping it on a field you build yourself.
@@ -359,6 +369,14 @@ impl DynColumnDesc {
     #[must_use]
     pub const fn new(record_type: &'static str, name: &'static str) -> Self {
         Self { record_type, name }
+    }
+
+    /// The name of the column in the record batch.
+    ///
+    /// The same as the [`name`](DynColumnDesc::name) field, as a method.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.name
     }
 
     /// Extracts this single column of a record batch.
