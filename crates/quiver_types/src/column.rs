@@ -154,7 +154,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// Takes anything that iterates key-value pairs, so an arrow
     /// [`HashMap`](std::collections::HashMap), a
-    /// [`BTreeMap`](std::collections::BTreeMap), or a plain array of
+    /// [`BTreeMap`], or a plain array of
     /// `&str` pairs all work:
     ///
     /// ```
