@@ -1784,6 +1784,11 @@ fn transparent_adapter_is_only_a_tag() {
     assert_eq!(array.value(0), "hi"); // `&str`
     assert_eq!(array.to_vec(), ["hi".to_owned()]); // `String`, not `NonEmpty`
     assert_eq!(&array[0], "hi");
+
+    // No validation runs, so a value that `NonEmpty` would reject goes right in:
+    let array = TypedArray::<Transparent<NonEmpty, Utf8>>::from_values([String::new()]);
+    assert_eq!(array.value(0), "");
+    assert_eq!(NonEmpty::try_from(array.value(0).to_owned()), Err(()));
 }
 
 /// A custom logical type whose `downcast` accepts *several* data types:
