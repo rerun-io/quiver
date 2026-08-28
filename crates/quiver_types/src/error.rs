@@ -12,6 +12,9 @@ pub struct Error {
     /// The name of the `#[derive(Quiver)]` struct that was converted to/from.
     pub record_type: &'static str,
 
+    /// Both interpolated into the message and the [`source`](std::error::Error::source),
+    /// so the cause of a failed conversion stays reachable programmatically.
+    #[source]
     pub kind: Box<ErrorKind>,
 }
 

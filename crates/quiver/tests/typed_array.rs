@@ -1595,6 +1595,13 @@ fn fallible_newtype_arrays() {
     let batch = RecordBatch::try_from_iter([("level", arrow_array as ArrayRef)]).unwrap();
     let err = Column::<Even>::from_record_batch_and_name(&batch, "level").unwrap_err();
     assert!(matches!(*err.kind, quiver::ErrorKind::Conversion { .. }));
+
+    // …and the cause stays reachable, not just printable:
+    let kind = std::error::Error::source(&err).expect("the kind is the source");
+    let cause = kind
+        .source()
+        .expect("the conversion error is the kind's source");
+    assert_eq!(cause.downcast_ref::<NotEven>(), Some(&NotEven(1)));
 }
 
 #[test]
