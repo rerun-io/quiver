@@ -48,7 +48,7 @@ struct Anything {
     anything: ArrayRef,
 }
 
-/// Columns whose datatype depends on runtime parameters.
+/// Columns whose data type depends on runtime parameters.
 #[derive(Quiver)]
 struct Nested {
     list: ListArray,
@@ -127,13 +127,13 @@ fn missing_required_column() {
 }
 
 #[test]
-fn wrong_datatype() {
+fn wrong_data_type() {
     let batch = batch_of(&[("name", Arc::new(Int64Array::from(vec![1])) as ArrayRef)]);
     let result = Strict::try_from(batch);
     let err = result.err().unwrap();
     assert_eq!(err.record_type, "Strict");
     assert!(
-        matches!(*err.kind, ErrorKind::WrongDatatype { column, expected, actual: DataType::Int64, } if column == "name" && expected == "Utf8")
+        matches!(*err.kind, ErrorKind::WrongDataType { column, expected, actual: DataType::Int64, } if column == "name" && expected == "Utf8")
     );
 }
 
@@ -193,7 +193,7 @@ fn renamed_column() {
 }
 
 #[test]
-fn any_datatype() {
+fn any_data_type() {
     let anything = Anything {
         anything: Arc::new(Int64Array::from(vec![1, 2, 3])),
     };
@@ -202,7 +202,7 @@ fn any_datatype() {
     assert_eq!(
         batch.schema_ref().field(0).data_type(),
         &DataType::Int64,
-        "The datatype should be taken from the array"
+        "The data type should be taken from the array"
     );
 
     let anything = Anything::try_from(batch).unwrap();
@@ -210,7 +210,7 @@ fn any_datatype() {
 }
 
 #[test]
-fn roundtrip_nested_datatypes() {
+fn roundtrip_nested_data_types() {
     let list = ListArray::from_iter_primitive::<Int32Type, _, _>(vec![
         Some(vec![Some(1), Some(2)]),
         Some(vec![Some(3)]),
@@ -464,7 +464,7 @@ fn typed_column_validates_inner_list_type() {
     let result = Typed::try_from(batch);
     let err = result.err().unwrap();
     assert_eq!(err.record_type, "Typed");
-    assert!(matches!(*err.kind, ErrorKind::WrongDatatype { column, .. } if column == "tags"));
+    assert!(matches!(*err.kind, ErrorKind::WrongDataType { column, .. } if column == "tags"));
 }
 
 #[derive(Quiver)]
@@ -580,7 +580,7 @@ fn static_schema() {
     assert!(min.field_with_name("scores").is_err());
     assert!(min.field_with_name("name").is_ok());
 
-    // Raw arrow arrays with an exact datatype are included, as nullable
+    // Raw arrow arrays with an exact data type are included, as nullable
     // (their nullability is not statically known):
     let schema = Strict::max_schema();
     let name = schema.field_with_name("name").unwrap();
@@ -717,14 +717,14 @@ fn column_desc_typed_array() {
     assert_eq!(array.value(0), Some(7));
     assert_eq!(array.value(1), None);
 
-    // Wrong datatype: labeled with the column name (the renamed one) and record type.
+    // Wrong data type: labeled with the column name (the renamed one) and record type.
     let err = Annotated::COLUMN_FRAME_START
         .typed_array(Arc::new(StringArray::from(vec!["7"])) as ArrayRef)
         .err()
         .unwrap();
     assert_eq!(err.record_type, "Annotated");
     assert!(
-        matches!(&*err.kind, ErrorKind::WrongDatatype { column, .. } if column == "frame_nr"),
+        matches!(&*err.kind, ErrorKind::WrongDataType { column, .. } if column == "frame_nr"),
         "{err}"
     );
 

@@ -12,7 +12,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
 
-use crate::datatype::{ColumnError, LogicalType, impl_marker_datatype, impl_primitive_datatype};
+use crate::data_type::{ColumnError, LogicalType, impl_marker_data_type, impl_primitive_data_type};
 
 /// Seconds since midnight, as an `i32`.
 ///
@@ -62,28 +62,28 @@ pub struct Time64Microsecond;
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Time64Nanosecond;
 
-impl_marker_datatype!(
+impl_marker_data_type!(
     Time32Second,
     arrow::array::Time32SecondArray,
     i32,
     i32,
     DataType::Time32(TimeUnit::Second)
 );
-impl_marker_datatype!(
+impl_marker_data_type!(
     Time32Millisecond,
     arrow::array::Time32MillisecondArray,
     i32,
     i32,
     DataType::Time32(TimeUnit::Millisecond)
 );
-impl_marker_datatype!(
+impl_marker_data_type!(
     Time64Microsecond,
     arrow::array::Time64MicrosecondArray,
     i64,
     i64,
     DataType::Time64(TimeUnit::Microsecond)
 );
-impl_marker_datatype!(
+impl_marker_data_type!(
     Time64Nanosecond,
     arrow::array::Time64NanosecondArray,
     i64,
@@ -91,7 +91,7 @@ impl_marker_datatype!(
     DataType::Time64(TimeUnit::Nanosecond)
 );
 
-impl_primitive_datatype!(Time32Second, i32);
-impl_primitive_datatype!(Time32Millisecond, i32);
-impl_primitive_datatype!(Time64Microsecond, i64);
-impl_primitive_datatype!(Time64Nanosecond, i64);
+impl_primitive_data_type!(Time32Second, i32);
+impl_primitive_data_type!(Time32Millisecond, i32);
+impl_primitive_data_type!(Time64Microsecond, i64);
+impl_primitive_data_type!(Time64Nanosecond, i64);

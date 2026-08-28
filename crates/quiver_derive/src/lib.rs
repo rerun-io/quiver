@@ -11,7 +11,7 @@ use proc_macro::TokenStream;
 ///
 /// Generates:
 /// * `impl TryFrom<RecordBatch>` and `impl TryFrom<&RecordBatch>` — validates the schema
-///   (column names, datatypes, nullability), then downcasts the columns (zero-copy)
+///   (column names, data types, nullability), then downcasts the columns (zero-copy)
 /// * `impl TryFrom<Self> for RecordBatch` — fails on column length mismatch
 /// * `fn from_record_batch()` and `fn into_record_batch()` — discoverable aliases for the above
 /// * `COLUMN_*` constants (e.g. `COLUMN_TEMPERATURE`) — per-column descriptors with the column
@@ -20,21 +20,21 @@ use proc_macro::TokenStream;
 ///   usable in `match` patterns
 /// * `fn min_schema()` / `fn max_schema()` — the static arrow schema of the required columns /
 ///   of all declared columns (including optional ones); only generated when all columns have a
-///   statically-known datatype (no `ArrayRef`, `ListArray`, …)
+///   statically-known data type (no `ArrayRef`, `ListArray`, …)
 /// * `fn empty_record_batch()` — an infallible, zero-row record batch with every declared column;
 ///   only generated when, additionally, all columns are required (no `Option<…>` columns,
 ///   i.e. `min_schema() == max_schema()`)
 ///
 /// ## Field types
-/// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact datatype
+/// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact data type
 ///   (including the inner types of nested arrays) and nullability from the logical type `L`
-/// * A typed Arrow array (e.g. `StringArray`) — a required column with a specific datatype
+/// * A typed Arrow array (e.g. `StringArray`) — a required column with a specific data type
 /// * A parameterized Arrow array (e.g. `ListArray`, `StructArray`, `DictionaryArray<…>`) —
 ///   a required column, validated by downcast only (the inner types are NOT validated)
-/// * `ArrayRef` — a required column of any datatype
+/// * `ArrayRef` — a required column of any data type
 /// * `Option<…>` of the above — the column is allowed to be missing
 ///
-/// Use `quiver::Column<L>` for strong compile-time guarantees (exact datatypes, nullability),
+/// Use `quiver::Column<L>` for strong compile-time guarantees (exact data types, nullability),
 /// and raw arrow types when you *want* things to be dynamic.
 ///
 /// ## Struct attributes

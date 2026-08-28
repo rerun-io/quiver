@@ -1,20 +1,20 @@
 //! [`Column<L>`]: a strongly-typed, validated, zero-copy view of one record batch column.
 //!
 //! The wrapper validates the arrow array **once, eagerly** at construction
-//! (exact datatype, including the inner types of nested arrays, plus nulls at
+//! (exact data type, including the inner types of nested arrays, plus nulls at
 //! every non-`Option` nesting level). After that, element access is infallible,
 //! fully typed, and zero-copy.
 
 use arrow::array::ArrayRef;
 use arrow::datatypes::{DataType, Field};
 
-use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
+use crate::data_type::{InfallibleBuild, PrimitiveType, RefType};
 use crate::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
 use crate::{ColumnError, Error, ErrorKind, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one record batch column.
 ///
-/// The logical type `L` describes the exact datatype and nullability,
+/// The logical type `L` describes the exact data type and nullability,
 /// e.g. `Column<List<Utf8>>` or `Column<Option<i64>>`.
 ///
 /// # Relationship to the other main types
@@ -44,11 +44,11 @@ impl<L: LogicalType> Column<L> {
     /// May the values of this column be null?
     pub const NULLABLE: bool = L::NULLABLE;
 
-    /// Validates the array against the logical type `L` (datatype and nullability,
+    /// Validates the array against the logical type `L` (data type and nullability,
     /// recursively), then downcasts it (zero-copy).
     ///
     /// # Errors
-    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    /// Errors on data type mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
         Ok(Self {
             array: TypedArray::try_new(array)?,
@@ -59,7 +59,7 @@ impl<L: LogicalType> Column<L> {
     /// Extracts and validates a single column of a record batch, by name.
     ///
     /// Looks up the column by name (returning [`ErrorKind::MissingColumn`] if it
-    /// is absent), validates it against `L` (datatype and nullability, recursively),
+    /// is absent), validates it against `L` (data type and nullability, recursively),
     /// and carries over the arrow [`Field`] metadata.
     ///
     /// This is the no-derive equivalent of the `COLUMN_*` descriptors that
@@ -157,7 +157,7 @@ impl<L: LogicalType> Column<L> {
     /// Where a plain reference exists in the array — strings, binaries,
     /// primitives (but not `bool`, `Option<…>`, or `List<…>`) — `column[index]`
     /// works too, and is handy with generic code expecting `&T`.
-    /// For the owned value (e.g. `String`, or your `newtype_datatype!` type),
+    /// For the owned value (e.g. `String`, or your `newtype_data_type!` type),
     /// see [`Column::value_owned`].
     ///
     /// Panics if out of bounds.
@@ -307,7 +307,7 @@ impl<L: LogicalType> Column<L> {
 }
 
 /// Construction and schema, for logical types with a single concrete arrow
-/// datatype. (Multi-encoding types like [`AnyList`](crate::AnyList) are
+/// data type. (Multi-encoding types like [`AnyList`](crate::AnyList) are
 /// parse-only: build a concrete encoding instead.)
 impl<L: crate::ConcreteType> Column<L> {
     /// Builds a column from owned values; the fallible form of
@@ -324,16 +324,16 @@ impl<L: crate::ConcreteType> Column<L> {
         Self::try_new(array)
     }
 
-    /// The exact arrow datatype of this column.
+    /// The exact arrow data type of this column.
     #[must_use]
-    pub fn datatype() -> DataType {
-        L::datatype()
+    pub fn data_type() -> DataType {
+        L::data_type()
     }
 
     /// Forgets the static type: the same data, as a dynamically-typed column
     /// whose arrow field is called `column_name`.
     ///
-    /// The field carries the datatype of the array and the nullability of `L`,
+    /// The field carries the data type of the array and the nullability of `L`,
     /// plus this column's [`metadata`](Column::metadata).
     /// Zero-copy: the array is moved.
     ///
@@ -343,7 +343,7 @@ impl<L: crate::ConcreteType> Column<L> {
         let Self { array, metadata } = self;
         let array = array.into_arrow();
 
-        // The array's own datatype rather than `L::datatype()`: the two agree
+        // The array's own data type rather than `L::data_type()`: the two agree
         // on everything `L` pins down, but a validated array may still differ
         // in a detail the logical type does not constrain (the name of a list's
         // inner field, say) — and a `DynColumn`'s field must describe the array
@@ -390,7 +390,7 @@ impl<L: PrimitiveType> Column<L> {
     /// (`bool` is excluded: arrow bit-packs it).
     ///
     /// A newtype declared with the `primitive` arm of
-    /// [`newtype_datatype!`](crate::newtype_datatype) yields the newtype itself
+    /// [`newtype_data_type!`](crate::newtype_data_type) yields the newtype itself
     /// (`&[Uuid]`, not `&[[u8; 16]]`).
     ///
     /// ```
@@ -534,11 +534,11 @@ impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for Column<L> {
     }
 }
 
-/// An empty column. Only for logical types with a single concrete datatype.
+/// An empty column. Only for logical types with a single concrete data type.
 impl<L: crate::ConcreteType> Default for Column<L> {
     fn default() -> Self {
-        let array = arrow::array::new_empty_array(&L::datatype());
-        Self::try_new(array).expect("An empty array of the right datatype is always valid")
+        let array = arrow::array::new_empty_array(&L::data_type());
+        Self::try_new(array).expect("An empty array of the right data type is always valid")
     }
 }
 

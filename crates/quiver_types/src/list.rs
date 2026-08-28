@@ -20,7 +20,7 @@ use arrow::array::{Array, ArrayRef, OffsetSizeTrait};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 // Re-exported so the list macros (and sibling list types) keep referring to
 // `crate::list::ListValue` after the type itself moved to its own module.
 pub(crate) use crate::list_value::ListValue;
@@ -51,7 +51,7 @@ pub struct TypedList<L: LogicalType> {
 /// Generates the [`LogicalType`] (and friends) impl for a list logical type:
 /// shared by [`List`] (32-bit offsets) and [`LargeList`](crate::LargeList)
 /// (64-bit offsets).
-macro_rules! impl_list_datatype {
+macro_rules! impl_list_data_type {
     ($marker:ident, $typed:ident, $array:ty, $variant:ident) => {
         impl<L: LogicalType> Clone for $typed<L> {
             fn clone(&self) -> Self {
@@ -96,7 +96,7 @@ macro_rules! impl_list_datatype {
             #[inline]
             unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
                 // SAFETY: the caller guarantees `index` is in bounds.
-                unsafe { crate::datatype::leaf_is_null_unchecked(&typed.list, index) }
+                unsafe { crate::data_type::leaf_is_null_unchecked(&typed.list, index) }
             }
 
             #[inline]
@@ -129,10 +129,10 @@ macro_rules! impl_list_datatype {
         }
 
         impl<L: crate::ConcreteType + 'static> crate::ConcreteType for $marker<L> {
-            fn datatype() -> DataType {
+            fn data_type() -> DataType {
                 DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
                     "item",
-                    L::datatype(),
+                    L::data_type(),
                     L::NULLABLE,
                 )))
             }
@@ -156,7 +156,7 @@ macro_rules! impl_list_datatype {
 
                 let field = std::sync::Arc::new(arrow::datatypes::Field::new(
                     "item",
-                    L::datatype(),
+                    L::data_type(),
                     L::NULLABLE,
                 ));
                 let offsets = arrow::buffer::OffsetBuffer::from_lengths(lengths);
@@ -178,9 +178,9 @@ macro_rules! impl_list_datatype {
     };
 }
 
-pub(crate) use impl_list_datatype;
+pub(crate) use impl_list_data_type;
 
-impl_list_datatype!(List, TypedList, arrow::array::ListArray, List);
+impl_list_data_type!(List, TypedList, arrow::array::ListArray, List);
 
 /// Counts the nulls among the *reachable* items of a list array (`List` or
 /// `LargeList` — it is generic over the offset width):

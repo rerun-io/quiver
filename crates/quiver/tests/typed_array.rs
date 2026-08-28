@@ -42,10 +42,10 @@ fn nulls_and_nullable() {
     assert_eq!(array.to_vec(), [Some(1), None]);
     assert_eq!(array, TypedArray::from_nullable_values([Some(1_i64), None]));
 
-    // A wrong datatype is rejected too:
+    // A wrong data type is rejected too:
     assert!(matches!(
         TypedArray::<Option<i64>>::try_new(Arc::new(StringArray::from(vec!["1"]))),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
 }
 

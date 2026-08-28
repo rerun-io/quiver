@@ -215,7 +215,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// Extracts and validates this single column of a record batch.
     ///
     /// # Errors
-    /// Errors if the column is missing, has the wrong datatype, or unexpected nulls.
+    /// Errors if the column is missing, has the wrong data type, or unexpected nulls.
     pub fn extract(&self, batch: &arrow::record_batch::RecordBatch) -> Result<Column<L>, Error> {
         let Self {
             record_type, name, ..
@@ -234,7 +234,7 @@ impl<L: LogicalType> ColumnDesc<L> {
     /// record batch, and want the metadata too.
     ///
     /// # Errors
-    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    /// Errors on data type mismatch, or on nulls at any non-`Option` nesting level.
     pub fn typed_array(&self, array: ArrayRef) -> Result<TypedArray<L>, Error> {
         let Self {
             record_type, name, ..
@@ -257,30 +257,30 @@ impl<L: LogicalType> ColumnDesc<L> {
 }
 
 impl<L: crate::ConcreteType> ColumnDesc<L> {
-    /// The exact arrow datatype of this column.
+    /// The exact arrow data type of this column.
     ///
-    /// The same as [`Column::datatype`] and
-    /// [`TypedArray::datatype`](crate::TypedArray::datatype), reachable from the
+    /// The same as [`Column::data_type`] and
+    /// [`TypedArray::data_type`](crate::TypedArray::data_type), reachable from the
     /// descriptor so you don't have to name the logical type at the call site.
     ///
     /// ```
     /// # use quiver::{arrow::datatypes::DataType, ColumnDesc, Utf8};
     /// const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
-    /// assert_eq!(SENSOR.datatype(), DataType::Utf8);
+    /// assert_eq!(SENSOR.data_type(), DataType::Utf8);
     /// ```
     #[must_use]
     #[expect(
         clippy::unused_self,
         reason = "a method, so it can be called on a descriptor value without naming `L`"
     )]
-    pub fn datatype(&self) -> arrow::datatypes::DataType {
-        L::datatype()
+    pub fn data_type(&self) -> arrow::datatypes::DataType {
+        L::data_type()
     }
 
     /// The arrow field of this column, including the declared metadata.
     #[must_use]
     pub fn arrow_field(&self) -> arrow::datatypes::Field {
-        arrow::datatypes::Field::new(self.name, L::datatype(), L::NULLABLE)
+        arrow::datatypes::Field::new(self.name, L::data_type(), L::NULLABLE)
             .with_metadata(self.arrow_metadata())
     }
 
@@ -378,7 +378,7 @@ impl DynColumnDesc {
         })?;
 
         // Unvalidated: a record batch has already checked that each column's
-        // array matches the schema's field, datatype and nullability both.
+        // array matches the schema's field, data type and nullability both.
         Ok(DynColumn::new_unvalidated(
             std::sync::Arc::clone(&batch.schema_ref().fields()[index]),
             ArrayRef::clone(batch.column(index)),

@@ -12,7 +12,7 @@
 //! preferable when you *know* (and want to enforce) the encoding.
 //!
 //! `AnyList` is *parse-only*: it is not a [`ConcreteType`](crate::ConcreteType)
-//! (it has no single arrow datatype), so it has no `from_values`/`Default`/schema.
+//! (it has no single arrow data type), so it has no `from_values`/`Default`/schema.
 //! To build, pick a concrete encoding such as `Column<List<L>>`.
 
 use std::marker::PhantomData;
@@ -21,7 +21,7 @@ use arrow::array::{Array, FixedSizeListArray};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, LogicalType, downcast_array};
+use crate::data_type::{ColumnError, LogicalType, downcast_array};
 use crate::fixed_size_list::logical_item_null_count;
 use crate::list::ListValue;
 use crate::{
@@ -114,7 +114,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                 let values = L::downcast(&**array.values())?;
                 Ok(AnyTypedList::FixedSizeList { array, values })
             }
-            actual => Err(ColumnError::WrongDatatype {
+            actual => Err(ColumnError::WrongDataType {
                 expected: "a list array (List/LargeList/ListView/LargeListView/FixedSizeList)"
                     .to_owned(),
                 actual: actual.clone(),
@@ -145,7 +145,7 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
                     LargeListView::<L>::is_null_unchecked(typed, index)
                 }
                 AnyTypedList::FixedSizeList { array, .. } => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
             }
         }
@@ -194,6 +194,6 @@ impl<L: LogicalType + 'static> LogicalType for AnyList<L> {
 }
 
 // NOTE: `AnyList` deliberately does *not* implement `ConcreteType`: it accepts
-// several arrow encodings, so it has no single `datatype()` to report or build.
+// several arrow encodings, so it has no single `data_type()` to report or build.
 // It is parse-only — read via `LogicalType`, but no `from_values`/`Default`/schema.
 // To build, pick a concrete encoding such as `Column<List<L>>`.

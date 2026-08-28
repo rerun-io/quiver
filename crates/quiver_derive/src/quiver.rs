@@ -65,16 +65,16 @@ struct ColumnField {
 }
 
 enum ColumnKind {
-    /// `ArrayRef` — any datatype is accepted.
+    /// `ArrayRef` — any data type is accepted.
     Any,
 
-    /// A typed array (e.g. `StringArray`) — only the matching datatype is accepted.
+    /// A typed array (e.g. `StringArray`) — only the matching data type is accepted.
     Typed {
         array_type: Box<syn::Type>,
-        datatype: TokenStream,
+        data_type: TokenStream,
     },
 
-    /// A typed array whose exact datatype depends on runtime parameters
+    /// A typed array whose exact data type depends on runtime parameters
     /// (e.g. `ListArray`, `StructArray`, `DictionaryArray<…>`).
     ///
     /// Validated by downcasting; the inner types are NOT validated.
@@ -86,7 +86,7 @@ enum ColumnKind {
     },
 
     /// `quiver::Column<L>` — a strongly-typed wrapper. Validates itself
-    /// (exact datatype incl. nested types, and nullability from the logical type).
+    /// (exact data type incl. nested types, and nullability from the logical type).
     Wrapper {
         /// The `L` of the `Column<L>`; the column type itself is
         /// `#krate::Column<#logical_type>`.
@@ -311,7 +311,7 @@ impl Quiver {
     }
 
     /// Generates `impl #ident { fn min_schema(); fn max_schema(); … }`,
-    /// if all columns have a statically-known datatype.
+    /// if all columns have a statically-known data type.
     fn schema_fn(&self) -> Option<TokenStream> {
         let Self { ident, columns, .. } = self;
         let krate = &self.krate;
@@ -336,14 +336,14 @@ impl Quiver {
                     ColumnKind::Wrapper { logical_type } => quote! {
                         #krate::arrow::datatypes::Field::new(
                             #column_name,
-                            <#krate::Column<#logical_type>>::datatype(),
+                            <#krate::Column<#logical_type>>::data_type(),
                             <#krate::Column<#logical_type>>::NULLABLE,
                         )
                         #metadata
                     },
-                    ColumnKind::Typed { datatype, .. } => quote! {
+                    ColumnKind::Typed { data_type, .. } => quote! {
                         // The nullability of raw arrow arrays is not statically known:
-                        #krate::arrow::datatypes::Field::new(#column_name, #datatype, true)
+                        #krate::arrow::datatypes::Field::new(#column_name, #data_type, true)
                             #metadata
                     },
                     // Not statically known:
@@ -517,7 +517,7 @@ impl Quiver {
                 /// validates the schema, then downcasts the columns (zero-copy).
                 ///
                 /// # Errors
-                /// Errors on missing or unexpected columns, datatype mismatches,
+                /// Errors on missing or unexpected columns, data type mismatches,
                 /// or unexpected nulls.
                 pub fn from_record_batch(
                     batch: #krate::arrow::record_batch::RecordBatch,
@@ -665,7 +665,7 @@ impl ColumnField {
             ColumnKind::Any => quote! { ::std::sync::Arc::clone(array) },
             ColumnKind::Typed {
                 array_type,
-                datatype,
+                data_type,
             } => {
                 let downcast = downcast(
                     krate,
@@ -677,12 +677,12 @@ impl ColumnField {
                 quote! {
                     {
                         let actual = #krate::arrow::array::Array::data_type(&**array);
-                        if actual != &#datatype {
+                        if actual != &#data_type {
                             return ::core::result::Result::Err(#krate::Error::new(
                                 #record_type,
-                                #krate::ErrorKind::WrongDatatype {
+                                #krate::ErrorKind::WrongDataType {
                                     column: #column_name.to_owned(),
-                                    expected: ::std::format!("{:?}", #datatype),
+                                    expected: ::std::format!("{:?}", #data_type),
                                     actual: actual.clone(),
                                 },
                             ));
@@ -757,11 +757,11 @@ impl ColumnField {
                 ));
                 columns.push(array);
             },
-            ColumnKind::Typed { datatype, .. } => quote! {
+            ColumnKind::Typed { data_type, .. } => quote! {
                 fields.push(::std::sync::Arc::new(
                     #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        #datatype,
+                        #data_type,
                         #nullable,
                     )
                     .with_metadata(#declared.into_iter().collect()),
@@ -792,7 +792,7 @@ impl ColumnField {
                 fields.push(::std::sync::Arc::new(
                     #krate::arrow::datatypes::Field::new(
                         #column_name,
-                        <#krate::Column<#logical_type>>::datatype(),
+                        <#krate::Column<#logical_type>>::data_type(),
                         <#krate::Column<#logical_type>>::NULLABLE,
                     )
                     .with_metadata(metadata),
@@ -898,7 +898,7 @@ fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnK
         syn::Error::new_spanned(
             ty,
             "Unsupported column type. Expected a typed Arrow array (e.g. `StringArray` or `ListArray`), \
-             or `ArrayRef` for any datatype",
+             or `ArrayRef` for any data type",
         )
     };
 
@@ -918,10 +918,10 @@ fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnK
         Ok(ColumnKind::Wrapper {
             logical_type: Box::new(logical_type_of_column(segment)?),
         })
-    } else if let Some(datatype) = datatype_of_array(krate, &type_name) {
+    } else if let Some(data_type) = data_type_of_array(krate, &type_name) {
         Ok(ColumnKind::Typed {
             array_type: Box::new(ty.clone()),
-            datatype,
+            data_type,
         })
     } else if is_downcast_only_array(&type_name) {
         Ok(ColumnKind::Downcast {
@@ -938,7 +938,7 @@ fn classify_array_type(krate: &syn::Path, ty: &syn::Type) -> syn::Result<ColumnK
     }
 }
 
-/// Array types whose exact datatype depends on runtime parameters,
+/// Array types whose exact data type depends on runtime parameters,
 /// so we can only validate them by downcasting.
 fn is_downcast_only_array(array_type_name: &str) -> bool {
     matches!(
@@ -992,12 +992,12 @@ fn option_inner(ty: &syn::Type) -> Option<&syn::Type> {
     Some(inner)
 }
 
-/// The Arrow datatype of the given array type, e.g. `StringArray` → `DataType::Utf8`.
-fn datatype_of_array(krate: &syn::Path, array_type_name: &str) -> Option<TokenStream> {
-    let datatype = quote! { #krate::arrow::datatypes::DataType };
+/// The Arrow data type of the given array type, e.g. `StringArray` → `DataType::Utf8`.
+fn data_type_of_array(krate: &syn::Path, array_type_name: &str) -> Option<TokenStream> {
+    let data_type = quote! { #krate::arrow::datatypes::DataType };
     let timestamp = |unit: TokenStream| {
         quote! {
-            #datatype::Timestamp(
+            #data_type::Timestamp(
                 #krate::arrow::datatypes::TimeUnit::#unit,
                 ::core::option::Option::None,
             )
@@ -1009,61 +1009,61 @@ fn datatype_of_array(krate: &syn::Path, array_type_name: &str) -> Option<TokenSt
     };
 
     Some(match array_type_name {
-        "BooleanArray" => quote! { #datatype::Boolean },
-        "Int8Array" => quote! { #datatype::Int8 },
-        "Int16Array" => quote! { #datatype::Int16 },
-        "Int32Array" => quote! { #datatype::Int32 },
-        "Int64Array" => quote! { #datatype::Int64 },
-        "UInt8Array" => quote! { #datatype::UInt8 },
-        "UInt16Array" => quote! { #datatype::UInt16 },
-        "UInt32Array" => quote! { #datatype::UInt32 },
-        "UInt64Array" => quote! { #datatype::UInt64 },
-        "Float16Array" => quote! { #datatype::Float16 },
-        "Float32Array" => quote! { #datatype::Float32 },
-        "Float64Array" => quote! { #datatype::Float64 },
-        "StringArray" => quote! { #datatype::Utf8 },
-        "LargeStringArray" => quote! { #datatype::LargeUtf8 },
-        "StringViewArray" => quote! { #datatype::Utf8View },
-        "BinaryArray" => quote! { #datatype::Binary },
-        "LargeBinaryArray" => quote! { #datatype::LargeBinary },
-        "BinaryViewArray" => quote! { #datatype::BinaryView },
-        "Date32Array" => quote! { #datatype::Date32 },
-        "Date64Array" => quote! { #datatype::Date64 },
+        "BooleanArray" => quote! { #data_type::Boolean },
+        "Int8Array" => quote! { #data_type::Int8 },
+        "Int16Array" => quote! { #data_type::Int16 },
+        "Int32Array" => quote! { #data_type::Int32 },
+        "Int64Array" => quote! { #data_type::Int64 },
+        "UInt8Array" => quote! { #data_type::UInt8 },
+        "UInt16Array" => quote! { #data_type::UInt16 },
+        "UInt32Array" => quote! { #data_type::UInt32 },
+        "UInt64Array" => quote! { #data_type::UInt64 },
+        "Float16Array" => quote! { #data_type::Float16 },
+        "Float32Array" => quote! { #data_type::Float32 },
+        "Float64Array" => quote! { #data_type::Float64 },
+        "StringArray" => quote! { #data_type::Utf8 },
+        "LargeStringArray" => quote! { #data_type::LargeUtf8 },
+        "StringViewArray" => quote! { #data_type::Utf8View },
+        "BinaryArray" => quote! { #data_type::Binary },
+        "LargeBinaryArray" => quote! { #data_type::LargeBinary },
+        "BinaryViewArray" => quote! { #data_type::BinaryView },
+        "Date32Array" => quote! { #data_type::Date32 },
+        "Date64Array" => quote! { #data_type::Date64 },
         "TimestampSecondArray" => timestamp(quote! { Second }),
         "TimestampMillisecondArray" => timestamp(quote! { Millisecond }),
         "TimestampMicrosecondArray" => timestamp(quote! { Microsecond }),
         "TimestampNanosecondArray" => timestamp(quote! { Nanosecond }),
         "Time32SecondArray" => {
             let unit = time_unit(quote! { Second });
-            quote! { #datatype::Time32(#unit) }
+            quote! { #data_type::Time32(#unit) }
         }
         "Time32MillisecondArray" => {
             let unit = time_unit(quote! { Millisecond });
-            quote! { #datatype::Time32(#unit) }
+            quote! { #data_type::Time32(#unit) }
         }
         "Time64MicrosecondArray" => {
             let unit = time_unit(quote! { Microsecond });
-            quote! { #datatype::Time64(#unit) }
+            quote! { #data_type::Time64(#unit) }
         }
         "Time64NanosecondArray" => {
             let unit = time_unit(quote! { Nanosecond });
-            quote! { #datatype::Time64(#unit) }
+            quote! { #data_type::Time64(#unit) }
         }
         "DurationSecondArray" => {
             let unit = time_unit(quote! { Second });
-            quote! { #datatype::Duration(#unit) }
+            quote! { #data_type::Duration(#unit) }
         }
         "DurationMillisecondArray" => {
             let unit = time_unit(quote! { Millisecond });
-            quote! { #datatype::Duration(#unit) }
+            quote! { #data_type::Duration(#unit) }
         }
         "DurationMicrosecondArray" => {
             let unit = time_unit(quote! { Microsecond });
-            quote! { #datatype::Duration(#unit) }
+            quote! { #data_type::Duration(#unit) }
         }
         "DurationNanosecondArray" => {
             let unit = time_unit(quote! { Nanosecond });
-            quote! { #datatype::Duration(#unit) }
+            quote! { #data_type::Duration(#unit) }
         }
         _ => return None,
     })

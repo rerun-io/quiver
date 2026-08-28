@@ -11,7 +11,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, LogicalType, impl_marker_datatype, impl_primitive_datatype};
+use crate::data_type::{ColumnError, LogicalType, impl_marker_data_type, impl_primitive_data_type};
 
 /// Days since the Unix epoch, as an `i32`.
 ///
@@ -38,14 +38,14 @@ pub struct Date32;
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Date64;
 
-impl_marker_datatype!(
+impl_marker_data_type!(
     Date32,
     arrow::array::Date32Array,
     i32,
     i32,
     DataType::Date32
 );
-impl_marker_datatype!(
+impl_marker_data_type!(
     Date64,
     arrow::array::Date64Array,
     i64,
@@ -53,5 +53,5 @@ impl_marker_datatype!(
     DataType::Date64
 );
 
-impl_primitive_datatype!(Date32, i32);
-impl_primitive_datatype!(Date64, i64);
+impl_primitive_data_type!(Date32, i32);
+impl_primitive_data_type!(Date64, i64);

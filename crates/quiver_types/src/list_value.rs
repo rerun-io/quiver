@@ -1,6 +1,6 @@
 //! [`ListValue`]: one element of a list column, a `Column`-like view of its items.
 
-use crate::datatype::{LogicalType, PrimitiveType, RefType};
+use crate::data_type::{LogicalType, PrimitiveType, RefType};
 
 /// One list element of a list column (`List`, [`LargeList`](crate::LargeList),
 /// [`FixedSizeList`](crate::FixedSizeList), …): a zero-copy, random-access view

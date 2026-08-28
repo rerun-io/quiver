@@ -3,8 +3,8 @@
 
 use quiver::{LogicalType, Dictionary, Utf8};
 
-fn assert_datatype<L: LogicalType>() {}
+fn assert_data_type<L: LogicalType>() {}
 
 fn main() {
-    assert_datatype::<Dictionary<Option<i32>, Utf8>>();
+    assert_data_type::<Dictionary<Option<i32>, Utf8>>();
 }
