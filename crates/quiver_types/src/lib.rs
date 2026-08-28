@@ -50,6 +50,7 @@ pub use bytemuck;
 pub use half;
 
 mod any_list;
+mod r#as;
 mod binary;
 mod column;
 mod column_desc;
@@ -73,9 +74,11 @@ mod run;
 mod string;
 mod time;
 mod timestamp;
+mod transparent;
 mod typed_array;
 
 pub use self::any_list::{AnyList, AnyTypedList};
+pub use self::r#as::As;
 pub use self::binary::{AnyBinary, AnyTypedBinary, Binary, BinaryView, LargeBinary};
 pub use self::column::Column;
 #[expect(deprecated, reason = "re-exporting the old names for one more release")]
@@ -98,7 +101,6 @@ pub use self::list::{List, TypedList};
 pub use self::list_value::ListValue;
 pub use self::list_view::{LargeListView, ListView, TypedLargeListView, TypedListView};
 pub use self::map::{Map, MapValue, TypedMap};
-pub use self::newtype::{As, Transparent};
 pub use self::run::{Run, RunEndType, TypedRun};
 pub use self::string::{AnyTypedUtf8, AnyUtf8, LargeUtf8, Utf8, Utf8View};
 pub use self::time::{Time32Millisecond, Time32Second, Time64Microsecond, Time64Nanosecond};
@@ -107,4 +109,5 @@ pub use self::timestamp::{
     TimestampMicrosecond, TimestampMillisecond, TimestampNanosecond, TimestampSecond, TimezoneSpec,
     Utc,
 };
+pub use self::transparent::Transparent;
 pub use self::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
