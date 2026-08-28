@@ -29,14 +29,16 @@ pub struct DynColumn {
 impl DynColumn {
     /// Pairs an arrow field with the array holding that column's data.
     ///
+    /// The field is taken by value or as a [`FieldRef`], whichever the caller
+    /// already has:
+    ///
     /// ```
     /// # use std::sync::Arc;
     /// # use quiver::arrow::array::{ArrayRef, Int64Array};
     /// # use quiver::arrow::datatypes::{DataType, Field};
     /// # use quiver::DynColumn;
     /// let array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
-    /// let field = Arc::new(Field::new("frame", DataType::Int64, false));
-    /// let column = DynColumn::try_new(field, array)?;
+    /// let column = DynColumn::try_new(Field::new("frame", DataType::Int64, false), array)?;
     /// assert_eq!(column.array().len(), 2);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -44,7 +46,8 @@ impl DynColumn {
     /// # Errors
     /// Errors if the array's data type is not exactly the field's, or if the
     /// field is not nullable but the array holds nulls.
-    pub fn try_new(field: FieldRef, array: ArrayRef) -> Result<Self, Error> {
+    pub fn try_new(field: impl Into<FieldRef>, array: ArrayRef) -> Result<Self, Error> {
+        let field = field.into();
         let column = field.name().clone();
 
         if array.data_type() != field.data_type() {
@@ -118,12 +121,6 @@ impl DynColumn {
         let column = Column::<L>::try_new(field.name(), array)
             .map_err(|err| Error::new("DynColumn", err.for_column(field.name().clone())))?;
 
-        Ok(column.with_metadata(
-            field
-                .metadata()
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect(),
-        ))
+        Ok(column.with_metadata(field.metadata().clone()))
     }
 }

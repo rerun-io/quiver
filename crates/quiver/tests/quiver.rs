@@ -531,7 +531,7 @@ fn column_metadata_roundtrip() {
     let times = Times {
         at: quiver::Column::try_new("at", Arc::new(array))
             .unwrap()
-            .with_metadata(BTreeMap::from([("unit".to_owned(), "ns".to_owned())])),
+            .with_metadata([("unit", "ns")]),
     };
 
     let batch = RecordBatch::try_from(times).unwrap();
@@ -862,7 +862,7 @@ fn column_desc_optional_and_required() {
 #[test]
 fn column_optional_and_required() {
     let ages = quiver::Column::<i64>::from_values("age", [30_i64, 40])
-        .with_metadata([("meta:kind".to_owned(), "control".to_owned())].into());
+        .with_metadata([("meta:kind", "control")]);
 
     // Widening keeps the name, the metadata, and the values, and costs nothing:
     let maybe: quiver::Column<Option<i64>> = ages.optional();
