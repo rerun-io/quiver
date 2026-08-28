@@ -6,6 +6,50 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.6.0 - 2026-08-28
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.5.0..0.6.0
+
+A `Column` (and `DynColumn`) now always carries a name. A column without a name is an array.
+
+To that end, `TypedArray<L>` has been added. (A dynamic column is just an arrow `ArrayRef`).
+
+Breaking, in brief: `Column::from_values(values)` becomes `Column::from_values(name, values)`, `datatype` is spelled `data_type` throughout, `err.kind` is boxed, and `DynColumn`'s fields are behind accessors.
+
+#### ⚠️ Breaking changes
+* Bump MSRV to 1.95.0 [#22](https://github.com/rerun-io/quiver/pull/22) by [@emilk](https://github.com/emilk)
+* `ColumnDesc<L>` instead of `ColumnDesc<Column<L>>` [#24](https://github.com/rerun-io/quiver/pull/24) by [@emilk](https://github.com/emilk)
+* Box `ErrorKind` inside `Error` [#31](https://github.com/rerun-io/quiver/pull/31) by [@emilk](https://github.com/emilk)
+* Add `optional()` / `required()` to `ColumnDesc` and `Column` [#37](https://github.com/rerun-io/quiver/pull/37) by [@emilk](https://github.com/emilk)
+* `Column<T>::as_slice()` now yields `&[T]` for newtypes [#41](https://github.com/rerun-io/quiver/pull/41) by [@emilk](https://github.com/emilk)
+* Move `DynColumn` to its own file, with private, validated fields [#49](https://github.com/rerun-io/quiver/pull/49) by [@emilk](https://github.com/emilk)
+* Rename `Datatype`/`datatype` to `DataType`/`data_type` [#50](https://github.com/rerun-io/quiver/pull/50) by [@emilk](https://github.com/emilk)
+* Give `Column` a name [#52](https://github.com/rerun-io/quiver/pull/52) by [@emilk](https://github.com/emilk)
+* Borrow the newtype, not the representation, on `primitive` newtypes [#56](https://github.com/rerun-io/quiver/pull/56) by [@emilk](https://github.com/emilk)
+
+#### New features
+* Make `TypedArray` public [#23](https://github.com/rerun-io/quiver/pull/23) by [@emilk](https://github.com/emilk)
+* Add conversions between the typed and dynamic column types [#26](https://github.com/rerun-io/quiver/pull/26) by [@emilk](https://github.com/emilk)
+* Add `optional()` / `required()` to `ColumnDesc` and `Column` [#37](https://github.com/rerun-io/quiver/pull/37) by [@emilk](https://github.com/emilk)
+* Add `ColumnDesc::arrow_field_ref` [#38](https://github.com/rerun-io/quiver/pull/38) by [@emilk](https://github.com/emilk)
+* Add a constructor for an all-null column [#42](https://github.com/rerun-io/quiver/pull/42) by [@emilk](https://github.com/emilk)
+* Let `Column<L>` be used where `&[L::Native]` is expected [#43](https://github.com/rerun-io/quiver/pull/43) by [@emilk](https://github.com/emilk)
+* Add `ColumnDesc::data_type()` [#48](https://github.com/rerun-io/quiver/pull/48) by [@emilk](https://github.com/emilk)
+* Add `name()` to the column descriptors and `DynColumn` [#51](https://github.com/rerun-io/quiver/pull/51) by [@emilk](https://github.com/emilk)
+* Add the `Transparent<T, Repr>` adapter: a domain-type tag with no conversion [#58](https://github.com/rerun-io/quiver/pull/58) by [@emilk](https://github.com/emilk)
+
+#### Performance
+* Box `ErrorKind` inside `Error` [#31](https://github.com/rerun-io/quiver/pull/31) by [@emilk](https://github.com/emilk)
+* Make `Column` cheap to clone by wrapping its name and metadata in `Arc` [#54](https://github.com/rerun-io/quiver/pull/54) by [@emilk](https://github.com/emilk)
+* Re-slice the downcast view instead of re-validating it [#57](https://github.com/rerun-io/quiver/pull/57) by [@emilk](https://github.com/emilk)
+
+#### Other improvements
+* Enable the pedantic clippy lints we had opted out of [#25](https://github.com/rerun-io/quiver/pull/25) by [@emilk](https://github.com/emilk)
+* Derive `Debug`, `Clone`, `Copy`, `PartialEq`, `Eq` for the column descriptors [#32](https://github.com/rerun-io/quiver/pull/32) by [@emilk](https://github.com/emilk)
+* Loosen the argument types of `Column::with_metadata` and `DynColumn::try_new` [#53](https://github.com/rerun-io/quiver/pull/53) by [@emilk](https://github.com/emilk)
+* Follow-ups from the 0.6 post-merge reviews [#55](https://github.com/rerun-io/quiver/pull/55) by [@emilk](https://github.com/emilk)
+
+
 ## 0.5.0 - 2026-07-03
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.4.0..0.5.0
