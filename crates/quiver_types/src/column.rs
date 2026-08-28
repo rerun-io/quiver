@@ -594,9 +594,11 @@ impl<L: crate::ConcreteType> Column<Option<L>> {
     /// ```
     ///
     /// # Panics
-    /// Panics for run-end encoding: a `RunArray` has no validity buffer of its
-    /// own, so its nulls live in the values — `Run<K, Option<V>>`, not
-    /// `Option<Run<K, V>>`, which no constructor can build.
+    /// Panics for run-end encoding, at any `len`: a `RunArray` has no validity
+    /// buffer of its own, so its nulls live in the values —
+    /// `Run<K, Option<V>>`, not `Option<Run<K, V>>`. That spelling is still
+    /// *reachable*, through [`optional`](Column::optional); see
+    /// [`Run`](crate::Run) for what it reads as.
     #[must_use]
     pub fn new_null(name: impl Into<String>, len: usize) -> Self {
         Self::new(name, TypedArray::<Option<L>>::new_null(len))

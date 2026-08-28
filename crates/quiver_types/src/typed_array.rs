@@ -309,14 +309,24 @@ impl<L: crate::ConcreteType> TypedArray<Option<L>> {
     ///
     /// # Panics
     /// Panics for run-end encoding, which has no validity of its own — see
-    /// [`Column::new_null`](crate::Column::new_null).
+    /// [`Column::new_null`](crate::Column::new_null). For any `len`, including
+    /// zero.
     #[must_use]
     pub fn new_null(len: usize) -> Self {
-        let array = arrow::array::new_null_array(&L::data_type(), len);
-        Self::try_new(array).expect(
-            "An all-null array of the right data type is valid, \
-             except for run-end encoding: use `Run<K, Option<V>>`",
-        )
+        let data_type = L::data_type();
+
+        // Checked up front so the panic does not depend on `len`: a zero-length
+        // run-end array has no child nulls for `downcast` to reject, so the
+        // `try_new` below would accept it.
+        assert!(
+            !matches!(data_type, DataType::RunEndEncoded(..)),
+            "Cannot build an all-null run-end column: a `RunArray` has no \
+             validity of its own, so the nulls belong in the values — \
+             use `Run<K, Option<V>>`"
+        );
+
+        let array = arrow::array::new_null_array(&data_type, len);
+        Self::try_new(array).expect("An all-null array of the right data type is valid")
     }
 
     /// Builds a nullable array from optional values; the fallible form of

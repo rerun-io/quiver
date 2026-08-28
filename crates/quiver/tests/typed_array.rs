@@ -325,11 +325,37 @@ fn nullable_timestamp_array() {
 }
 
 /// Run-end encoding has no validity of its own: the nulls belong in the values,
-/// so `Option<Run<K, V>>` is unbuildable by any route, `new_null` included.
+/// so `new_null` refuses to build an `Option<Run<K, V>>`.
 #[test]
-#[should_panic(expected = "run-end encoding")]
+#[should_panic(expected = "all-null run-end column")]
 fn new_null_run_end_encoded() {
-    let _column: TypedArray<Option<quiver::Run<i32, Utf8>>> = TypedArray::new_null(2);
+    let _array: TypedArray<Option<quiver::Run<i32, Utf8>>> = TypedArray::new_null(2);
+}
+
+/// `optional()` is generic over every logical type, so `Option<Run<K, V>>` is
+/// reachable after all — and reads every row as `Some`, there being no validity
+/// buffer for the `Option` layer to consult.
+#[test]
+fn optional_run_end_encoded_reads_as_all_some() {
+    let array = TypedArray::<quiver::Run<i32, Utf8>>::try_from_values(["a", "a", "b"]).unwrap();
+    let nullable = array.optional();
+    assert_eq!(
+        nullable.to_vec(),
+        [
+            Some("a".to_owned()),
+            Some("a".to_owned()),
+            Some("b".to_owned())
+        ]
+    );
+    assert_eq!(nullable.value(0), Some("a"));
+}
+
+/// …at every length: a zero-length run array holds no nulls for the validation
+/// to trip over, so the check cannot be left to it.
+#[test]
+#[should_panic(expected = "all-null run-end column")]
+fn new_null_run_end_encoded_at_zero_length() {
+    let _array: TypedArray<Option<quiver::Run<i32, Utf8>>> = TypedArray::new_null(0);
 }
 
 #[test]
