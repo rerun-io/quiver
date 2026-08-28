@@ -45,7 +45,7 @@ use crate::{Column, DynColumn, Error, ErrorKind, LogicalType, TypedArray};
 /// column to arrow.
 ///
 /// Dynamically-typed columns get a [`DynColumnDesc`] and a [`DynColumn`] instead.
-pub struct ColumnDesc<L: LogicalType> {
+pub struct ColumnDesc<L> {
     /// What owns the column — the `#[derive(Quiver)]` struct, or whatever you
     /// want error messages to name.
     pub record_type: &'static str,
@@ -63,15 +63,15 @@ pub struct ColumnDesc<L: LogicalType> {
 // Hand-written rather than derived: `#[derive]` would put the trait's own bound
 // on `L`, but a descriptor holds no `L` — only a `PhantomData<fn() -> L>`, which
 // is `Copy`, `Eq`, and `Debug` whatever `L` is.
-impl<L: LogicalType> Clone for ColumnDesc<L> {
+impl<L> Clone for ColumnDesc<L> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<L: LogicalType> Copy for ColumnDesc<L> {}
+impl<L> Copy for ColumnDesc<L> {}
 
-impl<L: LogicalType> std::fmt::Debug for ColumnDesc<L> {
+impl<L> std::fmt::Debug for ColumnDesc<L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let Self {
             record_type,
@@ -87,7 +87,7 @@ impl<L: LogicalType> std::fmt::Debug for ColumnDesc<L> {
     }
 }
 
-impl<L: LogicalType> PartialEq for ColumnDesc<L> {
+impl<L> PartialEq for ColumnDesc<L> {
     fn eq(&self, other: &Self) -> bool {
         let Self {
             record_type,
@@ -99,7 +99,7 @@ impl<L: LogicalType> PartialEq for ColumnDesc<L> {
     }
 }
 
-impl<L: LogicalType> Eq for ColumnDesc<L> {}
+impl<L> Eq for ColumnDesc<L> {}
 
 impl<L: LogicalType> ColumnDesc<L> {
     /// Describes the column `name` of `record_type`, which labels the errors

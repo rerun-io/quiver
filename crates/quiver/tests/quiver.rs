@@ -908,6 +908,12 @@ fn column_optional_and_required() {
     assert_eq!(still_required.to_vec(), [1]);
 }
 
+/// Holds a descriptor without naming `LogicalType`: the struct definition of
+/// `ColumnDesc` puts no bound on `L`, only its impls do.
+struct Wrapper<L> {
+    desc: quiver::ColumnDesc<L>,
+}
+
 #[test]
 fn column_descs_are_copy_debug_and_comparable() {
     // `Utf8` and friends derive nothing, so a descriptor over one only compiles
@@ -935,6 +941,11 @@ fn column_descs_are_copy_debug_and_comparable() {
     let shown = format!("{desc:?}");
     assert!(shown.contains("maybe_age"), "{shown}");
     assert!(!shown.contains("PhantomData"), "{shown}");
+
+    // The struct definition carries no bound either, so `Wrapper` below holds a
+    // descriptor without repeating `L: LogicalType`:
+    let wrapper = Wrapper { desc };
+    assert_eq!(wrapper.desc, desc);
 
     // `DynColumnDesc` gets the same treatment:
     let dynamic = desc.to_dyn();
