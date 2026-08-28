@@ -493,8 +493,14 @@ fn iter_combinators_and_double_ended() {
     assert_eq!(cursor.next(), None);
     assert_eq!(cursor.next_back(), None);
 
-    // Owning iterator (`TypedArray::into_iter_owned`): nth, rev, next_back.
+    // Owning iterator (`TypedArray::into_iter_owned`): the same overrides.
     assert_eq!(array.clone().into_iter_owned().nth(1), Some(20));
+    assert_eq!(array.clone().into_iter_owned().count(), 4);
+    assert_eq!(array.clone().into_iter_owned().last(), Some(40));
+    assert_eq!(array.clone().into_iter_owned().sum::<i64>(), 100); // `fold`
+    let mut cursor = array.clone().into_iter_owned();
+    assert_eq!(cursor.nth(1), Some(20));
+    assert_eq!(cursor.count(), 2);
     let owned_rev: Vec<i64> = array.clone().into_iter_owned().rev().collect();
     assert_eq!(owned_rev, [40, 30, 20, 10]);
 

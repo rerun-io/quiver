@@ -571,6 +571,11 @@ impl<'a, L: LogicalType + 'a> IntoIterator for &'a TypedArray<L> {
 /// By-value iterator over the owned values of a [`TypedArray`],
 /// created by [`TypedArray::into_iter_owned`].
 ///
+/// Like [`TypedArrayIter`], the length is fixed and was validated at
+/// construction, so each step reads with
+/// [`value_unchecked`](LogicalType::value_unchecked) and the combinators skip
+/// the default `next`-based `Option` plumbing.
+///
 /// [`TypedArray`] deliberately does **not** implement [`IntoIterator`] by value:
 /// `for x in array` would have to allocate (owned values), so that path is
 /// explicit via [`into_iter_owned`](TypedArray::into_iter_owned). Iterate
@@ -602,6 +607,16 @@ impl<L: LogicalType> Iterator for TypedArrayIntoIter<L> {
         (remaining, Some(remaining))
     }
 
+    fn count(self) -> usize {
+        self.end - self.index
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        // SAFETY: when non-empty, `end - 1` is in `index..end`.
+        (self.index < self.end)
+            .then(|| L::to_owned_value(unsafe { self.array.value_unchecked(self.end - 1) }))
+    }
+
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         match self.index.checked_add(n) {
             Some(target) if target < self.end => {
@@ -616,6 +631,19 @@ impl<L: LogicalType> Iterator for TypedArrayIntoIter<L> {
                 None
             }
         }
+    }
+
+    fn fold<B, F>(self, init: B, mut f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let Self { array, index, end } = self;
+        let mut acc = init;
+        for i in index..end {
+            // SAFETY: i < end <= array length.
+            acc = f(acc, L::to_owned_value(unsafe { array.value_unchecked(i) }));
+        }
+        acc
     }
 }
 
