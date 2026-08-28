@@ -8,6 +8,8 @@
 //! every non-`Option` nesting level). After that, element access is infallible,
 //! fully typed, and zero-copy.
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use arrow::array::ArrayRef;
 use arrow::datatypes::{DataType, Field};
 
@@ -44,11 +46,11 @@ pub struct Column<L: LogicalType> {
 
     /// The name of the column, stored on the arrow
     /// [`arrow::datatypes::Field`] when converting to/from a record batch.
-    name: String,
+    name: Arc<String>,
 
     /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]
     /// when converting to/from a record batch.
-    metadata: std::collections::BTreeMap<String, String>,
+    metadata: Arc<BTreeMap<String, String>>,
 }
 
 impl<L: LogicalType> Column<L> {
@@ -64,8 +66,8 @@ impl<L: LogicalType> Column<L> {
     pub fn new(name: impl Into<String>, array: TypedArray<L>) -> Self {
         Self {
             array,
-            name: name.into(),
-            metadata: std::collections::BTreeMap::new(),
+            name: Arc::new(name.into()),
+            metadata: Arc::default(),
         }
     }
 
@@ -129,20 +131,23 @@ impl<L: LogicalType> Column<L> {
     /// The same column under a different name.
     #[must_use]
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = name.into();
+        self.name = Arc::new(name.into());
         self
     }
 
     /// Per-column metadata, stored on the arrow [`arrow::datatypes::Field`]
     /// when converting to/from a record batch.
     #[must_use]
-    pub fn metadata(&self) -> &std::collections::BTreeMap<String, String> {
+    pub fn metadata(&self) -> &BTreeMap<String, String> {
         &self.metadata
     }
 
     /// Mutable access to the per-column metadata; see [`Column::metadata`].
-    pub fn metadata_mut(&mut self) -> &mut std::collections::BTreeMap<String, String> {
-        &mut self.metadata
+    ///
+    /// The metadata is shared between clones of a column, so this copies it
+    /// first if another clone still holds it.
+    pub fn metadata_mut(&mut self) -> &mut BTreeMap<String, String> {
+        Arc::make_mut(&mut self.metadata)
     }
 
     /// Replace the per-column metadata.
@@ -163,10 +168,12 @@ impl<L: LogicalType> Column<L> {
         mut self,
         metadata: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
     ) -> Self {
-        self.metadata = metadata
-            .into_iter()
-            .map(|(key, value)| (key.into(), value.into()))
-            .collect();
+        self.metadata = Arc::new(
+            metadata
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+        );
         self
     }
 
@@ -271,8 +278,8 @@ impl<L: LogicalType> Column<L> {
     pub fn slice(&self, offset: usize, length: usize) -> Self {
         Self {
             array: self.array.slice(offset, length),
-            name: self.name.clone(),
-            metadata: self.metadata.clone(),
+            name: Arc::clone(&self.name),
+            metadata: Arc::clone(&self.metadata),
         }
     }
 
@@ -424,10 +431,10 @@ impl<L: crate::ConcreteType> Column<L> {
         // in a detail the logical type does not constrain (the name of a list's
         // inner field, say) — and a `DynColumn`'s field must describe the array
         // it is paired with, exactly.
-        let field = Field::new(name, array.data_type().clone(), L::NULLABLE)
-            .with_metadata(metadata.into_iter().collect());
+        let field = Field::new(name.as_str(), array.data_type().clone(), L::NULLABLE)
+            .with_metadata(Arc::unwrap_or_clone(metadata).into_iter().collect());
 
-        crate::DynColumn::new_unvalidated(std::sync::Arc::new(field), array)
+        crate::DynColumn::new_unvalidated(Arc::new(field), array)
     }
 }
 
@@ -622,8 +629,8 @@ impl<L: LogicalType> Clone for Column<L> {
     fn clone(&self) -> Self {
         Self {
             array: self.array.clone(),
-            name: self.name.clone(),
-            metadata: self.metadata.clone(),
+            name: Arc::clone(&self.name),
+            metadata: Arc::clone(&self.metadata),
         }
     }
 }

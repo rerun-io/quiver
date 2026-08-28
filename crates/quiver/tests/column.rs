@@ -32,6 +32,30 @@ fn column_metadata() {
     assert_eq!(column.metadata().len(), 2);
 }
 
+/// The name and metadata are shared between clones, so mutating one column's
+/// metadata must not touch the other's.
+#[test]
+fn metadata_is_copy_on_write() {
+    let column = Column::<i64>::from_values("elapsed", [1]).with_metadata([("unit", "seconds")]);
+
+    let mut clone = column.clone();
+    clone
+        .metadata_mut()
+        .insert("unit".to_owned(), "ns".to_owned());
+    clone
+        .metadata_mut()
+        .insert("source".to_owned(), "sensor".to_owned());
+
+    assert_eq!(column.metadata()["unit"], "seconds");
+    assert_eq!(column.metadata().len(), 1);
+    assert_eq!(clone.metadata()["unit"], "ns");
+    assert_eq!(clone.metadata().len(), 2);
+
+    let renamed = column.clone().with_name("duration");
+    assert_eq!(column.name(), "elapsed");
+    assert_eq!(renamed.name(), "duration");
+}
+
 #[test]
 fn new_null() {
     use quiver::{Binary, ColumnDesc, Dictionary, TypedArray};
