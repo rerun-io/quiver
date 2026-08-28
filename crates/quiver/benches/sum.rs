@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use quiver::{List, TypedArray};
 
-/// Number of `i64`s in the flat column.
+/// Number of `i64`s in the flat array.
 const FLAT_LEN: usize = 1_000_000;
 
 /// `LIST_ROWS` list rows of `LIST_ITEMS_PER_ROW` items each.
@@ -40,34 +40,34 @@ fn make_values(n: usize) -> Vec<i64> {
 }
 
 fn bench_flat() {
-    let column = TypedArray::<i64>::from_values(make_values(FLAT_LEN));
-    let expected: i64 = column.as_slice().iter().sum();
+    let array = TypedArray::<i64>::from_values(make_values(FLAT_LEN));
+    let expected: i64 = array.as_slice().iter().sum();
 
     println!("\nSum of a `TypedArray<i64>` ({FLAT_LEN} elements):");
 
     // The fast path: one contiguous, zero-copy slice — no per-element dispatch.
     run("as_slice().iter().sum()", FLAT_LEN, expected, || {
-        black_box(&column).as_slice().iter().sum()
+        black_box(&array).as_slice().iter().sum()
     });
 
     // The typesafe iterator. `sum` routes through the overridden `fold`, which
     // reads each element with `value_unchecked` (no bounds check).
     run("iter().sum()", FLAT_LEN, expected, || {
-        black_box(&column).iter().sum()
+        black_box(&array).iter().sum()
     });
 
     #[expect(clippy::unnecessary_fold, reason = "benchmarking the explicit fold")]
     run("iter().fold(0, +)", FLAT_LEN, expected, || {
-        black_box(&column)
+        black_box(&array)
             .iter()
             .fold(0_i64, |acc, value| acc + value)
     });
 
     // A plain `for` loop drives `next()` element by element (no `fold`
     // override), isolating the cost of the per-element `next`.
-    run("for v in &column (next)", FLAT_LEN, expected, || {
+    run("for v in &array (next)", FLAT_LEN, expected, || {
         let mut sum = 0_i64;
-        for value in black_box(&column) {
+        for value in black_box(&array) {
             sum += value;
         }
         sum
@@ -75,19 +75,19 @@ fn bench_flat() {
 
     // Bounds-checked element access, for comparison.
     run("value(i) loop (checked)", FLAT_LEN, expected, || {
-        let column = black_box(&column);
+        let array = black_box(&array);
         let mut sum = 0_i64;
-        for i in 0..column.len() {
-            sum += column.value(i);
+        for i in 0..array.len() {
+            sum += array.value(i);
         }
         sum
     });
 
     run("get(i) loop (checked)", FLAT_LEN, expected, || {
-        let column = black_box(&column);
+        let array = black_box(&array);
         let mut sum = 0_i64;
-        for i in 0..column.len() {
-            if let Some(value) = column.get(i) {
+        for i in 0..array.len() {
+            if let Some(value) = array.get(i) {
                 sum += value;
             }
         }
@@ -100,8 +100,8 @@ fn bench_list() {
         .map(|_| make_values(LIST_ITEMS_PER_ROW))
         .collect();
     let total_items = LIST_ROWS * LIST_ITEMS_PER_ROW;
-    let column = TypedArray::<List<i64>>::from_values(rows);
-    let expected: i64 = column
+    let array = TypedArray::<List<i64>>::from_values(rows);
+    let expected: i64 = array
         .iter()
         .map(|row| row.as_slice().iter().sum::<i64>())
         .sum();
@@ -112,7 +112,7 @@ fn bench_list() {
 
     // Per row, the items are one contiguous slice.
     run("row.as_slice().iter().sum()", total_items, expected, || {
-        black_box(&column)
+        black_box(&array)
             .iter()
             .map(|row| row.as_slice().iter().sum::<i64>())
             .sum()
@@ -120,7 +120,7 @@ fn bench_list() {
 
     // The `ListValue` iterator (`value_unchecked` per item).
     run("row.iter().sum()", total_items, expected, || {
-        black_box(&column)
+        black_box(&array)
             .iter()
             .map(|row| row.iter().sum::<i64>())
             .sum()
@@ -129,7 +129,7 @@ fn bench_list() {
     // Bounds-checked per-item access.
     run("row.value(i) loop (checked)", total_items, expected, || {
         let mut sum = 0_i64;
-        for row in black_box(&column) {
+        for row in black_box(&array) {
             for i in 0..row.len() {
                 sum += row.value(i);
             }
