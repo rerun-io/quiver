@@ -29,7 +29,7 @@ struct Measurements {
     /// (`Option<Column<f64>>` would instead mean the whole *column* may be missing.)
     temperature: Column<Option<f64>>,
 
-    /// A raw arrow array: any datatype, any nullability.
+    /// A raw arrow array: any data type, any nullability.
     ///
     /// Use raw arrow types when you *want* things to be dynamic.
     comment: ArrayRef,

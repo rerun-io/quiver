@@ -13,8 +13,8 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
-use crate::list::{ListValue, impl_list_datatype, logical_item_null_count};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
+use crate::list::{ListValue, impl_list_data_type, logical_item_null_count};
 
 /// Marker for an arrow `LargeList` column with items of logical type `L`:
 /// like [`List`](crate::List), with 64-bit offsets.
@@ -41,7 +41,7 @@ pub struct TypedLargeList<L: LogicalType> {
     values: L::Typed,
 }
 
-impl_list_datatype!(
+impl_list_data_type!(
     LargeList,
     TypedLargeList,
     arrow::array::LargeListArray,

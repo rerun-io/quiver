@@ -43,10 +43,10 @@ pub enum ErrorKind {
     MissingColumn { column: String },
 
     #[error("Column {column:?}: expected {expected}, found {actual:?}")]
-    WrongDatatype {
+    WrongDataType {
         column: String,
 
-        /// A description of the expected datatype, e.g. `"Utf8"` or `"List(…)"`.
+        /// A description of the expected data type, e.g. `"Utf8"` or `"List(…)"`.
         expected: String,
 
         actual: DataType,
@@ -62,7 +62,7 @@ pub enum ErrorKind {
     )]
     UnexpectedNulls { column: String, null_count: usize },
 
-    #[error("Column {column:?}: expected a {expected}, found datatype {actual:?}")]
+    #[error("Column {column:?}: expected a {expected}, found data type {actual:?}")]
     WrongArrayType {
         column: String,
 
@@ -72,7 +72,7 @@ pub enum ErrorKind {
         actual: DataType,
     },
 
-    /// A fallible domain conversion (`try_newtype_datatype!`) rejected a value
+    /// A fallible domain conversion (`try_newtype_data_type!`) rejected a value
     /// while validating the column at construction.
     #[error("Column {column:?}: failed to convert value: {source}")]
     Conversion {

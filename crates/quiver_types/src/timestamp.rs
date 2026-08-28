@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{
+use crate::data_type::{
     ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
 };
 
@@ -106,10 +106,10 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // The timezone is not in the array's Rust type (only the unit is), so
-        // check the full datatype here — timezones are matched exactly.
-        let expected = || format!("{:?}", <Self as crate::ConcreteType>::datatype());
-        if array.data_type() != &<Self as crate::ConcreteType>::datatype() {
-            return Err(ColumnError::WrongDatatype {
+        // check the full data type here — timezones are matched exactly.
+        let expected = || format!("{:?}", <Self as crate::ConcreteType>::data_type());
+        if array.data_type() != &<Self as crate::ConcreteType>::data_type() {
+            return Err(ColumnError::WrongDataType {
                 expected: expected(),
                 actual: array.data_type().clone(),
             });
@@ -125,7 +125,7 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
     #[inline]
     unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
         // SAFETY: the caller guarantees `index` is in bounds.
-        unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+        unsafe { crate::data_type::leaf_is_null_unchecked(typed, index) }
     }
 
     #[inline]
@@ -145,7 +145,7 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> LogicalType for Times
 }
 
 impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> crate::ConcreteType for Timestamp<U, Z> {
-    fn datatype() -> DataType {
+    fn data_type() -> DataType {
         DataType::Timestamp(
             <U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT,
             Z::timezone(),

@@ -35,7 +35,7 @@
 // column length, or a list element's offset range) before iterating. The read
 // then relies on arrow's own buffer/offset invariants — which a constructed
 // arrow array upholds by safe-Rust construction; quiver does not re-validate
-// them, it validates datatype and nullability. See `value_unchecked`.
+// them, it validates data type and nullability. See `value_unchecked`.
 #![expect(
     unsafe_code,
     reason = "value_unchecked / is_null_unchecked skip arrow's per-element bounds check; the index is bounds-checked once up front"
@@ -49,7 +49,7 @@ mod any_list;
 mod binary;
 mod column;
 mod column_desc;
-mod datatype;
+mod data_type;
 mod date;
 mod dictionary;
 mod duration;
@@ -77,7 +77,7 @@ pub use self::column::Column;
 #[expect(deprecated, reason = "re-exporting the old names for one more release")]
 pub use self::column::{ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
-pub use self::datatype::{
+pub use self::data_type::{
     ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveType, RefType,
 };
 pub use self::date::{Date32, Date64};

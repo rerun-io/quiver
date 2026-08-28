@@ -17,7 +17,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, RefType, downcast_array};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, RefType, downcast_array};
 
 /// Marker for an arrow `Binary` column: variable-length byte strings.
 ///
@@ -61,8 +61,8 @@ pub struct LargeBinary;
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct BinaryView;
 
-macro_rules! impl_binary_datatype {
-    ($marker:ty, $array:ty, $datatype:expr) => {
+macro_rules! impl_binary_data_type {
+    ($marker:ty, $array:ty, $data_type:expr) => {
         impl LogicalType for $marker {
             type Typed = $array;
             type Value<'a> = &'a [u8];
@@ -71,7 +71,7 @@ macro_rules! impl_binary_datatype {
             type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array, || format!("{:?}", $datatype))
+                downcast_array::<$array>(array, || format!("{:?}", $data_type))
             }
 
             #[inline]
@@ -82,7 +82,7 @@ macro_rules! impl_binary_datatype {
             #[inline]
             unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
                 // SAFETY: the caller guarantees `index` is in bounds.
-                unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+                unsafe { crate::data_type::leaf_is_null_unchecked(typed, index) }
             }
 
             #[inline]
@@ -102,8 +102,8 @@ macro_rules! impl_binary_datatype {
         }
 
         impl crate::ConcreteType for $marker {
-            fn datatype() -> DataType {
-                $datatype
+            fn data_type() -> DataType {
+                $data_type
             }
 
             fn build(
@@ -125,13 +125,13 @@ macro_rules! impl_binary_datatype {
     };
 }
 
-impl_binary_datatype!(Binary, arrow::array::BinaryArray, DataType::Binary);
-impl_binary_datatype!(
+impl_binary_data_type!(Binary, arrow::array::BinaryArray, DataType::Binary);
+impl_binary_data_type!(
     LargeBinary,
     arrow::array::LargeBinaryArray,
     DataType::LargeBinary
 );
-impl_binary_datatype!(
+impl_binary_data_type!(
     BinaryView,
     arrow::array::BinaryViewArray,
     DataType::BinaryView
@@ -145,7 +145,7 @@ impl_binary_datatype!(
 /// plain `&[u8]` slices (length `N`), not `&[u8; N]`.
 ///
 /// Like [`AnyList`](crate::AnyList), this is a quiver-only logical type with no
-/// single arrow datatype: `Column<AnyBinary>` accepts whichever encoding it is
+/// single arrow data type: `Column<AnyBinary>` accepts whichever encoding it is
 /// handed and reads them all uniformly. It is *parse-only* — it implements
 /// [`LogicalType`] (so `try_from`/reading work) but not
 /// [`ConcreteType`](crate::ConcreteType), so there is no `from_values`/`Default`/
@@ -199,7 +199,7 @@ impl LogicalType for AnyBinary {
                 array,
                 || "FixedSizeBinary".to_owned(),
             )?)),
-            actual => Err(ColumnError::WrongDatatype {
+            actual => Err(ColumnError::WrongDataType {
                 expected: "a binary array (Binary/LargeBinary/BinaryView/FixedSizeBinary)"
                     .to_owned(),
                 actual: actual.clone(),
@@ -223,16 +223,16 @@ impl LogicalType for AnyBinary {
         unsafe {
             match typed {
                 AnyTypedBinary::Binary(array) => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
                 AnyTypedBinary::LargeBinary(array) => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
                 AnyTypedBinary::BinaryView(array) => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
                 AnyTypedBinary::FixedSizeBinary(array) => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
             }
         }

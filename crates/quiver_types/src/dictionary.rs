@@ -12,7 +12,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array};
+use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array};
 
 /// Marker for an arrow `Dictionary` column, e.g. `Dictionary<i32, Utf8>`.
 ///
@@ -101,7 +101,7 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         let dictionary =
             downcast_array::<arrow::array::DictionaryArray<K::ArrowKeyType>>(array, || {
-                format!("Dictionary({:?}, …)", K::datatype())
+                format!("Dictionary({:?}, …)", K::data_type())
             })?;
         if !V::NULLABLE && 0 < dictionary.values().null_count() {
             // Only count *logical* nulls: null entries in the value table that
@@ -132,7 +132,7 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
     #[inline]
     unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
         // SAFETY: the caller guarantees `index` is in bounds for the keys.
-        unsafe { crate::datatype::leaf_is_null_unchecked(&typed.dictionary, index) }
+        unsafe { crate::data_type::leaf_is_null_unchecked(&typed.dictionary, index) }
     }
 
     #[inline]
@@ -158,15 +158,15 @@ impl<K: DictionaryKey + 'static, V: LogicalType + 'static> LogicalType for Dicti
 impl<K: DictionaryKey + 'static, V: crate::ConcreteType + 'static> crate::ConcreteType
     for Dictionary<K, V>
 {
-    fn datatype() -> DataType {
-        DataType::Dictionary(Box::new(K::datatype()), Box::new(V::datatype()))
+    fn data_type() -> DataType {
+        DataType::Dictionary(Box::new(K::data_type()), Box::new(V::data_type()))
     }
 
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {
         let plain = V::build(values)?;
         // This can fail on key overflow: too many distinct values for `K`
         // (e.g. more than 127 for `i8`). Hence `Dictionary` is NOT `InfallibleBuild`.
-        arrow::compute::cast(&plain, &Self::datatype()).map_err(ColumnError::Build)
+        arrow::compute::cast(&plain, &Self::data_type()).map_err(ColumnError::Build)
     }
 }
 

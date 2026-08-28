@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 use crate::list::ListValue;
 
 /// Marker for an arrow `FixedSizeList` column: each element holds exactly
@@ -70,7 +70,7 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
         // here. (The element type is validated below by recursing into `L`.)
         #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         if list.value_length() != N as i32 {
-            return Err(ColumnError::WrongDatatype {
+            return Err(ColumnError::WrongDataType {
                 expected: format!("FixedSizeList(…, {N})"),
                 actual: array.data_type().clone(),
             });
@@ -96,7 +96,7 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
     #[inline]
     unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
         // SAFETY: the caller guarantees `index` is in bounds.
-        unsafe { crate::datatype::leaf_is_null_unchecked(&typed.list, index) }
+        unsafe { crate::data_type::leaf_is_null_unchecked(&typed.list, index) }
     }
 
     #[inline]
@@ -117,7 +117,7 @@ impl<L: LogicalType + 'static, const N: usize> LogicalType for FixedSizeList<L, 
 }
 
 impl<L: crate::ConcreteType + 'static, const N: usize> crate::ConcreteType for FixedSizeList<L, N> {
-    fn datatype() -> DataType {
+    fn data_type() -> DataType {
         const {
             assert!(N <= i32::MAX as usize, "FixedSizeList size too large");
         }
@@ -125,7 +125,7 @@ impl<L: crate::ConcreteType + 'static, const N: usize> crate::ConcreteType for F
         DataType::FixedSizeList(
             std::sync::Arc::new(arrow::datatypes::Field::new(
                 "item",
-                L::datatype(),
+                L::data_type(),
                 L::NULLABLE,
             )),
             N as i32,
@@ -148,7 +148,7 @@ impl<L: crate::ConcreteType + 'static, const N: usize> crate::ConcreteType for F
 
         let field = std::sync::Arc::new(arrow::datatypes::Field::new(
             "item",
-            L::datatype(),
+            L::data_type(),
             // The placeholder slots of null rows are physically null
             // (but masked by the row validity):
             true,

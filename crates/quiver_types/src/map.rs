@@ -18,7 +18,7 @@ use arrow::array::{Array, ArrayRef, MapArray, StructArray};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::{DataType, Field, Fields};
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 
 /// Marker for an arrow `Map` column from keys `K` to values `V`,
 /// e.g. `Map<Utf8, i64>`.
@@ -63,8 +63,8 @@ impl<K: LogicalType, V: LogicalType> Clone for TypedMap<K, V> {
 /// The arrow `Field`s of a map's `{key, value}` struct entries.
 fn entry_fields<K: crate::ConcreteType, V: crate::ConcreteType>() -> Fields {
     Fields::from(vec![
-        Field::new("keys", K::datatype(), false),
-        Field::new("values", V::datatype(), V::NULLABLE),
+        Field::new("keys", K::data_type(), false),
+        Field::new("values", V::data_type(), V::NULLABLE),
     ])
 }
 
@@ -81,7 +81,7 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
         // `downcast_array` checks it's a `MapArray` (whose entries are, by arrow
         // invariant, a 2-field `{keys, values}` struct); the key and value
-        // datatypes are validated below by recursing into `K`/`V`.
+        // Data types are validated below by recursing into `K`/`V`.
         let map = downcast_array::<MapArray>(array, || "Map(…)".to_owned())?;
 
         // Keys are never null in a valid arrow map, but a sliced or null-row map
@@ -112,7 +112,7 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
     #[inline]
     unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
         // SAFETY: the caller guarantees `index` is in bounds.
-        unsafe { crate::datatype::leaf_is_null_unchecked(&typed.map, index) }
+        unsafe { crate::data_type::leaf_is_null_unchecked(&typed.map, index) }
     }
 
     #[inline]
@@ -136,7 +136,7 @@ impl<K: LogicalType + 'static, V: LogicalType + 'static> LogicalType for Map<K, 
 impl<K: crate::ConcreteType + 'static, V: crate::ConcreteType + 'static> crate::ConcreteType
     for Map<K, V>
 {
-    fn datatype() -> DataType {
+    fn data_type() -> DataType {
         DataType::Map(
             std::sync::Arc::new(Field::new(
                 "entries",

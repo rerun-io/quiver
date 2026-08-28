@@ -8,7 +8,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{
+use crate::data_type::{
     ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
 };
 use crate::timestamp::{Microsecond, Millisecond, Nanosecond, Second, TimeUnitSpec};
@@ -44,7 +44,7 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
         // The unit is part of `Self::Typed`'s Rust type, so `downcast_array`
         // already rejects the wrong unit.
         downcast_array::<Self::Typed>(array, || {
-            format!("{:?}", <Self as crate::ConcreteType>::datatype())
+            format!("{:?}", <Self as crate::ConcreteType>::data_type())
         })
     }
 
@@ -56,7 +56,7 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
     #[inline]
     unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
         // SAFETY: the caller guarantees `index` is in bounds.
-        unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+        unsafe { crate::data_type::leaf_is_null_unchecked(typed, index) }
     }
 
     #[inline]
@@ -76,7 +76,7 @@ impl<U: TimeUnitSpec + 'static> LogicalType for Duration<U> {
 }
 
 impl<U: TimeUnitSpec + 'static> crate::ConcreteType for Duration<U> {
-    fn datatype() -> DataType {
+    fn data_type() -> DataType {
         DataType::Duration(<U::TimestampType as arrow::datatypes::ArrowTimestampType>::UNIT)
     }
 

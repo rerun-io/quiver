@@ -77,7 +77,7 @@ struct Thing {
     /// Strongly typed values; the whole *column* may be missing
     pub dob: Option<Column<i64>>,
 
-    /// A raw arrow array: any datatype, any nullability — dynamically typed
+    /// A raw arrow array: any data type, any nullability — dynamically typed
     pub comment: ArrayRef,
 
     /// Optional: other, dynamic columns
@@ -127,7 +127,7 @@ assert_eq!(sensors.to_vec(), ["kitchen"]); // `to_vec()` returns owned values
 assert_eq!(Reading::COLUMN_SENSOR.name, "sensor");
 
 // 2. Without the derive — by name. A missing column gives a helpful
-//    `MissingColumn` error; the datatype and nullability are validated too:
+//    `MissingColumn` error; the data type and nullability are validated too:
 let sensors = Column::<Utf8>::from_record_batch_and_name(&batch, "sensor")?;
 assert_eq!(sensors.to_vec(), ["kitchen"]);
 
@@ -183,7 +183,7 @@ What is checked when parsing a `RecordBatch`:
 
 |                | Raw `arrow` array                                                            | `quiver::Column<L>`                                              |
 |----------------|------------------------------------------------------------------------------|------------------------------------------------------------------|
-| Datatype       | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Structural match, recursively (`List<Utf8>` ≠ `List<i64>`; inner field names/nullability flags/metadata are not compared — actual nulls are what matters) |
+| Data type      | Exact for flat arrays; parameterized arrays (`ListArray`, …) are downcast only — *any* inner types | Structural match, recursively (`List<Utf8>` ≠ `List<i64>`; inner field names/nullability flags/metadata are not compared — actual nulls are what matters) |
 | Nullability    | Not checked                                                                  | Non-`Option` levels must be null-free, at every nesting depth     |
 | Timestamps     | Unit checked; the timezone must be `None` (`TimestampNanosecondArray`)       | Unit *and* timezone (`Timestamp<Nanosecond, Utc>`)                |
 | Element access | The arrow APIs; manual downcasts for nested data                             | Typed, infallible, and zero-copy (`&str`, `i64`, item iterators)  |
@@ -193,14 +193,14 @@ All validation happens once, when the record batch enters: after that, a `Column
 be invalid (its fields are private and immutable), so element access never returns a `Result`.
 
 The validation is cheap — the values themselves are never read.
-It compares datatypes (proportional to schema depth, not row count) and checks
+It compares data types (proportional to schema depth, not row count) and checks
 null counts, which arrow caches, so the cost is O(1) per nesting level.
 The one exception: when a non-`Option` nesting level (e.g. the items of a `List<Utf8>`)
 sits on an inner array that carries a null buffer, quiver counts only the nulls
 *reachable* through valid rows, which scans that validity bitmap —
 still independent of the value bytes.
 
-Structs whose columns all have a statically-known datatype also get generated
+Structs whose columns all have a statically-known data type also get generated
 `fn min_schema()` (the required columns) and `fn max_schema()` (all declared columns,
 including optional ones).
 When additionally every column is required (`min_schema() == max_schema()`),
@@ -228,7 +228,7 @@ More of the `Column` API:
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("sorted" = "true"))]` — stamped on encode (instance metadata
   wins on key conflicts), included in `min_schema()`/`max_schema()`, never validated on parse
-* Domain newtypes: `newtype_datatype!(SensorName, Utf8)` makes `Column<SensorName>` work,
+* Domain newtypes: `newtype_data_type!(SensorName, Utf8)` makes `Column<SensorName>` work,
   with all of the above; for *foreign* types (orphan rule), use the `As` adapter:
   `Column<As<Ipv4Addr, u32>>`
 * Interop: `as_arrow()`/`into_arrow()`, and quiver errors convert
@@ -237,7 +237,7 @@ More of the `Column` API:
 
 The supported logical types:
 
-| Logical type `L`                             | Arrow datatype               | Element value             |
+| Logical type `L`                             | Arrow data type              | Element value             |
 |----------------------------------------------|------------------------------|---------------------------|
 | `bool`, `i8`–`i64`, `u8`–`u64`, `f16`–`f64`  | The same                     | By value                  |
 | `Utf8`, `LargeUtf8`, `Utf8View`              | The same                     | `&str`                    |
@@ -263,7 +263,7 @@ The supported logical types:
 Arrow has five physically different ways to store the same logical thing — a
 column of lists of `L`: `List`, `LargeList`, `ListView`, `LargeListView`, and
 `FixedSizeList`. `AnyList<L>` is a quiver-only logical type (no single arrow
-datatype of its own) that **accepts whichever of those a column happens to use**
+data type of its own) that **accepts whichever of those a column happens to use**
 and reads them all uniformly — handy when the encoding is decided at runtime
 (e.g. data from an external source).
 
@@ -284,9 +284,9 @@ for list in &column {
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Because it has no single arrow datatype, `AnyList` is **parse-only**: it implements
+Because it has no single arrow data type, `AnyList` is **parse-only**: it implements
 `LogicalType` (so `try_from`/reading work) but not `ConcreteType`, so it has no
-`datatype()`, `from_values`, `Default`, or schema generation. To *build* a column,
+`data_type()`, `from_values`, `Default`, or schema generation. To *build* a column,
 pick a concrete encoding such as `Column<List<L>>`.
 
 `AnyBinary` is the same idea for byte strings: it accepts any of `Binary`,
@@ -296,7 +296,7 @@ and reads them as `&str`. Both are also parse-only.
 
 ### What is *not* supported
 
-These datatypes have no logical type yet, so there is no `Column<L>` for them:
+These data types have no logical type yet, so there is no `Column<L>` for them:
 
 * `Struct` — but usable as a raw, downcast-only `arrow` field (`StructArray`).
   (Parked; investigated 2026-06-04 — moderate effort: a new derive generating
@@ -318,8 +318,8 @@ not accept an array with the equivalent timezone `"+00:00"`.
 
 Pros:
 * **Zero-copy**: columns stay as reference-counted Arrow arrays (structure-of-arrays), never transposed into `Vec<RowStruct>`
-* **Parse, don't validate**: column names, datatypes, and nullability are all checked once, eagerly, at the `TryFrom<RecordBatch>` boundary
-* **Strong typing on demand**: `quiver::Column<L>` validates exact datatypes (including the inner types of nested arrays) and nullability, then gives infallible typed access; raw `arrow` types remain available when you _want_ dynamic
+* **Parse, don't validate**: column names, data types, and nullability are all checked once, eagerly, at the `TryFrom<RecordBatch>` boundary
+* **Strong typing on demand**: `quiver::Column<L>` validates exact data types (including the inner types of nested arrays) and nullability, then gives infallible typed access; raw `arrow` types remain available when you _want_ dynamic
 * **Struct literal = builder**: plain `pub` fields; no builder machinery, free pattern matching
 * **Nothing is hidden**: record batch metadata and unknown columns are explicit fields, declared in the struct
 * **Thin**: the derive expands to plain `arrow-rs` calls; no runtime machinery
@@ -343,7 +343,7 @@ Cons:
 
 `typed-arrow` is the closest match but misses the mold:
 
-1. Positional column matching (index + datatype), not name-based. No `optional` columns, no `other_columns`.
+1. Positional column matching (index + data type), not name-based. No `optional` columns, no `other_columns`.
 2. Nullability validated lazily per-row, not eagerly at the parse boundary.
 3. No metadata schema validation at all.
 4. Schema declared as Rust *logical* types (`String`, `i64`); generates builder machinery we don't need. Our derive goes directly on *array* types (`StringArray`) — simpler, inherently zero-copy.

@@ -17,7 +17,7 @@ use arrow::array::{Array, ArrayRef, OffsetSizeTrait};
 use arrow::datatypes::ArrowNativeType as _;
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, downcast_array};
 use crate::list::ListValue;
 
 /// Marker for an arrow `ListView` column with items of logical type `L`:
@@ -72,7 +72,7 @@ pub struct TypedLargeListView<L: LogicalType> {
 
 /// Generates the [`LogicalType`] (and friends) impl for a list-view logical type:
 /// shared by [`ListView`] (32-bit) and [`LargeListView`] (64-bit).
-macro_rules! impl_list_view_datatype {
+macro_rules! impl_list_view_data_type {
     ($marker:ident, $typed:ident, $array:ty, $variant:ident, $offset:ty) => {
         impl<L: LogicalType> Clone for $typed<L> {
             fn clone(&self) -> Self {
@@ -117,7 +117,7 @@ macro_rules! impl_list_view_datatype {
             #[inline]
             unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
                 // SAFETY: the caller guarantees `index` is in bounds.
-                unsafe { crate::datatype::leaf_is_null_unchecked(&typed.list, index) }
+                unsafe { crate::data_type::leaf_is_null_unchecked(&typed.list, index) }
             }
 
             #[inline]
@@ -133,10 +133,10 @@ macro_rules! impl_list_view_datatype {
         }
 
         impl<L: crate::ConcreteType + 'static> crate::ConcreteType for $marker<L> {
-            fn datatype() -> DataType {
+            fn data_type() -> DataType {
                 DataType::$variant(std::sync::Arc::new(arrow::datatypes::Field::new(
                     "item",
-                    L::datatype(),
+                    L::data_type(),
                     L::NULLABLE,
                 )))
             }
@@ -172,7 +172,7 @@ macro_rules! impl_list_view_datatype {
 
                 let field = std::sync::Arc::new(arrow::datatypes::Field::new(
                     "item",
-                    L::datatype(),
+                    L::data_type(),
                     L::NULLABLE,
                 ));
                 let values_array = L::build(flattened.into_iter().map(Some))?;
@@ -196,14 +196,14 @@ macro_rules! impl_list_view_datatype {
     };
 }
 
-impl_list_view_datatype!(
+impl_list_view_data_type!(
     ListView,
     TypedListView,
     arrow::array::ListViewArray,
     ListView,
     i32
 );
-impl_list_view_datatype!(
+impl_list_view_data_type!(
     LargeListView,
     TypedLargeListView,
     arrow::array::LargeListViewArray,

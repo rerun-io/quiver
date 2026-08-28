@@ -1,4 +1,4 @@
-//! Some datatypes are not yet supported, not even as raw arrow fields.
+//! Some data types are not yet supported, not even as raw arrow fields.
 
 use quiver::arrow::array::UnionArray;
 

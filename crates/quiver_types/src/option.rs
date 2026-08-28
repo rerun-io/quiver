@@ -13,7 +13,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::InfallibleBuild;
+use crate::data_type::InfallibleBuild;
 use crate::{ColumnError, LogicalType};
 
 /// `Option<L>`: the values at this level may be null.
@@ -70,8 +70,8 @@ impl<L: LogicalType> LogicalType for Option<L> {
 }
 
 impl<L: crate::ConcreteType> crate::ConcreteType for Option<L> {
-    fn datatype() -> DataType {
-        L::datatype()
+    fn data_type() -> DataType {
+        L::data_type()
     }
 
     fn build(values: impl Iterator<Item = Option<Self::Owned>>) -> Result<ArrayRef, ColumnError> {

@@ -9,7 +9,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{
+use crate::data_type::{
     ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
 };
 
@@ -45,7 +45,7 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         {
             downcast_array::<arrow::array::FixedSizeBinaryArray>(array, expected)
         } else {
-            Err(ColumnError::WrongDatatype {
+            Err(ColumnError::WrongDataType {
                 expected: expected(),
                 actual: array.data_type().clone(),
             })
@@ -60,7 +60,7 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
     #[inline]
     unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
         // SAFETY: the caller guarantees `index` is in bounds.
-        unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+        unsafe { crate::data_type::leaf_is_null_unchecked(typed, index) }
     }
 
     #[inline]
@@ -68,7 +68,7 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         typed
             .value(index)
             .first_chunk::<N>()
-            .expect("The length is guaranteed by the validated datatype")
+            .expect("The length is guaranteed by the validated data type")
     }
 
     #[inline]
@@ -76,7 +76,7 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
         // SAFETY: the caller guarantees `index` is in bounds.
         unsafe { typed.value_unchecked(index) }
             .first_chunk::<N>()
-            .expect("The length is guaranteed by the validated datatype")
+            .expect("The length is guaranteed by the validated data type")
     }
 
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned {
@@ -85,7 +85,7 @@ impl<const N: usize> LogicalType for FixedSizeBinary<N> {
 }
 
 impl<const N: usize> crate::ConcreteType for FixedSizeBinary<N> {
-    fn datatype() -> DataType {
+    fn data_type() -> DataType {
         const {
             assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
         }
@@ -123,7 +123,10 @@ impl<const N: usize> PrimitiveType for FixedSizeBinary<N> {
         // and slicing: `value_data()` is exactly the `len * N` bytes of the
         // logical window, with no leading offset.
         let (chunks, remainder) = typed.value_data().as_chunks::<N>();
-        debug_assert!(remainder.is_empty(), "Guaranteed by the validated datatype");
+        debug_assert!(
+            remainder.is_empty(),
+            "Guaranteed by the validated data type"
+        );
         chunks
     }
 }

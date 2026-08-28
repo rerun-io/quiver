@@ -4,14 +4,14 @@
 use arrow::array::{Array as _, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{InfallibleBuild, PrimitiveType, RefType};
+use crate::data_type::{InfallibleBuild, PrimitiveType, RefType};
 use crate::{ColumnError, LogicalType};
 
 /// A strongly-typed, validated, zero-copy view of one arrow array:
 /// a [`Column`](crate::Column) minus the per-column metadata.
 ///
 /// Validates the array **once, eagerly** at construction
-/// (exact datatype, including the inner types of nested arrays, plus nulls at
+/// (exact data type, including the inner types of nested arrays, plus nulls at
 /// every non-`Option` nesting level). After that, element access is infallible,
 /// fully typed, and zero-copy.
 ///
@@ -44,17 +44,17 @@ impl<L: LogicalType> TypedArray<L> {
     /// May the values of this array be null?
     pub const NULLABLE: bool = L::NULLABLE;
 
-    /// Validates the array against the logical type `L` (datatype and nullability,
+    /// Validates the array against the logical type `L` (data type and nullability,
     /// recursively), then downcasts it (zero-copy).
     ///
     /// # Errors
-    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    /// Errors on data type mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
-        // Validate (and downcast) the datatype first — `downcast` rejects a wrong
-        // datatype, including parameters the concrete arrow array type doesn't
+        // Validate (and downcast) the data type first — `downcast` rejects a wrong
+        // data type, including parameters the concrete arrow array type doesn't
         // encode (a fixed size, a timestamp timezone), and checks all child-level
-        // nulls. Doing it before the top-level null check means a datatype
-        // mismatch is reported as `WrongDatatype`, not masked by `UnexpectedNulls`.
+        // nulls. Doing it before the top-level null check means a data type
+        // mismatch is reported as `WrongDataType`, not masked by `UnexpectedNulls`.
         let typed = L::downcast(&*array)?;
 
         if !L::NULLABLE && 0 < array.null_count() {
@@ -131,7 +131,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// # Safety
     /// `index < self.len()`. That is the only quiver-level precondition; the
     /// read itself relies on arrow's buffer/offset invariants, which the array
-    /// upholds by construction (quiver validated its datatype and nullability,
+    /// upholds by construction (quiver validated its data type and nullability,
     /// not those internal invariants).
     #[inline]
     pub unsafe fn value_unchecked(&self, index: usize) -> L::Value<'_> {
@@ -189,7 +189,7 @@ impl<L: LogicalType> TypedArray<L> {
     #[must_use]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
         Self::try_new(self.array.slice(offset, length))
-            .expect("Cannot fail: slicing preserves datatype and validity")
+            .expect("Cannot fail: slicing preserves the data type and validity")
     }
 
     /// The underlying arrow array.
@@ -232,7 +232,7 @@ impl<L: LogicalType> TypedArray<L> {
 }
 
 /// Construction and schema, for logical types with a single concrete arrow
-/// datatype. (Multi-encoding types like [`AnyList`](crate::AnyList) are
+/// data type. (Multi-encoding types like [`AnyList`](crate::AnyList) are
 /// parse-only: build a concrete encoding instead.)
 impl<L: crate::ConcreteType> TypedArray<L> {
     /// Builds an array from owned values; the fallible form of
@@ -249,10 +249,10 @@ impl<L: crate::ConcreteType> TypedArray<L> {
         Self::try_new(array)
     }
 
-    /// The exact arrow datatype of this array.
+    /// The exact arrow data type of this array.
     #[must_use]
-    pub fn datatype() -> DataType {
-        L::datatype()
+    pub fn data_type() -> DataType {
+        L::data_type()
     }
 }
 
@@ -286,9 +286,9 @@ impl<L: crate::ConcreteType> TypedArray<Option<L>> {
     /// [`Column::new_null`](crate::Column::new_null).
     #[must_use]
     pub fn new_null(len: usize) -> Self {
-        let array = arrow::array::new_null_array(&L::datatype(), len);
+        let array = arrow::array::new_null_array(&L::data_type(), len);
         Self::try_new(array).expect(
-            "An all-null array of the right datatype is valid, \
+            "An all-null array of the right data type is valid, \
              except for run-end encoding: use `Run<K, Option<V>>`",
         )
     }
@@ -398,11 +398,11 @@ impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for TypedArray<L> {
     }
 }
 
-/// An empty array. Only for logical types with a single concrete datatype.
+/// An empty array. Only for logical types with a single concrete data type.
 impl<L: crate::ConcreteType> Default for TypedArray<L> {
     fn default() -> Self {
-        let array = arrow::array::new_empty_array(&L::datatype());
-        Self::try_new(array).expect("An empty array of the right datatype is always valid")
+        let array = arrow::array::new_empty_array(&L::data_type());
+        Self::try_new(array).expect("An empty array of the right data type is always valid")
     }
 }
 

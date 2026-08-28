@@ -18,7 +18,7 @@
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
-use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array, impl_marker_datatype};
+use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array, impl_marker_data_type};
 
 /// UTF-8 text: an arrow [`DataType::Utf8`] column with `String` values.
 ///
@@ -32,7 +32,7 @@ use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array, impl_ma
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Utf8;
 
-impl_marker_datatype!(
+impl_marker_data_type!(
     Utf8,
     arrow::array::StringArray,
     &'a str,
@@ -53,7 +53,7 @@ impl_marker_datatype!(
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct LargeUtf8;
 
-impl_marker_datatype!(
+impl_marker_data_type!(
     LargeUtf8,
     arrow::array::LargeStringArray,
     &'a str,
@@ -75,7 +75,7 @@ impl_marker_datatype!(
 /// This type is never instantiated — it only appears as a type parameter.
 pub struct Utf8View;
 
-impl_marker_datatype!(
+impl_marker_data_type!(
     Utf8View,
     arrow::array::StringViewArray,
     &'a str,
@@ -112,7 +112,7 @@ impl RefType for Utf8View {
 /// Accepts [`Utf8`], [`LargeUtf8`], or [`Utf8View`] — they all read as `&str`.
 ///
 /// Like [`AnyList`](crate::AnyList), this is a quiver-only logical type with no
-/// single arrow datatype: `Column<AnyUtf8>` accepts whichever encoding it is
+/// single arrow data type: `Column<AnyUtf8>` accepts whichever encoding it is
 /// handed and reads them all uniformly. It is *parse-only* — it implements
 /// [`LogicalType`] (so `try_from`/reading work) but not
 /// [`ConcreteType`](crate::ConcreteType), so there is no `from_values`/`Default`/
@@ -159,7 +159,7 @@ impl LogicalType for AnyUtf8 {
             DataType::Utf8View => Ok(AnyTypedUtf8::Utf8View(downcast_array(array, || {
                 "Utf8View".to_owned()
             })?)),
-            actual => Err(ColumnError::WrongDatatype {
+            actual => Err(ColumnError::WrongDataType {
                 expected: "a string array (Utf8/LargeUtf8/Utf8View)".to_owned(),
                 actual: actual.clone(),
             }),
@@ -180,12 +180,12 @@ impl LogicalType for AnyUtf8 {
         // SAFETY: the caller guarantees `index` is in bounds for the held array.
         unsafe {
             match typed {
-                AnyTypedUtf8::Utf8(array) => crate::datatype::leaf_is_null_unchecked(array, index),
+                AnyTypedUtf8::Utf8(array) => crate::data_type::leaf_is_null_unchecked(array, index),
                 AnyTypedUtf8::LargeUtf8(array) => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
                 AnyTypedUtf8::Utf8View(array) => {
-                    crate::datatype::leaf_is_null_unchecked(array, index)
+                    crate::data_type::leaf_is_null_unchecked(array, index)
                 }
             }
         }

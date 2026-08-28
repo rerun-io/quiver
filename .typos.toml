@@ -1,3 +1,12 @@
 # https://github.com/crate-ci/typos
 [default.extend-words]
 Isse = "Isse" # A name
+
+# Spell it "data type" in prose, `data_type` / `DataType` in code,
+# matching `arrow::datatypes::DataType`. The plural is left alone:
+# it is the name of the `arrow::datatypes` module.
+datatype = "data type"
+
+[files]
+# Historical PR titles, quoted verbatim by `scripts/generate_changelog.py`.
+extend-exclude = ["CHANGELOG.md"]

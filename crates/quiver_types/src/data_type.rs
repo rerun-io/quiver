@@ -27,7 +27,7 @@ pub trait LogicalType {
     /// May the values at this level be null? (`true` only for `Option<…>`)
     const NULLABLE: bool = false;
 
-    /// The fully-downcast, validated representation of one column of this datatype.
+    /// The fully-downcast, validated representation of one column of this data type.
     /// Cheap to clone (arrow arrays are reference-counted).
     type Typed: Clone;
 
@@ -69,13 +69,13 @@ pub trait LogicalType {
     /// type that is already nullable.
     type Required: LogicalType<Typed = Self::Typed>;
 
-    /// Validates that `array` has an acceptable datatype, then recursively
+    /// Validates that `array` has an acceptable data type, then recursively
     /// downcasts it — checking the nulls of all *children* along the way.
     ///
     /// This is the single validation+downcast hook, called once per column at the
     /// boundary ([`Column::try_new`](crate::Column::try_new)). It must reject any
-    /// `array` whose datatype this logical type does not accept (returning
-    /// [`ColumnError::WrongDatatype`]), *including* datatype parameters not
+    /// `array` whose data type this logical type does not accept (returning
+    /// [`ColumnError::WrongDataType`]), *including* data type parameters not
     /// encoded in the concrete arrow array's Rust type — a
     /// [`FixedSizeBinary`](crate::FixedSizeBinary) / [`FixedSizeList`](crate::FixedSizeList)
     /// size, a [`Timestamp`](crate::Timestamp) timezone, etc. The leaf type check
@@ -86,12 +86,12 @@ pub trait LogicalType {
     /// `array.data_type()` and dispatch to the matching encoding.
     ///
     /// Nulls at the level of `array` itself are the responsibility of the caller
-    /// (the parent datatype, or [`Column::try_new`](crate::Column::try_new) at the
+    /// (the parent data type, or [`Column::try_new`](crate::Column::try_new) at the
     /// top level), because only the caller knows if this level is wrapped in an
     /// `Option`.
     ///
     /// # Errors
-    /// Errors on a datatype mismatch, or on unexpected nulls in children.
+    /// Errors on a data type mismatch, or on unexpected nulls in children.
     fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError>;
 
     /// Is the value at `index` null?
@@ -138,19 +138,19 @@ pub trait LogicalType {
     fn to_owned_value(value: Self::Value<'_>) -> Self::Owned;
 }
 
-/// A [`LogicalType`] that corresponds to a *single* concrete arrow datatype,
+/// A [`LogicalType`] that corresponds to a *single* concrete arrow data type,
 /// and can therefore be built and used to generate schemas.
 ///
 /// Implemented by every logical type except multi-encoding ones like
-/// [`AnyList`](crate::AnyList), which accept several arrow datatypes and so have
-/// no single [`datatype`](ConcreteType::datatype) to report or build — those are
+/// [`AnyList`](crate::AnyList), which accept several arrow data types and so have
+/// no single [`data_type`](ConcreteType::data_type) to report or build — those are
 /// parse-only (read via [`LogicalType`], but no `from_values`/`Default`/schema).
 pub trait ConcreteType: LogicalType {
-    /// The exact arrow datatype, built recursively
+    /// The exact arrow data type, built recursively
     /// (including the nullability of inner fields).
-    fn datatype() -> DataType;
+    fn data_type() -> DataType;
 
-    /// Builds an arrow array of this datatype from owned values.
+    /// Builds an arrow array of this data type from owned values.
     ///
     /// `None` items only ever occur at `Option<…>` levels.
     ///
@@ -215,8 +215,8 @@ pub trait InfallibleBuild: ConcreteType {}
 #[derive(Debug, thiserror::Error)]
 pub enum ColumnError {
     #[error("Expected {expected}, found {actual:?}")]
-    WrongDatatype {
-        /// A description of the datatype the logical type expected, produced by
+    WrongDataType {
+        /// A description of the data type the logical type expected, produced by
         /// the failing [`LogicalType::downcast`] (e.g. `"Utf8"`, `"List(…)"`).
         expected: String,
         actual: DataType,
@@ -227,7 +227,7 @@ pub enum ColumnError {
     )]
     UnexpectedNulls { null_count: usize },
 
-    /// A fallible domain conversion (`try_newtype_datatype!`) rejected a value
+    /// A fallible domain conversion (`try_newtype_data_type!`) rejected a value
     /// while validating the column at construction.
     #[error("Failed to convert value: {0}")]
     Conversion(#[source] Box<dyn std::error::Error + Send + Sync>),
@@ -241,7 +241,7 @@ impl ColumnError {
     #[must_use]
     pub fn for_column(self, column: String) -> ErrorKind {
         match self {
-            Self::WrongDatatype { expected, actual } => ErrorKind::WrongDatatype {
+            Self::WrongDataType { expected, actual } => ErrorKind::WrongDataType {
                 column,
                 expected,
                 actual,
@@ -268,8 +268,8 @@ impl From<ColumnError> for arrow::error::ArrowError {
 /// Downcasts and clones (cheaply) a typed arrow array, validating the array's
 /// concrete type in the process.
 ///
-/// This is the leaf datatype check: a wrong array type yields
-/// [`ColumnError::WrongDatatype`]. Datatype *parameters* not encoded in the Rust
+/// This is the leaf data type check: a wrong array type yields
+/// [`ColumnError::WrongDataType`]. Data type *parameters* not encoded in the Rust
 /// type (a fixed size, a timestamp timezone) must be checked separately by the
 /// caller — see [`LogicalType::downcast`].
 pub(crate) fn downcast_array<A: Array + Clone + 'static>(
@@ -280,7 +280,7 @@ pub(crate) fn downcast_array<A: Array + Clone + 'static>(
         .as_any()
         .downcast_ref::<A>()
         .cloned()
-        .ok_or_else(|| ColumnError::WrongDatatype {
+        .ok_or_else(|| ColumnError::WrongDataType {
             expected: expected(),
             actual: array.data_type().clone(),
         })
@@ -303,8 +303,8 @@ pub(crate) unsafe fn leaf_is_null_unchecked(array: &dyn Array, index: usize) -> 
         .is_some_and(|nulls| unsafe { !nulls.inner().value_unchecked(index) })
 }
 
-macro_rules! impl_flat_datatype {
-    ($rust:ty, $array:ty, $value:ty, $datatype:expr) => {
+macro_rules! impl_flat_data_type {
+    ($rust:ty, $array:ty, $value:ty, $data_type:expr) => {
         impl LogicalType for $rust {
             type Typed = $array;
             type Value<'a> = $value;
@@ -313,7 +313,7 @@ macro_rules! impl_flat_datatype {
             type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                downcast_array::<$array>(array, || format!("{:?}", $datatype))
+                downcast_array::<$array>(array, || format!("{:?}", $data_type))
             }
 
             #[inline]
@@ -324,7 +324,7 @@ macro_rules! impl_flat_datatype {
             #[inline]
             unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
                 // SAFETY: the caller guarantees `index` is in bounds.
-                unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+                unsafe { crate::data_type::leaf_is_null_unchecked(typed, index) }
             }
 
             #[inline]
@@ -343,9 +343,9 @@ macro_rules! impl_flat_datatype {
             }
         }
 
-        impl crate::datatype::ConcreteType for $rust {
-            fn datatype() -> DataType {
-                $datatype
+        impl crate::data_type::ConcreteType for $rust {
+            fn data_type() -> DataType {
+                $data_type
             }
 
             fn build(
@@ -355,17 +355,17 @@ macro_rules! impl_flat_datatype {
             }
         }
 
-        impl crate::datatype::InfallibleBuild for $rust {}
+        impl crate::data_type::InfallibleBuild for $rust {}
     };
 }
 
-pub(crate) use impl_flat_datatype;
+pub(crate) use impl_flat_data_type;
 
 /// Implements [`PrimitiveType`] and [`RefType`] for a logical type
 /// whose `Typed` array is an [`arrow::array::PrimitiveArray`].
-macro_rules! impl_primitive_datatype {
+macro_rules! impl_primitive_data_type {
     ($logical:ty, $native:ty) => {
-        impl crate::datatype::PrimitiveType for $logical {
+        impl crate::data_type::PrimitiveType for $logical {
             type Native = $native;
 
             #[inline]
@@ -374,7 +374,7 @@ macro_rules! impl_primitive_datatype {
             }
         }
 
-        impl crate::datatype::RefType for $logical {
+        impl crate::data_type::RefType for $logical {
             type Ref = $native;
 
             #[inline]
@@ -385,12 +385,12 @@ macro_rules! impl_primitive_datatype {
     };
 }
 
-pub(crate) use impl_primitive_datatype;
+pub(crate) use impl_primitive_data_type;
 
 /// Implements [`LogicalType`] for a marker type whose owned value differs from the
 /// marker itself (e.g. the marker `Date32` has `i32` values).
-macro_rules! impl_marker_datatype {
-    ($marker:ty, $array:ty, $value:ty, $owned:ty, $datatype:expr) => {
+macro_rules! impl_marker_data_type {
+    ($marker:ty, $array:ty, $value:ty, $owned:ty, $data_type:expr) => {
         impl LogicalType for $marker {
             type Typed = $array;
             type Value<'a> = $value;
@@ -399,7 +399,7 @@ macro_rules! impl_marker_datatype {
             type Required = Self;
 
             fn downcast(array: &dyn Array) -> Result<Self::Typed, ColumnError> {
-                crate::datatype::downcast_array::<$array>(array, || format!("{:?}", $datatype))
+                crate::data_type::downcast_array::<$array>(array, || format!("{:?}", $data_type))
             }
 
             #[inline]
@@ -410,7 +410,7 @@ macro_rules! impl_marker_datatype {
             #[inline]
             unsafe fn is_null_unchecked(typed: &Self::Typed, index: usize) -> bool {
                 // SAFETY: the caller guarantees `index` is in bounds.
-                unsafe { crate::datatype::leaf_is_null_unchecked(typed, index) }
+                unsafe { crate::data_type::leaf_is_null_unchecked(typed, index) }
             }
 
             #[inline]
@@ -429,9 +429,9 @@ macro_rules! impl_marker_datatype {
             }
         }
 
-        impl crate::datatype::ConcreteType for $marker {
-            fn datatype() -> DataType {
-                $datatype
+        impl crate::data_type::ConcreteType for $marker {
+            fn data_type() -> DataType {
+                $data_type
             }
 
             fn build(
@@ -441,8 +441,8 @@ macro_rules! impl_marker_datatype {
             }
         }
 
-        impl crate::datatype::InfallibleBuild for $marker {}
+        impl crate::data_type::InfallibleBuild for $marker {}
     };
 }
 
-pub(crate) use impl_marker_datatype;
+pub(crate) use impl_marker_data_type;

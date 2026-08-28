@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use arrow::array::{Array, ArrayRef, RunArray};
 use arrow::datatypes::{DataType, Field};
 
-use crate::datatype::{ColumnError, LogicalType, RefType, downcast_array};
+use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array};
 
 /// Marker for an arrow run-end-encoded column, e.g. `Run<i32, Utf8>`.
 ///
@@ -91,7 +91,7 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
         // `RunArray<R::ArrowRunType>`'s Rust type); the value type is validated
         // below by recursing into `V`.
         let run = downcast_array::<RunArray<R::ArrowRunType>>(array, || {
-            format!("RunEndEncoded({:?}, …)", R::datatype())
+            format!("RunEndEncoded({:?}, …)", R::data_type())
         })?;
         if !V::NULLABLE {
             // `logical_nulls` expands the runs to logical positions and counts
@@ -142,10 +142,10 @@ impl<R: RunEndType + 'static, V: LogicalType + 'static> LogicalType for Run<R, V
 }
 
 impl<R: RunEndType + 'static, V: crate::ConcreteType + 'static> crate::ConcreteType for Run<R, V> {
-    fn datatype() -> DataType {
+    fn data_type() -> DataType {
         DataType::RunEndEncoded(
-            std::sync::Arc::new(Field::new("run_ends", R::datatype(), false)),
-            std::sync::Arc::new(Field::new("values", V::datatype(), V::NULLABLE)),
+            std::sync::Arc::new(Field::new("run_ends", R::data_type(), false)),
+            std::sync::Arc::new(Field::new("values", V::data_type(), V::NULLABLE)),
         )
     }
 
@@ -153,7 +153,7 @@ impl<R: RunEndType + 'static, V: crate::ConcreteType + 'static> crate::ConcreteT
         let plain = V::build(values)?;
         // This can fail on run-end overflow: more logical rows than `R` can index
         // (e.g. more than 32767 for `i16`). Hence `Run` is NOT `InfallibleBuild`.
-        arrow::compute::cast(&plain, &Self::datatype()).map_err(ColumnError::Build)
+        arrow::compute::cast(&plain, &Self::data_type()).map_err(ColumnError::Build)
     }
 }
 

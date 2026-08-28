@@ -67,25 +67,25 @@ fn standalone_list_column() {
 }
 
 #[test]
-fn standalone_wrong_datatype() {
+fn standalone_wrong_data_type() {
     let dynamic_array: ArrayRef = Arc::new(Int64Array::from(vec![1]));
 
     let result = Column::<Utf8>::try_from(dynamic_array);
     assert!(matches!(
         result,
-        Err(ColumnError::WrongDatatype {
+        Err(ColumnError::WrongDataType {
             expected,
             actual: DataType::Int64,
         }) if expected == "Utf8"
     ));
 
-    // A wrong datatype that *also* has nulls reports the datatype mismatch,
-    // not `UnexpectedNulls` — the datatype check wins.
+    // A wrong data type that *also* has nulls reports the data type mismatch,
+    // not `UnexpectedNulls` — the data type check wins.
     let nullable: ArrayRef = Arc::new(StringArray::from(vec![Some("a"), None]));
     let result = Column::<i64>::try_from(nullable);
     assert!(matches!(
         result,
-        Err(ColumnError::WrongDatatype {
+        Err(ColumnError::WrongDataType {
             actual: DataType::Utf8,
             ..
         })
@@ -129,7 +129,7 @@ fn standalone_fixed_size_binary_column() {
     let result = Column::<FixedSizeBinary<8>>::try_from(Arc::clone(&dynamic_array));
     assert!(matches!(
         result,
-        Err(ColumnError::WrongDatatype {
+        Err(ColumnError::WrongDataType {
             expected,
             actual: DataType::FixedSizeBinary(16),
         }) if expected == "FixedSizeBinary(8)"
@@ -178,11 +178,11 @@ fn standalone_timestamp_column() {
     // Timezones are matched exactly, in both directions:
     assert!(matches!(
         Column::<Timestamp<Nanosecond>>::try_from(Arc::clone(&utc)),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
     assert!(matches!(
         Column::<Timestamp<Nanosecond, Utc>>::try_from(naive),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
 
     let column = Column::<Timestamp<Nanosecond, Utc>>::try_from(utc).unwrap();
@@ -192,7 +192,7 @@ fn standalone_timestamp_column() {
     let seconds: ArrayRef = Arc::new(TimestampSecondArray::from(vec![1]));
     assert!(matches!(
         Column::<Timestamp<Nanosecond>>::try_from(Arc::clone(&seconds)),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
     let column = Column::<Timestamp<Second>>::try_from(seconds).unwrap();
     assert_eq!(column.value(0), 1);
@@ -240,7 +240,7 @@ fn new_null() {
     assert_eq!(column.len(), 3);
     assert_eq!(column.to_vec(), [None, None, None]);
     assert_eq!(column.as_arrow().null_count(), 3);
-    assert_eq!(Column::<Option<Binary>>::datatype(), DataType::Binary);
+    assert_eq!(Column::<Option<Binary>>::data_type(), DataType::Binary);
 
     // Zero-length is the empty column, not a special case:
     assert_eq!(Column::<Option<i64>>::new_null(0), Column::default());
@@ -260,7 +260,7 @@ fn new_null() {
     // Fixed-size binary keeps its width:
     let column = Column::<Option<FixedSizeBinary<4>>>::new_null(1);
     assert_eq!(
-        Column::<Option<FixedSizeBinary<4>>>::datatype(),
+        Column::<Option<FixedSizeBinary<4>>>::data_type(),
         DataType::FixedSizeBinary(4)
     );
     assert_eq!(column.to_vec(), [None]);
@@ -335,13 +335,13 @@ fn from_record_batch_and_name() {
     assert_eq!(err.record_type, "Column");
     assert!(matches!(*err.kind, ErrorKind::MissingColumn { column } if column == "nope"));
 
-    // Present but wrong datatype → a `WrongDatatype` error, naming the column.
+    // Present but wrong data type → a `WrongDataType` error, naming the column.
     let err = Column::<Utf8>::from_record_batch_and_name(&batch, "age")
         .err()
         .unwrap();
     assert_eq!(err.record_type, "Column");
     assert!(
-        matches!(*err.kind, ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. } if column == "age")
+        matches!(*err.kind, ErrorKind::WrongDataType { column, actual: DataType::Int64, .. } if column == "age")
     );
 }
 
@@ -352,7 +352,7 @@ fn standalone_duration_column() {
     // The unit must match:
     assert!(matches!(
         Column::<Duration<Nanosecond>>::try_from(Arc::clone(&array)),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
 
     let column = Column::<Duration<Millisecond>>::try_from(array).unwrap();
@@ -459,15 +459,15 @@ fn convenience_constructors() {
 }
 
 #[test]
-fn static_datatype() {
-    assert_eq!(Column::<i64>::datatype(), DataType::Int64);
-    assert_eq!(Column::<Option<i64>>::datatype(), DataType::Int64); // Nullability is not part of the datatype
+fn static_data_type() {
+    assert_eq!(Column::<i64>::data_type(), DataType::Int64);
+    assert_eq!(Column::<Option<i64>>::data_type(), DataType::Int64); // Nullability is not part of the data type
     assert_eq!(
-        Column::<List<Option<Utf8>>>::datatype(),
+        Column::<List<Option<Utf8>>>::data_type(),
         DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
     );
     assert_eq!(
-        Column::<List<Utf8>>::datatype(),
+        Column::<List<Utf8>>::data_type(),
         DataType::List(Arc::new(Field::new("item", DataType::Utf8, false)))
     );
     const {
@@ -475,14 +475,14 @@ fn static_datatype() {
         assert!(!Column::<i64>::NULLABLE);
     }
 
-    // A descriptor reports the same datatype, without naming the logical type:
+    // A descriptor reports the same data type, without naming the logical type:
     let names: ColumnDesc<List<Option<Utf8>>> = ColumnDesc::new("Record", "names");
-    assert_eq!(names.datatype(), Column::<List<Option<Utf8>>>::datatype());
-    assert_eq!(names.datatype(), names.arrow_field().data_type().clone());
+    assert_eq!(names.data_type(), Column::<List<Option<Utf8>>>::data_type());
+    assert_eq!(names.data_type(), names.arrow_field().data_type().clone());
 
-    // Nullability lives on the field, not in the datatype, so `optional`
-    // leaves the datatype alone:
-    assert_eq!(names.optional().datatype(), names.datatype());
+    // Nullability lives on the field, not in the data type, so `optional`
+    // leaves the data type alone:
+    assert_eq!(names.optional().data_type(), names.data_type());
     assert!(names.optional().arrow_field().is_nullable());
 }
 
@@ -763,16 +763,16 @@ fn timestamp_and_duration_aliases() {
 
     // The aliases are the same types:
     assert_eq!(
-        Column::<TimestampNanosecond<Utc>>::datatype(),
-        Column::<Timestamp<Nanosecond, Utc>>::datatype()
+        Column::<TimestampNanosecond<Utc>>::data_type(),
+        Column::<Timestamp<Nanosecond, Utc>>::data_type()
     );
     assert_eq!(
-        Column::<TimestampNanosecond>::datatype(), // timezone-naive default
-        Column::<Timestamp<Nanosecond>>::datatype()
+        Column::<TimestampNanosecond>::data_type(), // timezone-naive default
+        Column::<Timestamp<Nanosecond>>::data_type()
     );
     assert_eq!(
-        Column::<DurationMillisecond>::datatype(),
-        Column::<Duration<Millisecond>>::datatype()
+        Column::<DurationMillisecond>::data_type(),
+        Column::<Duration<Millisecond>>::data_type()
     );
 }
 
@@ -783,15 +783,15 @@ fn binary_columns() {
     let column = Column::<Binary>::from_values([b"abc".to_vec(), vec![0_u8, 1]]);
     assert_eq!(column.value(0), b"abc");
     assert_eq!(column.to_vec(), [b"abc".to_vec(), vec![0_u8, 1]]);
-    assert_eq!(Column::<Binary>::datatype(), DataType::Binary);
+    assert_eq!(Column::<Binary>::data_type(), DataType::Binary);
 
     let column = Column::<LargeBinary>::from_values([b"abc".to_vec()]);
-    assert_eq!(Column::<LargeBinary>::datatype(), DataType::LargeBinary);
+    assert_eq!(Column::<LargeBinary>::data_type(), DataType::LargeBinary);
     assert_eq!(column.value(0), b"abc");
 
     // Binary ≠ LargeBinary:
     let result = Column::<Binary>::try_from(column.into_arrow());
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // Nullable:
     let column = Column::<Option<Binary>>::from_nullable_values([Some(b"abc".to_vec()), None]);
@@ -812,11 +812,11 @@ fn binary_view_columns() {
     assert_eq!(column.value(0), b"abc");
     assert_eq!(&column[1], &[0_u8, 1]);
     assert_eq!(column.to_vec(), [b"abc".to_vec(), vec![0_u8, 1]]);
-    assert_eq!(Column::<BinaryView>::datatype(), DataType::BinaryView);
+    assert_eq!(Column::<BinaryView>::data_type(), DataType::BinaryView);
 
     // BinaryView ≠ Binary:
     let result = Column::<Binary>::try_from(column.into_arrow());
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // Nullable:
     let column = Column::<Option<BinaryView>>::from_nullable_values([Some(b"abc".to_vec()), None]);
@@ -869,7 +869,7 @@ fn any_binary_columns() {
     let ints = Column::<i64>::from_values([1, 2]).into_arrow();
     assert!(matches!(
         Column::<AnyBinary>::try_from(ints),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
 
     // Nullable rows via the column-level `Option`:
@@ -919,7 +919,7 @@ fn any_utf8_columns() {
     let ints = Column::<i64>::from_values([1, 2]).into_arrow();
     assert!(matches!(
         Column::<AnyUtf8>::try_from(ints),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
 
     // Nullable rows via the column-level `Option`:
@@ -941,7 +941,7 @@ fn f16_column() {
     use quiver::half::f16;
 
     let column = Column::<f16>::from_values([f16::from_f32(1.5), f16::from_f32(2.5)]);
-    assert_eq!(Column::<f16>::datatype(), DataType::Float16);
+    assert_eq!(Column::<f16>::data_type(), DataType::Float16);
     assert_eq!(column.value(0), f16::from_f32(1.5));
     assert_eq!(column.iter().map(f16::to_f32).sum::<f32>(), 4.0);
 
@@ -957,7 +957,7 @@ fn dictionary_columns() {
     // Building dictionary-encodes the values:
     let column = Column::<Dictionary<i32, Utf8>>::try_from_values(["a", "b", "a", "a"]).unwrap();
     assert_eq!(
-        Column::<Dictionary<i32, Utf8>>::datatype(),
+        Column::<Dictionary<i32, Utf8>>::data_type(),
         DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
     );
 
@@ -973,7 +973,7 @@ fn dictionary_columns() {
 
     // The key type must match:
     let result = Column::<Dictionary<i32, Utf8>>::try_from(column.into_arrow());
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // Null keys via the column-level Option:
     let array: DictionaryArray<Int32Type> = vec![Some("x"), None]
@@ -1089,14 +1089,14 @@ fn date_and_time_columns() {
     use quiver::{Date32, Date64, Time32Second, Time64Nanosecond};
 
     let column = Column::<Date32>::from_values([19_000_i32, 19_001]);
-    assert_eq!(Column::<Date32>::datatype(), DataType::Date32);
+    assert_eq!(Column::<Date32>::data_type(), DataType::Date32);
     assert_eq!(column.to_vec(), [19_000, 19_001]);
 
-    assert_eq!(Column::<Date64>::datatype(), DataType::Date64);
+    assert_eq!(Column::<Date64>::data_type(), DataType::Date64);
 
     let column = Column::<Time32Second>::from_values([3600_i32]);
     assert_eq!(
-        Column::<Time32Second>::datatype(),
+        Column::<Time32Second>::data_type(),
         DataType::Time32(quiver::arrow::datatypes::TimeUnit::Second)
     );
     assert_eq!(column.value(0), 3600);
@@ -1110,7 +1110,7 @@ fn large_utf8_column() {
     use quiver::LargeUtf8;
 
     let column = Column::<LargeUtf8>::from_values(["a", "b"]);
-    assert_eq!(Column::<LargeUtf8>::datatype(), DataType::LargeUtf8);
+    assert_eq!(Column::<LargeUtf8>::data_type(), DataType::LargeUtf8);
     let values: Vec<&str> = column.iter().collect();
     assert_eq!(values, ["a", "b"]);
     assert_eq!(column.to_vec(), ["a".to_owned(), "b".to_owned()]);
@@ -1157,7 +1157,7 @@ fn fixed_size_list_columns() {
     let column =
         Column::<FixedSizeList<f32, 3>>::from_values([[1.0_f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     assert_eq!(
-        Column::<FixedSizeList<f32, 3>>::datatype(),
+        Column::<FixedSizeList<f32, 3>>::data_type(),
         DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, false)), 3)
     );
     let positions: Vec<[f32; 3]> = column.to_vec();
@@ -1169,7 +1169,7 @@ fn fixed_size_list_columns() {
 
     // The size is part of the type:
     let result = Column::<FixedSizeList<f32, 4>>::try_from(Arc::clone(column.as_arrow()));
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // Nullable rows: the null row's placeholder items are masked, not errors:
     let column = Column::<Option<FixedSizeList<f32, 3>>>::from_nullable_values([
@@ -1196,7 +1196,7 @@ fn large_list_columns() {
 
     let column = Column::<LargeList<i64>>::from_values([vec![1_i64, 2], vec![3]]);
     assert_eq!(
-        Column::<LargeList<i64>>::datatype(),
+        Column::<LargeList<i64>>::data_type(),
         DataType::LargeList(Arc::new(Field::new("item", DataType::Int64, false)))
     );
     let lists: Vec<Vec<i64>> = column.to_vec();
@@ -1208,7 +1208,7 @@ fn large_list_columns() {
 
     // List ≠ LargeList: the offset width is part of the type:
     let result = Column::<List<i64>>::try_from(Arc::clone(column.as_arrow()));
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // Nullable items:
     let column = Column::<LargeList<Option<i64>>>::from_values([vec![Some(1), None]]);
@@ -1246,7 +1246,7 @@ fn list_view_columns() {
 
     let column = Column::<ListView<i64>>::from_values([vec![1_i64, 2], vec![3]]);
     assert_eq!(
-        Column::<ListView<i64>>::datatype(),
+        Column::<ListView<i64>>::data_type(),
         DataType::ListView(Arc::new(Field::new("item", DataType::Int64, false)))
     );
     let lists: Vec<Vec<i64>> = column.to_vec();
@@ -1256,7 +1256,7 @@ fn list_view_columns() {
 
     // List ≠ ListView: the layout is part of the type:
     let result = Column::<List<i64>>::try_from(Arc::clone(column.as_arrow()));
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // The distinguishing feature of list-views: ranges may overlap and appear
     // out of order. Parse such an externally built array:
@@ -1305,7 +1305,7 @@ fn list_view_columns() {
     // LargeListView round-trips too:
     let column = Column::<LargeListView<i64>>::from_values([vec![1_i64, 2], vec![3]]);
     assert_eq!(
-        Column::<LargeListView<i64>>::datatype(),
+        Column::<LargeListView<i64>>::data_type(),
         DataType::LargeListView(Arc::new(Field::new("item", DataType::Int64, false)))
     );
     assert_eq!(column.to_vec(), [vec![1, 2], vec![3]]);
@@ -1315,7 +1315,7 @@ fn list_view_columns() {
 fn any_list_columns() {
     use quiver::{AnyList, FixedSizeList, LargeList, LargeListView, ListView};
 
-    // `AnyList` is parse-only (no single datatype to build): `try_from` accepts
+    // `AnyList` is parse-only (no single data type to build): `try_from` accepts
     // every variable-length encoding, read uniformly:
     let encodings = [
         Column::<List<i64>>::from_values([vec![1_i64, 2], vec![3]]).into_arrow(),
@@ -1337,7 +1337,7 @@ fn any_list_columns() {
     let ints = Column::<i64>::from_values([1, 2]).into_arrow();
     assert!(matches!(
         Column::<AnyList<i64>>::try_from(ints),
-        Err(ColumnError::WrongDatatype { .. })
+        Err(ColumnError::WrongDataType { .. })
     ));
 
     // Item nullability is enforced regardless of encoding:
@@ -1373,7 +1373,7 @@ fn map_columns() {
         vec![("c".to_owned(), 3)],
     ]);
     assert_eq!(
-        Column::<Map<Utf8, i64>>::datatype(),
+        Column::<Map<Utf8, i64>>::data_type(),
         DataType::Map(
             Arc::new(Field::new(
                 "entries",
@@ -1460,7 +1460,7 @@ fn run_columns() {
     // Building run-end-encodes the values (consecutive duplicates collapse):
     let column = Column::<Run<i32, Utf8>>::try_from_values(["a", "a", "a", "b", "b"]).unwrap();
     assert_eq!(
-        Column::<Run<i32, Utf8>>::datatype(),
+        Column::<Run<i32, Utf8>>::data_type(),
         DataType::RunEndEncoded(
             Arc::new(Field::new("run_ends", DataType::Int32, false)),
             Arc::new(Field::new("values", DataType::Utf8, false)),
@@ -1482,7 +1482,7 @@ fn run_columns() {
 
     // The run-end index type is part of the type:
     let result = Column::<Run<i64, Utf8>>::try_from(Arc::clone(column.as_arrow()));
-    assert!(matches!(result, Err(ColumnError::WrongDatatype { .. })));
+    assert!(matches!(result, Err(ColumnError::WrongDataType { .. })));
 
     // Nulls live in the values, so nullability is `Run<R, Option<V>>`:
     let run_ends = Int32Array::from(vec![1, 2]);
@@ -1511,7 +1511,7 @@ fn run_columns() {
     assert_eq!(column.len(), 40_000);
 }
 
-/// Domain newtypes via `newtype_datatype!`.
+/// Domain newtypes via `newtype_data_type!`.
 #[derive(Debug, PartialEq)]
 struct SensorName(String);
 
@@ -1526,7 +1526,7 @@ impl From<SensorName> for String {
     }
 }
 
-quiver::newtype_datatype!(SensorName, Utf8);
+quiver::newtype_data_type!(SensorName, Utf8);
 
 /// A `[u8; 16]`-backed newtype.
 ///
@@ -1548,7 +1548,7 @@ impl From<ChunkId> for [u8; 16] {
     }
 }
 
-quiver::newtype_datatype!(ChunkId, FixedSizeBinary<16>, primitive);
+quiver::newtype_data_type!(ChunkId, FixedSizeBinary<16>, primitive);
 
 /// A `[u8; 16]`-backed newtype that is *not* `Pod`, so the buffer cannot be
 /// reinterpreted; the hand-written `PrimitiveType` impl reads back the repr.
@@ -1566,7 +1566,7 @@ impl From<RawId> for [u8; 16] {
     }
 }
 
-quiver::newtype_datatype!(RawId, FixedSizeBinary<16>);
+quiver::newtype_data_type!(RawId, FixedSizeBinary<16>);
 
 impl quiver::PrimitiveType for RawId {
     type Native = [u8; 16];
@@ -1592,7 +1592,7 @@ impl From<IsActive> for bool {
     }
 }
 
-quiver::newtype_datatype!(IsActive, bool, noref);
+quiver::newtype_data_type!(IsActive, bool, noref);
 
 #[test]
 fn newtype_columns() {
@@ -1600,7 +1600,7 @@ fn newtype_columns() {
         SensorName("kitchen".to_owned()),
         SensorName("attic".to_owned()),
     ]);
-    assert_eq!(Column::<SensorName>::datatype(), DataType::Utf8);
+    assert_eq!(Column::<SensorName>::data_type(), DataType::Utf8);
 
     // Reading is zero-copy, yielding the repr's borrowed value:
     let values: Vec<&str> = column.iter().collect();
@@ -1621,7 +1621,10 @@ fn newtype_columns() {
     // Composes like any logical type:
     let column = Column::<Option<ChunkId>>::from_nullable_values([Some(ChunkId([7; 16])), None]);
     assert_eq!(column.to_vec(), [Some(ChunkId([7; 16])), None]);
-    assert_eq!(Column::<ChunkId>::datatype(), DataType::FixedSizeBinary(16));
+    assert_eq!(
+        Column::<ChunkId>::data_type(),
+        DataType::FixedSizeBinary(16)
+    );
 
     // The `primitive` arm enables bulk zero-copy reads, yielding the newtype:
     let column = Column::<ChunkId>::from_values([ChunkId([7; 16]), ChunkId([8; 16])]);
@@ -1648,7 +1651,7 @@ fn newtype_columns() {
     assert_eq!(column.to_vec(), [IsActive(true), IsActive(false)]);
 }
 
-/// A fallible domain newtype via `try_newtype_datatype!`:
+/// A fallible domain newtype via `try_newtype_data_type!`:
 /// only even numbers are valid.
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct Even(i64);
@@ -1680,7 +1683,7 @@ impl From<Even> for i64 {
     }
 }
 
-quiver::try_newtype_datatype!(Even, i64);
+quiver::try_newtype_data_type!(Even, i64);
 
 impl quiver::PrimitiveType for Even {
     type Native = i64;
@@ -1694,7 +1697,7 @@ impl quiver::PrimitiveType for Even {
 fn fallible_newtype_columns() {
     // Building goes through the infallible `From<Even> for i64`:
     let column = Column::<Even>::from_values([Even(2), Even(4)]);
-    assert_eq!(Column::<Even>::datatype(), DataType::Int64);
+    assert_eq!(Column::<Even>::data_type(), DataType::Int64);
     assert_eq!(column.to_vec(), [Even(2), Even(4)]);
 
     // Reading yields the repr's borrowed value; owned values are the newtype:
@@ -1736,7 +1739,7 @@ fn nonzero_and_char_columns() {
         NonZeroI64::new(1).unwrap(),
         NonZeroI64::new(-3).unwrap(),
     ]);
-    assert_eq!(Column::<NonZeroI64>::datatype(), DataType::Int64);
+    assert_eq!(Column::<NonZeroI64>::data_type(), DataType::Int64);
     assert_eq!(column.value(0), 1_i64); // reads the repr
     assert_eq!(column.as_slice(), &[1_i64, -3]); // bulk zero-copy, as the repr
     assert_eq!(
@@ -1751,7 +1754,7 @@ fn nonzero_and_char_columns() {
 
     // `char` is stored as `UInt32`:
     let column = Column::<char>::from_values(['q', '🦀']);
-    assert_eq!(Column::<char>::datatype(), DataType::UInt32);
+    assert_eq!(Column::<char>::data_type(), DataType::UInt32);
     assert_eq!(column.to_vec(), ['q', '🦀']);
     assert_eq!(column.value(0), u32::from('q'));
 
@@ -1773,12 +1776,12 @@ fn as_adapter_for_foreign_types() {
 
     use quiver::As;
 
-    // `Ipv4Addr` is a foreign type: no `newtype_datatype!` possible (orphan rule).
+    // `Ipv4Addr` is a foreign type: no `newtype_data_type!` possible (orphan rule).
     let column = Column::<As<Ipv4Addr, u32>>::from_values([
         Ipv4Addr::LOCALHOST,
         Ipv4Addr::new(192, 168, 0, 1),
     ]);
-    assert_eq!(Column::<As<Ipv4Addr, u32>>::datatype(), DataType::UInt32);
+    assert_eq!(Column::<As<Ipv4Addr, u32>>::data_type(), DataType::UInt32);
 
     // Reading is zero-copy, yielding the repr's value:
     assert_eq!(column.value(0), u32::from(Ipv4Addr::LOCALHOST));
@@ -1800,7 +1803,7 @@ fn as_adapter_for_foreign_types() {
     assert_eq!(column.to_vec(), [vec![Ipv4Addr::LOCALHOST]]);
 }
 
-/// A custom logical type whose `downcast` accepts *several* datatypes:
+/// A custom logical type whose `downcast` accepts *several* data types:
 /// both `Int32` and `Int64` arrays, reading every value as `i64`.
 struct AnyInt;
 
@@ -1816,7 +1819,7 @@ impl quiver::LogicalType for AnyInt {
     ) -> Result<Self::Typed, quiver::ColumnError> {
         // `downcast` is the validator: accept both integer widths, reject the rest.
         if !matches!(array.data_type(), DataType::Int32 | DataType::Int64) {
-            return Err(quiver::ColumnError::WrongDatatype {
+            return Err(quiver::ColumnError::WrongDataType {
                 expected: "Int32 or Int64".to_owned(),
                 actual: array.data_type().clone(),
             });
@@ -1843,8 +1846,8 @@ impl quiver::LogicalType for AnyInt {
 }
 
 impl quiver::ConcreteType for AnyInt {
-    /// The canonical datatype: used when encoding, and in error messages.
-    fn datatype() -> DataType {
+    /// The canonical data type: used when encoding, and in error messages.
+    fn data_type() -> DataType {
         DataType::Int64
     }
 
@@ -1854,7 +1857,7 @@ impl quiver::ConcreteType for AnyInt {
 }
 
 #[test]
-fn custom_multi_datatype() {
+fn custom_multi_data_type() {
     use quiver::arrow::array::Int32Array;
 
     // The custom `downcast` accepts both integer widths:
@@ -1865,7 +1868,7 @@ fn custom_multi_datatype() {
 
     // …but nothing else:
     let err = Column::<AnyInt>::try_new(Arc::new(StringArray::from(vec!["nope"]))).unwrap_err();
-    assert!(matches!(err, ColumnError::WrongDatatype { .. }));
+    assert!(matches!(err, ColumnError::WrongDataType { .. }));
 
     // Containers forward to the inner `matches`, at any nesting depth:
     let int32_items =
@@ -1889,9 +1892,9 @@ fn utf8_string_encodings() {
     let large = Column::<LargeUtf8>::from_values(["a", "b"]);
     let view = Column::<Utf8View>::from_values(["a", "b"]);
 
-    assert_eq!(Column::<Utf8>::datatype(), DataType::Utf8);
-    assert_eq!(Column::<LargeUtf8>::datatype(), DataType::LargeUtf8);
-    assert_eq!(Column::<Utf8View>::datatype(), DataType::Utf8View);
+    assert_eq!(Column::<Utf8>::data_type(), DataType::Utf8);
+    assert_eq!(Column::<LargeUtf8>::data_type(), DataType::LargeUtf8);
+    assert_eq!(Column::<Utf8View>::data_type(), DataType::Utf8View);
 
     for column in [&plain.to_vec(), &large.to_vec(), &view.to_vec()] {
         assert_eq!(column, &["a".to_owned(), "b".to_owned()]);
@@ -2019,7 +2022,7 @@ fn column_to_dyn_and_back() {
         Column::<List<Utf8>>::from_values([vec!["a".to_owned()], vec![]]).into_dyn("tags");
     assert_eq!(
         dynamic.field().data_type(),
-        &Column::<List<Utf8>>::datatype()
+        &Column::<List<Utf8>>::data_type()
     );
     let column: Column<List<Utf8>> = dynamic.try_into_column().unwrap();
     assert_eq!(column.to_vec(), [vec!["a"], vec![]]);
@@ -2030,7 +2033,7 @@ fn dyn_column_try_new_validation() {
     let ints: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
     let with_null: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
 
-    // The array must have *exactly* the field's datatype:
+    // The array must have *exactly* the field's data type:
     let err = DynColumn::try_new(
         Arc::new(Field::new("age", DataType::Int32, false)),
         ArrayRef::clone(&ints),
@@ -2038,15 +2041,15 @@ fn dyn_column_try_new_validation() {
     .err()
     .unwrap();
     assert!(
-        matches!(*err.kind, ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. } if column == "age")
+        matches!(*err.kind, ErrorKind::WrongDataType { column, actual: DataType::Int64, .. } if column == "age")
     );
 
-    // Inner-field nullability is part of the datatype, so it is checked too:
+    // Inner-field nullability is part of the data type, so it is checked too:
     let list = Column::<List<Utf8>>::from_values([vec!["a".to_owned()]]).into_arrow();
     let err = DynColumn::try_new(
         Arc::new(Field::new(
             "tags",
-            Column::<List<Option<Utf8>>>::datatype(),
+            Column::<List<Option<Utf8>>>::data_type(),
             false,
         )),
         list,
@@ -2054,7 +2057,7 @@ fn dyn_column_try_new_validation() {
     .err()
     .unwrap();
     assert!(
-        matches!(*err.kind, ErrorKind::WrongDatatype { .. }),
+        matches!(*err.kind, ErrorKind::WrongDataType { .. }),
         "{err}"
     );
 
@@ -2088,7 +2091,7 @@ fn dyn_column_try_new_validation() {
 
 #[test]
 fn dyn_column_validation_names_the_field() {
-    // Wrong datatype → `WrongDatatype`, naming the field.
+    // Wrong data type → `WrongDataType`, naming the field.
     let dynamic = DynColumn::try_new(
         Arc::new(Field::new("age", DataType::Int64, false)),
         Arc::new(Int64Array::from(vec![1, 2])),
@@ -2097,7 +2100,7 @@ fn dyn_column_validation_names_the_field() {
     let err = dynamic.try_into_column::<Utf8>().err().unwrap();
     assert_eq!(err.record_type, "DynColumn");
     assert!(
-        matches!(*err.kind, ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. } if column == "age")
+        matches!(*err.kind, ErrorKind::WrongDataType { column, actual: DataType::Int64, .. } if column == "age")
     );
 
     // Nulls at a non-`Option` level → `UnexpectedNulls`, naming the field.

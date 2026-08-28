@@ -1,6 +1,6 @@
 //! Support for domain types: making `Column<MyType>` work.
 //!
-//! * For types you own: [`newtype_datatype!`](crate::newtype_datatype)
+//! * For types you own: [`newtype_data_type!`](crate::newtype_data_type)
 //!   (must be invoked in the crate declaring the type, per the orphan rule).
 //! * For foreign types: the [`As`] adapter, e.g. `Column<As<Ipv4Addr, u32>>`.
 
@@ -55,7 +55,7 @@
 ///     }
 /// }
 ///
-/// quiver::newtype_datatype!(Uuid, FixedSizeBinary<16>, primitive);
+/// quiver::newtype_data_type!(Uuid, FixedSizeBinary<16>, primitive);
 ///
 /// let column = quiver::Column::<Uuid>::from_values([Uuid([7; 16])]);
 /// assert_eq!(column.as_slice(), &[Uuid([7; 16])]); // bulk, zero-copy
@@ -70,7 +70,7 @@
 /// # struct Even(i64);
 /// # impl From<i64> for Even { fn from(value: i64) -> Self { Self(value) } }
 /// # impl From<Even> for i64 { fn from(even: Even) -> Self { even.0 } }
-/// # quiver::newtype_datatype!(Even, i64);
+/// # quiver::newtype_data_type!(Even, i64);
 /// impl quiver::PrimitiveType for Even {
 ///     type Native = i64;
 ///
@@ -98,7 +98,7 @@
 ///     }
 /// }
 ///
-/// quiver::newtype_datatype!(SensorName, quiver::Utf8);
+/// quiver::newtype_data_type!(SensorName, quiver::Utf8);
 ///
 /// let column = quiver::Column::<SensorName>::from_values([
 ///     SensorName("kitchen".to_owned()),
@@ -108,9 +108,9 @@
 /// assert_eq!(column.to_vec(), [SensorName("kitchen".to_owned())]); // owned: the newtype
 /// ```
 #[macro_export]
-macro_rules! newtype_datatype {
+macro_rules! newtype_data_type {
     ($newtype:ty, $repr:ty) => {
-        $crate::newtype_datatype!($newtype, $repr, noref);
+        $crate::newtype_data_type!($newtype, $repr, noref);
 
         impl $crate::RefType for $newtype {
             type Ref = <$repr as $crate::RefType>::Ref;
@@ -122,7 +122,7 @@ macro_rules! newtype_datatype {
     };
 
     ($newtype:ty, $repr:ty, primitive) => {
-        $crate::newtype_datatype!($newtype, $repr);
+        $crate::newtype_data_type!($newtype, $repr);
 
         impl $crate::PrimitiveType for $newtype {
             type Native = Self;
@@ -184,8 +184,8 @@ macro_rules! newtype_datatype {
         where
             $repr: $crate::ConcreteType,
         {
-            fn datatype() -> $crate::arrow::datatypes::DataType {
-                <$repr as $crate::ConcreteType>::datatype()
+            fn data_type() -> $crate::arrow::datatypes::DataType {
+                <$repr as $crate::ConcreteType>::data_type()
             }
 
             fn build(
@@ -201,7 +201,7 @@ macro_rules! newtype_datatype {
     };
 }
 
-/// Like [`newtype_datatype!`](crate::newtype_datatype), but for a **fallible**
+/// Like [`newtype_data_type!`](crate::newtype_data_type), but for a **fallible**
 /// conversion *from* the representation's owned value.
 ///
 /// The newtype provides `impl TryFrom<Owned> for MyType` instead of
@@ -222,7 +222,7 @@ macro_rules! newtype_datatype {
 /// is known. After that, element access is infallible, as usual.
 ///
 /// The trailing `noref` / `primitive` arguments work exactly as in
-/// [`newtype_datatype!`](crate::newtype_datatype). A validating newtype rarely
+/// [`newtype_data_type!`](crate::newtype_data_type). A validating newtype rarely
 /// accepts every bit pattern, so `primitive` is rarely available here; the
 /// hand-written [`PrimitiveType`] impl shown there is the way to a bulk read,
 /// and it is what the built-in `NonZero*` and [`char`] columns use.
@@ -252,7 +252,7 @@ macro_rules! newtype_datatype {
 ///     }
 /// }
 ///
-/// quiver::try_newtype_datatype!(Even, i64);
+/// quiver::try_newtype_data_type!(Even, i64);
 ///
 /// // Building goes through the infallible `From<Even> for i64`:
 /// let column = quiver::Column::<Even>::from_values([Even(2), Even(4)]);
@@ -264,9 +264,9 @@ macro_rules! newtype_datatype {
 /// assert!(quiver::Column::<Even>::try_new(array).is_err());
 /// ```
 #[macro_export]
-macro_rules! try_newtype_datatype {
+macro_rules! try_newtype_data_type {
     ($newtype:ty, $repr:ty) => {
-        $crate::try_newtype_datatype!($newtype, $repr, noref);
+        $crate::try_newtype_data_type!($newtype, $repr, noref);
 
         impl $crate::RefType for $newtype {
             type Ref = <$repr as $crate::RefType>::Ref;
@@ -278,7 +278,7 @@ macro_rules! try_newtype_datatype {
     };
 
     ($newtype:ty, $repr:ty, primitive) => {
-        $crate::try_newtype_datatype!($newtype, $repr);
+        $crate::try_newtype_data_type!($newtype, $repr);
 
         impl $crate::PrimitiveType for $newtype {
             type Native = Self;
@@ -368,8 +368,8 @@ macro_rules! try_newtype_datatype {
         where
             $repr: $crate::ConcreteType,
         {
-            fn datatype() -> $crate::arrow::datatypes::DataType {
-                <$repr as $crate::ConcreteType>::datatype()
+            fn data_type() -> $crate::arrow::datatypes::DataType {
+                <$repr as $crate::ConcreteType>::data_type()
             }
 
             fn build(
@@ -387,10 +387,10 @@ macro_rules! try_newtype_datatype {
 
 use std::marker::PhantomData;
 
-use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType};
+use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType};
 
 /// Adapter for using a *foreign* type (one you don't own, so
-/// [`newtype_datatype!`](crate::newtype_datatype) is off-limits by the orphan rule)
+/// [`newtype_data_type!`](crate::newtype_data_type) is off-limits by the orphan rule)
 /// as a logical column type, stored as `Repr`:
 ///
 /// ```
@@ -407,7 +407,7 @@ use crate::datatype::{ColumnError, InfallibleBuild, LogicalType, PrimitiveType, 
 ///
 /// Requires `From` conversions between the foreign type and the representation's
 /// owned value, in both directions.
-/// Like [`newtype_datatype!`](crate::newtype_datatype), reading stays zero-copy and
+/// Like [`newtype_data_type!`](crate::newtype_data_type), reading stays zero-copy and
 /// yields the *representation's* borrowed value; owned values are the foreign type.
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -470,8 +470,8 @@ where
     T: From<Repr::Owned>,
     Repr::Owned: From<T>,
 {
-    fn datatype() -> arrow::datatypes::DataType {
-        Repr::datatype()
+    fn data_type() -> arrow::datatypes::DataType {
+        Repr::data_type()
     }
 
     fn build(
@@ -522,7 +522,7 @@ where
 }
 
 // Standard library types that are `TryFrom` a primitive quiver already
-// supports, wired up with [`try_newtype_datatype!`]. Each is stored as (and
+// supports, wired up with [`try_newtype_data_type!`]. Each is stored as (and
 // read back as) that primitive; its invariant (non-zero, valid scalar value) is
 // checked once at column construction.
 
@@ -530,11 +530,11 @@ where
 ///
 /// The bulk read yields the plain integers, not the `NonZero*` themselves: a
 /// zero is not a valid `NonZeroU32`, so the buffer cannot be reinterpreted the
-/// way the `primitive` arm of [`try_newtype_datatype!`] does.
-macro_rules! nonzero_datatype {
+/// way the `primitive` arm of [`try_newtype_data_type!`] does.
+macro_rules! nonzero_data_type {
     ($($nonzero:ty => $int:ty),* $(,)?) => {
         $(
-            crate::try_newtype_datatype!($nonzero, $int);
+            crate::try_newtype_data_type!($nonzero, $int);
 
             impl PrimitiveType for $nonzero {
                 type Native = $int;
@@ -547,7 +547,7 @@ macro_rules! nonzero_datatype {
     };
 }
 
-nonzero_datatype! {
+nonzero_data_type! {
     ::core::num::NonZeroI8   => i8,
     ::core::num::NonZeroI16  => i16,
     ::core::num::NonZeroI32  => i32,
@@ -561,7 +561,7 @@ nonzero_datatype! {
 // `char` is `TryFrom<u32>` (rejecting surrogates and out-of-range values),
 // and `u32: From<char>`; stored as `UInt32`. The bulk read yields the `u32`s,
 // for the same reason as the `NonZero*` above.
-crate::try_newtype_datatype!(char, u32);
+crate::try_newtype_data_type!(char, u32);
 
 impl PrimitiveType for char {
     type Native = u32;

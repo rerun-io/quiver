@@ -9,7 +9,7 @@ use crate::{Column, Error, ErrorKind, LogicalType};
 /// the field description plus the actual data.
 ///
 /// The two halves always agree: [`try_new`](DynColumn::try_new) checks that the
-/// array has exactly the field's datatype, and that a non-nullable field holds
+/// array has exactly the field's data type, and that a non-nullable field holds
 /// no nulls — the same two invariants a
 /// [`RecordBatch`](arrow::record_batch::RecordBatch) demands of a column, so a
 /// `DynColumn` can always be put into one.
@@ -40,7 +40,7 @@ impl DynColumn {
     /// ```
     ///
     /// # Errors
-    /// Errors if the array's datatype is not exactly the field's, or if the
+    /// Errors if the array's data type is not exactly the field's, or if the
     /// field is not nullable but the array holds nulls.
     pub fn try_new(field: FieldRef, array: ArrayRef) -> Result<Self, Error> {
         let column = field.name().clone();
@@ -48,7 +48,7 @@ impl DynColumn {
         if array.data_type() != field.data_type() {
             return Err(Error::new(
                 "DynColumn",
-                ErrorKind::WrongDatatype {
+                ErrorKind::WrongDataType {
                     column,
                     expected: format!("{:?}", field.data_type()),
                     actual: array.data_type().clone(),
@@ -75,13 +75,13 @@ impl DynColumn {
         Self { field, array }
     }
 
-    /// The arrow field: the column's name, datatype, nullability, and metadata.
+    /// The arrow field: the column's name, data type, nullability, and metadata.
     #[must_use]
     pub fn field(&self) -> &FieldRef {
         &self.field
     }
 
-    /// The column's data, of the [`field`](DynColumn::field)'s datatype.
+    /// The column's data, of the [`field`](DynColumn::field)'s data type.
     #[must_use]
     pub fn array(&self) -> &ArrayRef {
         &self.array
@@ -94,14 +94,14 @@ impl DynColumn {
         (field, array)
     }
 
-    /// Validates this column against the logical type `L` (datatype and
+    /// Validates this column against the logical type `L` (data type and
     /// nullability, recursively) and downcasts it (zero-copy), carrying over
     /// the arrow field metadata.
     ///
     /// The inverse is [`Column::into_dyn`].
     ///
     /// # Errors
-    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
+    /// Errors on data type mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_into_column<L: LogicalType>(self) -> Result<Column<L>, Error> {
         let Self { field, array } = self;
 
