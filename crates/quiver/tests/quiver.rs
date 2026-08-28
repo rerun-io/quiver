@@ -924,22 +924,22 @@ fn column_optional_and_required() {
 #[test]
 fn column_desc_metadata_compares_as_a_map() {
     type Desc = quiver::ColumnDesc<Utf8>;
-    const AB: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "2")]);
-    const BA: Desc = Desc::new_with_metadata("R", "c", &[("b", "2"), ("a", "1")]);
-    const TWICE: Desc = Desc::new_with_metadata("R", "c", &[("a", "9"), ("a", "1"), ("b", "2")]);
-    const OTHER: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "9")]);
+    const DECLARED: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "2")]);
+    const REORDERED: Desc = Desc::new_with_metadata("R", "c", &[("b", "2"), ("a", "1")]);
+    const REPEATED: Desc = Desc::new_with_metadata("R", "c", &[("a", "9"), ("a", "1"), ("b", "2")]);
+    const OTHER_VALUE: Desc = Desc::new_with_metadata("R", "c", &[("a", "1"), ("b", "9")]);
     const SHORTER: Desc = Desc::new_with_metadata("R", "c", &[("a", "1")]);
 
-    assert_eq!(AB, BA);
-    assert_eq!(AB, TWICE);
-    assert_ne!(AB, OTHER);
-    assert_ne!(AB, SHORTER);
+    assert_eq!(DECLARED, REORDERED);
+    assert_eq!(DECLARED, REPEATED);
+    assert_ne!(DECLARED, OTHER_VALUE);
+    assert_ne!(DECLARED, SHORTER);
 
     // Which is exactly when the arrow fields agree:
-    assert_eq!(AB.arrow_field(), BA.arrow_field());
-    assert_eq!(AB.arrow_field(), TWICE.arrow_field());
-    assert_ne!(AB.arrow_field(), OTHER.arrow_field());
-    assert_ne!(AB.arrow_field(), SHORTER.arrow_field());
+    assert_eq!(DECLARED.arrow_field(), REORDERED.arrow_field());
+    assert_eq!(DECLARED.arrow_field(), REPEATED.arrow_field());
+    assert_ne!(DECLARED.arrow_field(), OTHER_VALUE.arrow_field());
+    assert_ne!(DECLARED.arrow_field(), SHORTER.arrow_field());
 }
 
 /// Holds a descriptor without naming `LogicalType`: the struct definition of
