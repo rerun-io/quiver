@@ -26,10 +26,10 @@ use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, RefType, downc
 /// arrow distinguishes `Binary` from `List(UInt8)`.)
 ///
 /// ```
-/// use quiver::{Binary, Column};
+/// use quiver::{Binary, TypedArray};
 ///
-/// let column = Column::<Binary>::from_values([b"abc".to_vec(), vec![0, 1]]);
-/// assert_eq!(column.value(0), b"abc"); // borrowed `&[u8]`, zero-copy
+/// let array = TypedArray::<Binary>::from_values([b"abc".to_vec(), vec![0, 1]]);
+/// assert_eq!(array.value(0), b"abc"); // borrowed `&[u8]`, zero-copy
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -38,10 +38,10 @@ pub struct Binary;
 /// Marker for an arrow `LargeBinary` column: like [`Binary`], with 64-bit offsets.
 ///
 /// ```
-/// use quiver::{Column, LargeBinary};
+/// use quiver::{LargeBinary, TypedArray};
 ///
-/// let column = Column::<LargeBinary>::from_values([b"abc".to_vec()]);
-/// assert_eq!(column.value(0), b"abc");
+/// let array = TypedArray::<LargeBinary>::from_values([b"abc".to_vec()]);
+/// assert_eq!(array.value(0), b"abc");
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -52,10 +52,10 @@ pub struct LargeBinary;
 /// and out-of-order writes.
 ///
 /// ```
-/// use quiver::{BinaryView, Column};
+/// use quiver::{BinaryView, TypedArray};
 ///
-/// let column = Column::<BinaryView>::from_values([b"abc".to_vec()]);
-/// assert_eq!(column.value(0), b"abc");
+/// let array = TypedArray::<BinaryView>::from_values([b"abc".to_vec()]);
+/// assert_eq!(array.value(0), b"abc");
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -152,14 +152,14 @@ impl_binary_data_type!(
 /// schema; to build, pick a concrete encoding such as `Column<Binary>`.
 ///
 /// ```
-/// use quiver::{AnyBinary, Column};
+/// use quiver::{AnyBinary, TypedArray};
 /// use quiver::arrow::array::{ArrayRef, LargeBinaryArray};
 /// # use std::sync::Arc;
 ///
 /// // `array` may be a Binary / LargeBinary / BinaryView:
 /// let array: ArrayRef = Arc::new(LargeBinaryArray::from_iter_values([b"abc"]));
-/// let column = Column::<AnyBinary>::try_from(array).unwrap();
-/// assert_eq!(column.value(0), b"abc");
+/// let array = TypedArray::<AnyBinary>::try_from(array).unwrap();
+/// assert_eq!(array.value(0), b"abc");
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.

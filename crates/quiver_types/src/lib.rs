@@ -7,12 +7,16 @@
 //! ## The main types
 //!
 //! * [`Column<L>`]: one column of a record batch — an arrow array validated
-//!   against the logical type `L`, plus that column's field metadata.
+//!   against the logical type `L`, plus the column's **name and metadata**
+//!   (what a record batch stores on the arrow `Field`). Every constructor
+//!   therefore takes a name.
 //! * [`TypedArray<L>`]: the data half of a [`Column<L>`](Column) — the same
-//!   validated array with the same value API, minus the metadata.
-//!   A [`Column<L>`](Column) is a [`TypedArray<L>`](TypedArray) plus metadata;
+//!   validated array with the same value API, but **no name and no metadata**.
+//!   A [`Column<L>`](Column) is a [`TypedArray<L>`](TypedArray) plus those two;
 //!   use a [`TypedArray<L>`](TypedArray) directly for arrays that aren't
-//!   record batch columns.
+//!   record batch columns. It is the one with the `Default`, `From<Vec<_>>`,
+//!   `FromIterator`, and `TryFrom<ArrayRef>` impls, none of which could supply
+//!   a name.
 //! * [`ColumnDesc<L>`](ColumnDesc): a named handle on one column,
 //!   holding no data. It knows both the column name and `L`, so it can
 //!   [`extract`](ColumnDesc::extract) a [`Column<L>`](Column) from a record

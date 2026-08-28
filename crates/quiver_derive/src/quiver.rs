@@ -619,7 +619,10 @@ impl ColumnField {
         if let ColumnKind::Wrapper { logical_type } = kind {
             // `array` is a `&ArrayRef`, `field` is a `&Field`:
             let convert = quote! {
-                <#krate::Column<#logical_type>>::try_new(::std::sync::Arc::clone(array))
+                <#krate::Column<#logical_type>>::try_new(
+                    #column_name,
+                    ::std::sync::Arc::clone(array),
+                )
                     .map_err(|err| {
                         #krate::Error::new(#record_type, err.for_column(#column_name.to_owned()))
                     })?

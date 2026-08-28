@@ -14,13 +14,13 @@ use crate::ErrorKind;
 /// nullability at any nesting level:
 ///
 /// ```
-/// use quiver::Column;
+/// use quiver::TypedArray;
 ///
-/// let numbers = Column::<i64>::from_values([1, 2, 3]);
+/// let numbers = TypedArray::<i64>::from_values([1, 2, 3]);
 /// assert_eq!(numbers.value(0), 1);
 /// assert_eq!(numbers.as_slice(), &[1, 2, 3]); // bulk, zero-copy (not for `bool`)
 ///
-/// let maybe = Column::<Option<i64>>::from_values([Some(1), None]);
+/// let maybe = TypedArray::<Option<i64>>::from_values([Some(1), None]);
 /// assert_eq!(maybe.value(1), None);
 /// ```
 pub trait LogicalType {

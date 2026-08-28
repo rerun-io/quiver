@@ -36,7 +36,7 @@ use crate::{
 /// building emits a plain [`List`]. Item nullability is `AnyList<Option<L>>`.
 ///
 /// ```
-/// use quiver::{AnyList, Column};
+/// use quiver::{AnyList, TypedArray};
 /// use quiver::arrow::array::{ArrayRef, LargeListArray};
 /// use quiver::arrow::datatypes::Int64Type;
 /// # use std::sync::Arc;
@@ -44,8 +44,8 @@ use crate::{
 /// // Accepts a `List`, `LargeList`, `ListView`, `LargeListView`, or `FixedSizeList`
 /// // — here a `LargeList` — and reads them all the same way:
 /// let large = LargeListArray::from_iter_primitive::<Int64Type, _, _>(vec![Some(vec![Some(7)])]);
-/// let column = Column::<AnyList<i64>>::try_from(Arc::new(large) as ArrayRef).unwrap();
-/// assert_eq!(column.value(0).collect::<Vec<_>>(), [7]);
+/// let array = TypedArray::<AnyList<i64>>::try_from(Arc::new(large) as ArrayRef).unwrap();
+/// assert_eq!(array.value(0).collect::<Vec<_>>(), [7]);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.

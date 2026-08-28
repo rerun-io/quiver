@@ -29,10 +29,10 @@ use crate::data_type::{LogicalType, PrimitiveType, RefType};
 /// bounds.
 ///
 /// ```
-/// use quiver::{Column, List};
+/// use quiver::{List, TypedArray};
 ///
-/// let column = Column::<List<i64>>::from_values([vec![10, 20, 30], vec![]]);
-/// let row = column.value(0);
+/// let array = TypedArray::<List<i64>>::from_values([vec![10, 20, 30], vec![]]);
+/// let row = array.value(0);
 ///
 /// assert_eq!(row.len(), 3);
 /// assert_eq!(row.value(1), 20);     // by item index
@@ -43,7 +43,7 @@ use crate::data_type::{LogicalType, PrimitiveType, RefType};
 /// let sum: i64 = row.iter().sum();  // `iter` does not consume `row`
 /// assert_eq!(sum, 60);
 ///
-/// assert!(column.value(1).is_empty());
+/// assert!(array.value(1).is_empty());
 /// ```
 pub struct ListValue<'a, L: LogicalType> {
     values: &'a L::Typed,

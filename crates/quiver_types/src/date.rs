@@ -16,10 +16,10 @@ use crate::data_type::{ColumnError, LogicalType, impl_marker_data_type, impl_pri
 /// Days since the Unix epoch, as an `i32`.
 ///
 /// ```
-/// use quiver::{Column, Date32};
+/// use quiver::{Date32, TypedArray};
 ///
-/// let column = Column::<Date32>::from_values([19_876, 19_877]); // days since 1970-01-01
-/// assert_eq!(column.value(0), 19_876);
+/// let array = TypedArray::<Date32>::from_values([19_876, 19_877]); // days since 1970-01-01
+/// assert_eq!(array.value(0), 19_876);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -29,10 +29,10 @@ pub struct Date32;
 /// (expected to be a multiple of a day; not validated).
 ///
 /// ```
-/// use quiver::{Column, Date64};
+/// use quiver::{Date64, TypedArray};
 ///
-/// let column = Column::<Date64>::from_values([1_717_200_000_000_i64]); // ms since 1970-01-01
-/// assert_eq!(column.value(0), 1_717_200_000_000);
+/// let array = TypedArray::<Date64>::from_values([1_717_200_000_000_i64]); // ms since 1970-01-01
+/// assert_eq!(array.value(0), 1_717_200_000_000);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.

@@ -39,8 +39,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build a typed record — the struct literal is the builder:
     let measurements = Measurements {
         metadata: BTreeMap::from([("origin".to_owned(), "lab".to_owned())]),
-        sensor: Column::from_values(["kitchen", "bedroom", "attic"]),
-        temperature: Column::from_values([Some(22.1), None, Some(30.5)]),
+        sensor: Measurements::COLUMN_SENSOR.new_from_values(["kitchen", "bedroom", "attic"]),
+        temperature: Measurements::COLUMN_TEMPERATURE.new_from_values([
+            Some(22.1),
+            None,
+            Some(30.5),
+        ]),
         comment: Arc::new(StringArray::from(vec!["cozy", "quiet", "spooky"])),
     };
 

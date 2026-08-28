@@ -22,10 +22,10 @@ use crate::list::{ListValue, impl_list_data_type, logical_item_null_count};
 /// Item nullability: `LargeList<Option<L>>`.
 ///
 /// ```
-/// use quiver::{Column, LargeList};
+/// use quiver::{LargeList, TypedArray};
 ///
-/// let column = Column::<LargeList<i64>>::from_values([vec![1, 2], vec![3]]);
-/// let second: Vec<i64> = column.value(1).collect();
+/// let array = TypedArray::<LargeList<i64>>::from_values([vec![1, 2], vec![3]]);
+/// let second: Vec<i64> = array.value(1).collect();
 /// assert_eq!(second, [3]);
 /// ```
 ///

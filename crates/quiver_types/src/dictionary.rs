@@ -34,12 +34,12 @@ use crate::data_type::{ColumnError, LogicalType, RefType, downcast_array};
 /// `Column<Dictionary<K, V>>` (no `Option` anywhere) guarantees the absence of both.
 ///
 /// ```
-/// use quiver::{Column, Dictionary, Utf8};
+/// use quiver::{Dictionary, TypedArray, Utf8};
 ///
 /// // Building dictionary-encodes the values (can fail on key overflow):
-/// let column = Column::<Dictionary<i32, Utf8>>::try_from_values(["a", "b", "a"]).unwrap();
-/// assert_eq!(column.value(2), "a"); // transparent: reads like a plain column
-/// assert_eq!(column.to_vec(), ["a", "b", "a"]);
+/// let array = TypedArray::<Dictionary<i32, Utf8>>::try_from_values(["a", "b", "a"]).unwrap();
+/// assert_eq!(array.value(2), "a"); // transparent: reads like a plain array
+/// assert_eq!(array.to_vec(), ["a", "b", "a"]);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -180,9 +180,13 @@ impl<K: DictionaryKey + 'static, V: RefType + 'static> RefType for Dictionary<K,
     }
 }
 
-/// `vec.try_into()` support for dictionary columns,
-/// whose building is fallible (key overflow) — see [`crate::Column::try_from_values`].
-impl<K, V, T> TryFrom<Vec<T>> for crate::Column<Dictionary<K, V>>
+/// `vec.try_into()` support for dictionary arrays,
+/// whose building is fallible (key overflow) — see
+/// [`crate::TypedArray::try_from_values`].
+///
+/// There is no `Column` counterpart: a column needs a name, which a `Vec` does
+/// not carry. Use [`Column::try_from_values`](crate::Column::try_from_values).
+impl<K, V, T> TryFrom<Vec<T>> for crate::TypedArray<Dictionary<K, V>>
 where
     K: DictionaryKey + 'static,
     V: crate::ConcreteType + 'static,

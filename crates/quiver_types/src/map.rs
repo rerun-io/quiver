@@ -27,13 +27,13 @@ use crate::data_type::{ColumnError, InfallibleBuild, LogicalType, downcast_array
 /// `Option<Map<K, V>>`. Arrow map keys are never null, so `K` is non-`Option`.
 ///
 /// ```
-/// use quiver::{Column, Map, Utf8};
+/// use quiver::{Map, TypedArray, Utf8};
 ///
-/// let column = Column::<Map<Utf8, i64>>::from_values([vec![
+/// let array = TypedArray::<Map<Utf8, i64>>::from_values([vec![
 ///     ("a".to_owned(), 1),
 ///     ("b".to_owned(), 2),
 /// ]]);
-/// let pairs: Vec<(&str, i64)> = column.value(0).collect();
+/// let pairs: Vec<(&str, i64)> = array.value(0).collect();
 /// assert_eq!(pairs, [("a", 1), ("b", 2)]);
 /// ```
 ///

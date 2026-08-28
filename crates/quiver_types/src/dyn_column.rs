@@ -15,7 +15,9 @@ use crate::{Column, Error, ErrorKind, LogicalType};
 /// `DynColumn` can always be put into one.
 ///
 /// The untyped counterpart of [`Column`]: it carries no logical type, and so
-/// validates nothing about the *contents*. Use
+/// validates nothing about the *contents*. Like a `Column` — and unlike a
+/// [`TypedArray`](crate::TypedArray) — it has a name and metadata; both live on
+/// the [`field`](DynColumn::field). Use
 /// [`try_into_column`](DynColumn::try_into_column) to get back to a typed
 /// column.
 #[derive(Clone, Debug)]
@@ -113,7 +115,7 @@ impl DynColumn {
     pub fn try_into_column<L: LogicalType>(self) -> Result<Column<L>, Error> {
         let Self { field, array } = self;
 
-        let column = Column::<L>::try_new(array)
+        let column = Column::<L>::try_new(field.name(), array)
             .map_err(|err| Error::new("DynColumn", err.for_column(field.name().clone())))?;
 
         Ok(column.with_metadata(

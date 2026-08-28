@@ -17,10 +17,10 @@ use crate::data_type::{ColumnError, LogicalType, impl_marker_data_type, impl_pri
 /// Seconds since midnight, as an `i32`.
 ///
 /// ```
-/// use quiver::{Column, Time32Second};
+/// use quiver::{Time32Second, TypedArray};
 ///
-/// let column = Column::<Time32Second>::from_values([3_600, 7_200]); // 01:00, 02:00
-/// assert_eq!(column.value(0), 3_600);
+/// let array = TypedArray::<Time32Second>::from_values([3_600, 7_200]); // 01:00, 02:00
+/// assert_eq!(array.value(0), 3_600);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -29,10 +29,10 @@ pub struct Time32Second;
 /// Milliseconds since midnight, as an `i32`.
 ///
 /// ```
-/// use quiver::{Column, Time32Millisecond};
+/// use quiver::{Time32Millisecond, TypedArray};
 ///
-/// let column = Column::<Time32Millisecond>::from_values([3_600_000]); // 01:00
-/// assert_eq!(column.value(0), 3_600_000);
+/// let array = TypedArray::<Time32Millisecond>::from_values([3_600_000]); // 01:00
+/// assert_eq!(array.value(0), 3_600_000);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -41,10 +41,10 @@ pub struct Time32Millisecond;
 /// Microseconds since midnight, as an `i64`.
 ///
 /// ```
-/// use quiver::{Column, Time64Microsecond};
+/// use quiver::{Time64Microsecond, TypedArray};
 ///
-/// let column = Column::<Time64Microsecond>::from_values([3_600_000_000_i64]); // 01:00
-/// assert_eq!(column.value(0), 3_600_000_000);
+/// let array = TypedArray::<Time64Microsecond>::from_values([3_600_000_000_i64]); // 01:00
+/// assert_eq!(array.value(0), 3_600_000_000);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.
@@ -53,10 +53,10 @@ pub struct Time64Microsecond;
 /// Nanoseconds since midnight, as an `i64`.
 ///
 /// ```
-/// use quiver::{Column, Time64Nanosecond};
+/// use quiver::{Time64Nanosecond, TypedArray};
 ///
-/// let column = Column::<Time64Nanosecond>::from_values([3_600_000_000_000_i64]); // 01:00
-/// assert_eq!(column.value(0), 3_600_000_000_000);
+/// let array = TypedArray::<Time64Nanosecond>::from_values([3_600_000_000_000_i64]); // 01:00
+/// assert_eq!(array.value(0), 3_600_000_000_000);
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.

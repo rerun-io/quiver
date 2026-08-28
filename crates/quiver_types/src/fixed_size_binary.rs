@@ -19,11 +19,11 @@ use crate::data_type::{
 /// The element values are `&[u8; N]`; the owned values are `[u8; N]`.
 ///
 /// ```
-/// use quiver::{Column, FixedSizeBinary};
+/// use quiver::{FixedSizeBinary, TypedArray};
 ///
-/// let column = Column::<FixedSizeBinary<4>>::from_values([[1, 2, 3, 4], [5, 6, 7, 8]]);
-/// assert_eq!(column.value(0), &[1, 2, 3, 4]);
-/// assert_eq!(column.as_slice(), &[[1, 2, 3, 4], [5, 6, 7, 8]]); // bulk, zero-copy
+/// let array = TypedArray::<FixedSizeBinary<4>>::from_values([[1, 2, 3, 4], [5, 6, 7, 8]]);
+/// assert_eq!(array.value(0), &[1, 2, 3, 4]);
+/// assert_eq!(array.as_slice(), &[[1, 2, 3, 4], [5, 6, 7, 8]]); // bulk, zero-copy
 /// ```
 ///
 /// This type is never instantiated — it only appears as a type parameter.

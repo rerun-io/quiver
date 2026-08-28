@@ -290,9 +290,10 @@ fn column_length_mismatch() {
 #[test]
 fn typed_column_nullability_is_emitted() {
     let typed = Typed {
-        name: quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice"]))).unwrap(),
-        maybe_age: quiver::Column::try_new(Arc::new(Int64Array::from(vec![30]))).unwrap(),
-        tags: quiver::Column::try_new(string_list_array_of_one()).unwrap(),
+        name: quiver::Column::try_new("name", Arc::new(StringArray::from(vec!["Alice"]))).unwrap(),
+        maybe_age: quiver::Column::try_new("maybe_age", Arc::new(Int64Array::from(vec![30])))
+            .unwrap(),
+        tags: quiver::Column::try_new("tags", string_list_array_of_one()).unwrap(),
         scores: None,
     };
     let batch = RecordBatch::try_from(typed).unwrap();
@@ -387,11 +388,15 @@ fn roundtrip_typed_columns() {
     // `from_iter_primitive` marks the item field nullable, matching `List<Option<f64>>`.
 
     let typed = Typed {
-        name: quiver::Column::try_new(Arc::new(StringArray::from(vec!["Alice", "Bob"]))).unwrap(),
-        maybe_age: quiver::Column::try_new(Arc::new(Int64Array::from(vec![Some(30), None])))
+        name: quiver::Column::try_new("name", Arc::new(StringArray::from(vec!["Alice", "Bob"])))
             .unwrap(),
-        tags: quiver::Column::try_new(string_list_array()).unwrap(),
-        scores: Some(quiver::Column::try_new(Arc::new(list)).unwrap()),
+        maybe_age: quiver::Column::try_new(
+            "maybe_age",
+            Arc::new(Int64Array::from(vec![Some(30), None])),
+        )
+        .unwrap(),
+        tags: quiver::Column::try_new("tags", string_list_array()).unwrap(),
+        scores: Some(quiver::Column::try_new("scores", Arc::new(list)).unwrap()),
     };
 
     let batch = RecordBatch::try_from(typed).unwrap();
@@ -480,7 +485,7 @@ fn roundtrip_fixed_size_binary() {
     .unwrap();
 
     let uuids = Uuids {
-        uuid: quiver::Column::try_new(Arc::new(array)).unwrap(),
+        uuid: quiver::Column::try_new("uuid", Arc::new(array)).unwrap(),
     };
 
     let batch = RecordBatch::try_from(uuids).unwrap();
@@ -503,7 +508,7 @@ struct Times {
 fn roundtrip_timestamp() {
     let array = TimestampNanosecondArray::from(vec![1, 2]).with_timezone("UTC");
     let times = Times {
-        at: quiver::Column::try_new(Arc::new(array)).unwrap(),
+        at: quiver::Column::try_new("at", Arc::new(array)).unwrap(),
     };
 
     let batch = RecordBatch::try_from(times).unwrap();
@@ -524,7 +529,7 @@ fn roundtrip_timestamp() {
 fn column_metadata_roundtrip() {
     let array = TimestampNanosecondArray::from(vec![1]).with_timezone("UTC");
     let times = Times {
-        at: quiver::Column::try_new(Arc::new(array))
+        at: quiver::Column::try_new("at", Arc::new(array))
             .unwrap()
             .with_metadata(BTreeMap::from([("unit".to_owned(), "ns".to_owned())])),
     };
@@ -654,9 +659,9 @@ fn column_descriptors() {
     assert_eq!(Renamed::COLUMN_KIND.name, "special:name");
 
     let typed = Typed {
-        name: quiver::Column::from_values(["Alice", "Bob"]),
-        maybe_age: quiver::Column::from_values([Some(30_i64), None]),
-        tags: quiver::Column::try_new(string_list_array()).unwrap(),
+        name: quiver::Column::from_values("name", ["Alice", "Bob"]),
+        maybe_age: quiver::Column::from_values("maybe_age", [Some(30_i64), None]),
+        tags: quiver::Column::try_new("tags", string_list_array()).unwrap(),
         scores: None,
     };
     let batch = typed.into_record_batch().unwrap();
@@ -682,9 +687,9 @@ fn column_descriptors() {
 #[test]
 fn column_desc_to_dyn() {
     let typed = Typed {
-        name: quiver::Column::from_values(["Alice", "Bob"]),
-        maybe_age: quiver::Column::from_values([Some(30_i64), None]),
-        tags: quiver::Column::try_new(string_list_array()).unwrap(),
+        name: quiver::Column::from_values("name", ["Alice", "Bob"]),
+        maybe_age: quiver::Column::from_values("maybe_age", [Some(30_i64), None]),
+        tags: quiver::Column::try_new("tags", string_list_array()).unwrap(),
         scores: None,
     };
     let batch = typed.into_record_batch().unwrap();
@@ -756,9 +761,9 @@ fn column_desc_is_parameterized_by_the_logical_type() {
     assert_eq!(derived.name, MAYBE_AGE.name);
 
     let batch = Typed {
-        name: quiver::Column::from_values(["Alice"]),
-        maybe_age: quiver::Column::from_values([Some(30_i64)]),
-        tags: quiver::Column::try_new(string_list_array_of_one()).unwrap(),
+        name: quiver::Column::from_values("name", ["Alice"]),
+        maybe_age: quiver::Column::from_values("maybe_age", [Some(30_i64)]),
+        tags: quiver::Column::try_new("tags", string_list_array_of_one()).unwrap(),
         scores: None,
     }
     .into_record_batch()
@@ -856,21 +861,23 @@ fn column_desc_optional_and_required() {
 
 #[test]
 fn column_optional_and_required() {
-    let ages = quiver::Column::<i64>::from_values([30_i64, 40])
+    let ages = quiver::Column::<i64>::from_values("age", [30_i64, 40])
         .with_metadata([("meta:kind".to_owned(), "control".to_owned())].into());
 
-    // Widening keeps the metadata and the values, and costs nothing:
+    // Widening keeps the name, the metadata, and the values, and costs nothing:
     let maybe: quiver::Column<Option<i64>> = ages.optional();
     assert_eq!(maybe.to_vec(), [Some(30), Some(40)]);
+    assert_eq!(maybe.name(), "age");
     assert_eq!(maybe.metadata()["meta:kind"], "control");
 
-    // And back again, metadata included:
+    // And back again, name and metadata included:
     let strict: quiver::Column<i64> = maybe.try_required().unwrap();
     assert_eq!(strict.to_vec(), [30, 40]);
+    assert_eq!(strict.name(), "age");
     assert_eq!(strict.metadata()["meta:kind"], "control");
 
     // A real null is what makes the narrowing fail:
-    let err = quiver::Column::<Option<i64>>::from_values([Some(30_i64), None])
+    let err = quiver::Column::<Option<i64>>::from_values("age", [Some(30_i64), None])
         .try_required()
         .err()
         .unwrap();
@@ -881,20 +888,20 @@ fn column_optional_and_required() {
 
     // Empty and all-null are the boundary cases: nothing to reject, everything to reject.
     assert!(
-        quiver::Column::<Option<i64>>::from_values([] as [Option<i64>; 0])
+        quiver::Column::<Option<i64>>::from_values("age", [] as [Option<i64>; 0])
             .try_required()
             .is_ok()
     );
     assert!(
-        quiver::Column::<Option<i64>>::from_values([None, None])
+        quiver::Column::<Option<i64>>::from_values("age", [None, None])
             .try_required()
             .is_err()
     );
 
     // Idempotent in both directions, exactly like the descriptors:
     let still_optional: quiver::Column<Option<i64>> =
-        quiver::Column::<Option<i64>>::from_values([Some(1_i64)]).optional();
-    let still_required: quiver::Column<i64> = quiver::Column::<i64>::from_values([1_i64])
+        quiver::Column::<Option<i64>>::from_values("age", [Some(1_i64)]).optional();
+    let still_required: quiver::Column<i64> = quiver::Column::<i64>::from_values("age", [1_i64])
         .try_required()
         .unwrap();
     assert_eq!(still_optional.to_vec(), [Some(1)]);
@@ -1055,8 +1062,8 @@ struct Annotated {
 
 fn annotated() -> Annotated {
     Annotated {
-        chunk_id: quiver::Column::from_values([[1_u8; 16]]),
-        frame_start: quiver::Column::from_values([Some(7_i64)]),
+        chunk_id: quiver::Column::from_values("chunk_id", [[1_u8; 16]]),
+        frame_start: quiver::Column::from_values("frame_start", [Some(7_i64)]),
         comment: StringArray::from(vec!["hi"]),
     }
 }
@@ -1157,7 +1164,7 @@ mod crate_path_override {
     #[test]
     fn crate_path_override() {
         let thing = Thing {
-            x: renamed_quiver::Column::from_values([1, 2]),
+            x: renamed_quiver::Column::from_values("x", [1, 2]),
         };
         let batch = thing.into_record_batch().unwrap();
         let thing = Thing::try_from(batch).unwrap();
