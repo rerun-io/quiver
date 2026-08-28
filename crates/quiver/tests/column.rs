@@ -9,12 +9,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use quiver::arrow::array::Array as _;
-use quiver::arrow::array::{ArrayRef, Int64Array, StringArray};
+use quiver::arrow::array::{ArrayRef, Int64Array, StringArray, StringViewArray};
 use quiver::arrow::datatypes::{DataType, Field, Schema};
 use quiver::arrow::record_batch::RecordBatch;
 use quiver::{
-    Column, ColumnDesc, DynColumn, DynColumnDesc, ErrorKind, FixedSizeBinary, List, TypedArray,
-    Utf8,
+    AnyUtf8, Column, ColumnDesc, DynColumn, DynColumnDesc, ErrorKind, FixedSizeBinary, List,
+    TypedArray, Utf8,
 };
 
 #[test]
@@ -416,6 +416,16 @@ fn column_to_dyn_and_back() {
     );
     let column: Column<List<Utf8>> = dynamic.try_into_column().unwrap();
     assert_eq!(column.to_vec(), [vec!["a"], vec![]]);
+
+    // The parse-only types get out too: the field's data type comes from the
+    // array, so `L` needing no `data_type()` of its own is no obstacle.
+    let views: ArrayRef = Arc::new(StringViewArray::from(vec!["alice"]));
+    let dynamic = Column::<AnyUtf8>::try_new("name", views)
+        .unwrap()
+        .into_dyn();
+    assert_eq!(dynamic.field().data_type(), &DataType::Utf8View);
+    let column: Column<AnyUtf8> = dynamic.try_into_column().unwrap();
+    assert_eq!(column.value(0), "alice");
 }
 
 #[test]

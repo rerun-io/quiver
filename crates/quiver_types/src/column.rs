@@ -298,6 +298,38 @@ impl<L: LogicalType> Column<L> {
         self.array
     }
 
+    /// Forgets the static type: the same data, as a dynamically-typed column.
+    ///
+    /// The field carries this column's [`name`](Column::name) and
+    /// [`metadata`](Column::metadata), the data type of the array, and the
+    /// nullability of `L`. Zero-copy: the array is moved. To rename on the way
+    /// out, go through [`with_name`](Column::with_name).
+    ///
+    /// Works for every logical type, the parse-only ones
+    /// ([`AnyUtf8`](crate::AnyUtf8), [`AnyList`](crate::AnyList), …) included:
+    /// the field's data type comes from the array, not from `L`.
+    ///
+    /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
+    #[must_use]
+    pub fn into_dyn(self) -> crate::DynColumn {
+        let Self {
+            array,
+            name,
+            metadata,
+        } = self;
+        let array = array.into_arrow();
+
+        // The array's own data type rather than `L::data_type()`: the two agree
+        // on everything `L` pins down, but a validated array may still differ
+        // in a detail the logical type does not constrain (the name of a list's
+        // inner field, say) — and a `DynColumn`'s field must describe the array
+        // it is paired with, exactly.
+        let field = Field::new(name.as_str(), array.data_type().clone(), L::NULLABLE)
+            .with_metadata(Arc::unwrap_or_clone(metadata).into_iter().collect());
+
+        crate::DynColumn::new_unvalidated(Arc::new(field), array)
+    }
+
     /// The same column, read as nullable: `Column<L>` → `Column<Option<L>>`.
     ///
     /// Free — nullability lives in the validity bitmap, so nothing is
@@ -407,34 +439,6 @@ impl<L: crate::ConcreteType> Column<L> {
     #[must_use]
     pub fn data_type() -> DataType {
         L::data_type()
-    }
-
-    /// Forgets the static type: the same data, as a dynamically-typed column.
-    ///
-    /// The field carries this column's [`name`](Column::name) and
-    /// [`metadata`](Column::metadata), the data type of the array, and the
-    /// nullability of `L`. Zero-copy: the array is moved. To rename on the way
-    /// out, go through [`with_name`](Column::with_name).
-    ///
-    /// The inverse is [`DynColumn::try_into_column`](crate::DynColumn::try_into_column).
-    #[must_use]
-    pub fn into_dyn(self) -> crate::DynColumn {
-        let Self {
-            array,
-            name,
-            metadata,
-        } = self;
-        let array = array.into_arrow();
-
-        // The array's own data type rather than `L::data_type()`: the two agree
-        // on everything `L` pins down, but a validated array may still differ
-        // in a detail the logical type does not constrain (the name of a list's
-        // inner field, say) — and a `DynColumn`'s field must describe the array
-        // it is paired with, exactly.
-        let field = Field::new(name.as_str(), array.data_type().clone(), L::NULLABLE)
-            .with_metadata(Arc::unwrap_or_clone(metadata).into_iter().collect());
-
-        crate::DynColumn::new_unvalidated(Arc::new(field), array)
     }
 }
 
