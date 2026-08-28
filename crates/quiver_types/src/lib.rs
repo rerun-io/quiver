@@ -53,6 +53,7 @@ mod datatype;
 mod date;
 mod dictionary;
 mod duration;
+mod dyn_column;
 mod error;
 mod fixed_size_binary;
 mod fixed_size_list;
@@ -84,6 +85,7 @@ pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};
 pub use self::duration::{
     Duration, DurationMicrosecond, DurationMillisecond, DurationNanosecond, DurationSecond,
 };
+pub use self::dyn_column::DynColumn;
 pub use self::error::{Error, ErrorKind};
 pub use self::fixed_size_binary::FixedSizeBinary;
 pub use self::fixed_size_list::{FixedSizeList, TypedFixedSizeList};
@@ -102,36 +104,3 @@ pub use self::timestamp::{
     Utc,
 };
 pub use self::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
-
-/// A single dynamically-typed column of a record batch:
-/// the field description plus the actual data.
-#[derive(Clone, Debug)]
-pub struct DynColumn {
-    pub field: arrow::datatypes::FieldRef,
-    pub array: arrow::array::ArrayRef,
-}
-
-impl DynColumn {
-    /// Validates this column against the logical type `L` (datatype and
-    /// nullability, recursively) and downcasts it (zero-copy), carrying over
-    /// the arrow field metadata.
-    ///
-    /// The inverse is [`Column::into_dyn`].
-    ///
-    /// # Errors
-    /// Errors on datatype mismatch, or on nulls at any non-`Option` nesting level.
-    pub fn try_into_column<L: LogicalType>(self) -> Result<Column<L>, Error> {
-        let Self { field, array } = self;
-
-        let column = Column::<L>::try_new(array)
-            .map_err(|err| Error::new("DynColumn", err.for_column(field.name().clone())))?;
-
-        Ok(column.with_metadata(
-            field
-                .metadata()
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect(),
-        ))
-    }
-}

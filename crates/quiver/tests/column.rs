@@ -284,14 +284,14 @@ fn new_null() {
     );
 
     let dyn_column = column.into_dyn(CHUNK_KEY.name);
-    assert_eq!(dyn_column.field.name(), "chunk_key");
-    assert!(dyn_column.field.is_nullable());
-    assert_eq!(dyn_column.field.metadata()["sorted"], "true");
-    assert_eq!(dyn_column.array.len(), 2);
+    assert_eq!(dyn_column.field().name(), "chunk_key");
+    assert!(dyn_column.field().is_nullable());
+    assert_eq!(dyn_column.field().metadata()["sorted"], "true");
+    assert_eq!(dyn_column.array().len(), 2);
+    let (_field, dyn_array) = dyn_column.into_parts();
 
     // It round-trips back through the same descriptor:
-    let batch =
-        RecordBatch::try_from_iter_with_nullable([("chunk_key", dyn_column.array, true)]).unwrap();
+    let batch = RecordBatch::try_from_iter_with_nullable([("chunk_key", dyn_array, true)]).unwrap();
     assert_eq!(
         CHUNK_KEY.optional().extract(&batch).unwrap().to_vec(),
         [None, None]
@@ -1989,10 +1989,10 @@ fn column_to_dyn_and_back() {
 
     // The field takes its name from the argument, and everything else from `L`:
     let dynamic = column.into_dyn("name");
-    assert_eq!(dynamic.field.name(), "name");
-    assert_eq!(dynamic.field.data_type(), &DataType::Utf8);
-    assert!(!dynamic.field.is_nullable());
-    assert_eq!(dynamic.field.metadata()["pii"], "true");
+    assert_eq!(dynamic.field().name(), "name");
+    assert_eq!(dynamic.field().data_type(), &DataType::Utf8);
+    assert!(!dynamic.field().is_nullable());
+    assert_eq!(dynamic.field().metadata()["pii"], "true");
 
     // …and back, metadata intact:
     let column: Column<Utf8> = dynamic.try_into_column().unwrap();
@@ -2001,24 +2001,89 @@ fn column_to_dyn_and_back() {
 
     // `Option<…>` is the only thing that makes the field nullable:
     let dynamic = Column::<Option<i64>>::from_values([Some(1), None]).into_dyn("age");
-    assert!(dynamic.field.is_nullable());
-    assert_eq!(dynamic.field.data_type(), &DataType::Int64);
+    assert!(dynamic.field().is_nullable());
+    assert_eq!(dynamic.field().data_type(), &DataType::Int64);
 
     // Nested types keep their inner field nullability through the round trip:
     let dynamic =
         Column::<List<Utf8>>::from_values([vec!["a".to_owned()], vec![]]).into_dyn("tags");
-    assert_eq!(dynamic.field.data_type(), &Column::<List<Utf8>>::datatype());
+    assert_eq!(
+        dynamic.field().data_type(),
+        &Column::<List<Utf8>>::datatype()
+    );
     let column: Column<List<Utf8>> = dynamic.try_into_column().unwrap();
     assert_eq!(column.to_vec(), [vec!["a"], vec![]]);
 }
 
 #[test]
+fn dyn_column_try_new_validation() {
+    let ints: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
+    let with_null: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
+
+    // The array must have *exactly* the field's datatype:
+    let err = DynColumn::try_new(
+        Arc::new(Field::new("age", DataType::Int32, false)),
+        ArrayRef::clone(&ints),
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(*err.kind, ErrorKind::WrongDatatype { column, actual: DataType::Int64, .. } if column == "age")
+    );
+
+    // Inner-field nullability is part of the datatype, so it is checked too:
+    let list = Column::<List<Utf8>>::from_values([vec!["a".to_owned()]]).into_arrow();
+    let err = DynColumn::try_new(
+        Arc::new(Field::new(
+            "tags",
+            Column::<List<Option<Utf8>>>::datatype(),
+            false,
+        )),
+        list,
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(*err.kind, ErrorKind::WrongDatatype { .. }),
+        "{err}"
+    );
+
+    // A non-nullable field may not hold nulls…
+    let err = DynColumn::try_new(
+        Arc::new(Field::new("age", DataType::Int64, false)),
+        ArrayRef::clone(&with_null),
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(*err.kind, ErrorKind::UnexpectedNulls { column, null_count: 1 } if column == "age")
+    );
+
+    // …but a nullable one may, and may equally hold none:
+    assert!(
+        DynColumn::try_new(
+            Arc::new(Field::new("age", DataType::Int64, true)),
+            with_null,
+        )
+        .is_ok()
+    );
+    let column =
+        DynColumn::try_new(Arc::new(Field::new("age", DataType::Int64, true)), ints).unwrap();
+
+    // Field and array agree, so the pair always fits a record batch:
+    let (field, array) = column.into_parts();
+    let schema = Schema::new(vec![field]);
+    assert!(RecordBatch::try_new(Arc::new(schema), vec![array]).is_ok());
+}
+
+#[test]
 fn dyn_column_validation_names_the_field() {
     // Wrong datatype → `WrongDatatype`, naming the field.
-    let dynamic = DynColumn {
-        field: Arc::new(Field::new("age", DataType::Int64, false)),
-        array: Arc::new(Int64Array::from(vec![1, 2])),
-    };
+    let dynamic = DynColumn::try_new(
+        Arc::new(Field::new("age", DataType::Int64, false)),
+        Arc::new(Int64Array::from(vec![1, 2])),
+    )
+    .unwrap();
     let err = dynamic.try_into_column::<Utf8>().err().unwrap();
     assert_eq!(err.record_type, "DynColumn");
     assert!(
@@ -2026,10 +2091,11 @@ fn dyn_column_validation_names_the_field() {
     );
 
     // Nulls at a non-`Option` level → `UnexpectedNulls`, naming the field.
-    let dynamic = DynColumn {
-        field: Arc::new(Field::new("age", DataType::Int64, true)),
-        array: Arc::new(Int64Array::from(vec![Some(1), None])),
-    };
+    let dynamic = DynColumn::try_new(
+        Arc::new(Field::new("age", DataType::Int64, true)),
+        Arc::new(Int64Array::from(vec![Some(1), None])),
+    )
+    .unwrap();
     let err = dynamic.try_into_column::<i64>().err().unwrap();
     assert_eq!(err.record_type, "DynColumn");
     assert!(
@@ -2038,10 +2104,11 @@ fn dyn_column_validation_names_the_field() {
 
     // The *array* decides, not the field flag: a nullable field with no nulls
     // is a perfectly good `Column<i64>`.
-    let dynamic = DynColumn {
-        field: Arc::new(Field::new("age", DataType::Int64, true)),
-        array: Arc::new(Int64Array::from(vec![1, 2])),
-    };
+    let dynamic = DynColumn::try_new(
+        Arc::new(Field::new("age", DataType::Int64, true)),
+        Arc::new(Int64Array::from(vec![1, 2])),
+    )
+    .unwrap();
     let column: Column<i64> = dynamic.try_into_column().unwrap();
     assert_eq!(column.to_vec(), [1, 2]);
 }
