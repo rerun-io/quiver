@@ -269,12 +269,19 @@ impl<L: LogicalType> ColumnDesc<L> {
 
     /// The name of the column in the record batch.
     ///
-    /// The same as the [`name`](ColumnDesc::name) field, as a method — so a
-    /// descriptor, a [`DynColumnDesc`], and a [`DynColumn`] can all be asked
-    /// the same way.
+    /// The same as the [`name`](Self::name) field, but as a method.
     #[must_use]
     pub const fn name(&self) -> &'static str {
         self.name
+    }
+
+    /// The name of the column in the record batch.
+    ///
+    /// The same as the [`name`](Self::name) field and method,
+    /// but returning a `String`, which can be more ergonomic in some situations.
+    #[must_use]
+    pub fn name_owned(&self) -> String {
+        self.name.to_owned()
     }
 
     /// The declared [`metadata`](ColumnDesc::metadata), owned, in the shape
@@ -447,10 +454,19 @@ impl DynColumnDesc {
 
     /// The name of the column in the record batch.
     ///
-    /// The same as the [`name`](DynColumnDesc::name) field, as a method.
+    /// The same as the [`name`](Self::name) field, as a method.
     #[must_use]
     pub const fn name(&self) -> &'static str {
         self.name
+    }
+
+    /// The name of the column in the record batch.
+    ///
+    /// The same as the [`name`](Self::name) field and method,
+    /// but returning a `String`, which can be more ergonomic in some situations.
+    #[must_use]
+    pub fn name_owned(&self) -> String {
+        self.name.to_owned()
     }
 
     /// Extracts this single column of a record batch.
