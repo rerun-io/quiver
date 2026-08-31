@@ -42,7 +42,7 @@ Dynamically typed columns get the same pair without the `L`:
 | `quiver`    | `arrow` |
 |-------------|---------|
 | `main`      | 58      |
-| 0.4         | 58      |
+| 0.4 – 0.6   | 58      |
 | 0.2 – 0.3   | 57 – 59 |
 | 0.1         | 57 – 58 |
 
