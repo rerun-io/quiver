@@ -48,9 +48,9 @@ impl DynColumn {
     /// field is not nullable but the array holds nulls.
     pub fn try_new(field: impl Into<FieldRef>, array: ArrayRef) -> Result<Self, Error> {
         let field = field.into();
-        let column = field.name().clone();
 
         if array.data_type() != field.data_type() {
+            let column = field.name().clone();
             return Err(Error::new(
                 "DynColumn",
                 ErrorKind::WrongDataType {
@@ -63,6 +63,7 @@ impl DynColumn {
 
         let null_count = array.null_count();
         if 0 < null_count && !field.is_nullable() {
+            let column = field.name().clone();
             return Err(Error::new(
                 "DynColumn",
                 ErrorKind::UnexpectedNulls { column, null_count },
