@@ -6,6 +6,14 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.6.1 - 2026-08-31
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.6.0..0.6.1
+
+#### New features
+* Add `ColumnDesc::name_owned()` [#61](https://github.com/rerun-io/quiver/pull/61) by [@emilk](https://github.com/emilk)
+
+
 ## 0.6.0 - 2026-08-28
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.5.0..0.6.0
