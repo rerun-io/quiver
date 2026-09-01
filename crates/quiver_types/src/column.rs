@@ -74,6 +74,8 @@ impl<L: LogicalType> Column<L> {
     /// Validates the array against the logical type `L` (data type and nullability,
     /// recursively), then downcasts it (zero-copy), under the column name `name`.
     ///
+    /// See [`TypedArray::try_new`] for what the validation costs per logical type.
+    ///
     /// # Errors
     /// Errors on data type mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(name: impl Into<String>, array: ArrayRef) -> Result<Self, ColumnError> {

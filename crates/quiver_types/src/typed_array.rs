@@ -79,6 +79,32 @@ impl<L: LogicalType> TypedArray<L> {
     /// Validates the array against the logical type `L` (data type and nullability,
     /// recursively), then downcasts it (zero-copy).
     ///
+    /// # Cost
+    /// What this costs depends on `L`, and the difference is invisible at the
+    /// call site — it decides whether re-wrapping an array in a loop is free or
+    /// quadratic:
+    ///
+    /// * **O(1)** for a leaf type (`i64`, `Utf8`, `FixedSizeBinary<N>`,
+    ///   `Timestamp<…>`, and the newtypes over them): a data type comparison, an
+    ///   `as_any` downcast, and `null_count()`, which a `NullBuffer` caches.
+    /// * **O(children)** for a nested type (`List<…>`, `Map<…>`,
+    ///   `FixedSizeList<…>`, `Option<…>` of any of those):
+    ///   [`downcast`](LogicalType::downcast) recurses, so each level pays the
+    ///   above — and a level whose items are non-`Option` scans the child
+    ///   validity bitmap, because a child array may hold nulls the parent's own
+    ///   validity does not cover.
+    /// * **O(len)** for [`Dictionary<K, V>`](crate::Dictionary) with
+    ///   non-nullable `V` (it counts the null value-table entries some key
+    ///   actually references) and for the validating newtypes
+    ///   ([`try_newtype_data_type!`](crate::try_newtype_data_type), and the
+    ///   built-in `NonZero*` / [`char`] columns), which convert every value once,
+    ///   up front, so that reading can stay infallible.
+    ///
+    /// The type-preserving operations avoid all of this where they can:
+    /// [`slice`](TypedArray::slice) re-slices the downcast view directly
+    /// ([`LogicalType::slice_typed`]), and [`optional`](TypedArray::optional) is
+    /// free.
+    ///
     /// # Errors
     /// Errors on data type mismatch, or on nulls at any non-`Option` nesting level.
     pub fn try_new(array: ArrayRef) -> Result<Self, ColumnError> {
