@@ -236,10 +236,10 @@ More of the `Column` API:
 * Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
   and fixed-size binary non-nullable columns. Those columns also `Deref`/`AsRef`
   to the slice, so `&column` is a drop-in for an arrow `ScalarBuffer`
-* Bulk writes, for the same columns: `from_slice()` is the inverse of `as_slice()`,
-  copying the values in one `memcpy` instead of walking them through an arrow
-  builder. `from_vec()` takes over the `Vec`'s allocation and `from_buffer()` wraps
-  an arrow `Buffer`, both without copying at all
+* Bulk writes, for the same columns: `Column::from_vec(name, values)` takes over the
+  `Vec`'s allocation and `from_buffer()` wraps an arrow `Buffer` — neither copies
+  anything. `from_slice()`, the inverse of `as_slice()`, copies once. All three beat
+  `from_values()`, which walks the values through an arrow builder
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("sorted" = "true"))]` — stamped on encode (instance metadata

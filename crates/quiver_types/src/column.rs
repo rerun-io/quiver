@@ -62,6 +62,10 @@ impl<L: LogicalType> Column<L> {
     /// The counterpart of [`into_typed_array`](Column::into_typed_array), and
     /// the cheapest way in: nothing is validated or copied, since a
     /// [`TypedArray`] is validated already.
+    ///
+    /// Building from values instead: [`from_values`](Column::from_values) for
+    /// any values, or — for a primitive column whose values you already hold in
+    /// a `Vec` — [`from_vec`](Column::from_vec), which copies nothing at all.
     #[must_use]
     pub fn new(name: impl Into<String>, array: TypedArray<L>) -> Self {
         Self {
@@ -512,9 +516,19 @@ impl<L: crate::PrimitiveBuild> Column<L> {
         Self::new(name, TypedArray::from_slice(values))
     }
 
-    /// Builds a column from a `Vec` of values, taking over the allocation.
+    /// Builds a column from a `Vec` of values, taking over the allocation —
+    /// no copy at all.
     ///
-    /// See [`TypedArray::from_vec`].
+    /// The fastest way to build a primitive column, and the one to reach for
+    /// when the values are already in hand. See [`TypedArray::from_vec`].
+    ///
+    /// ```
+    /// # use quiver::{Column, FixedSizeBinary};
+    /// let ids: Vec<[u8; 16]> = vec![[1; 16], [2; 16]];
+    /// let column = Column::<FixedSizeBinary<16>>::from_vec("id", ids);
+    /// assert_eq!(column.name(), "id");
+    /// assert_eq!(column.as_slice(), &[[1_u8; 16], [2; 16]]);
+    /// ```
     #[must_use]
     pub fn from_vec(name: impl Into<String>, values: Vec<L::Native>) -> Self {
         Self::new(name, TypedArray::from_vec(values))
@@ -593,6 +607,11 @@ where
     ///
     /// Infallible — for the one fallible encoding (dictionaries),
     /// see [`Column::try_from_values`].
+    ///
+    /// Walks the values one at a time, through the encoding's arrow builder.
+    /// If you already hold a `Vec` (or a slice) of a primitive column's values,
+    /// [`from_vec`](Column::from_vec) takes over its allocation and
+    /// [`from_slice`](Column::from_slice) copies it in one go — both far faster.
     ///
     /// # Panics
     /// Never: the logical type is [`InfallibleBuild`].

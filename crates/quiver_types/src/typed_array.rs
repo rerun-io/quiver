@@ -296,6 +296,12 @@ impl<L: InfallibleBuild> TypedArray<L> {
     /// Infallible — for the one fallible encoding (dictionaries),
     /// see [`TypedArray::try_from_values`].
     ///
+    /// Walks the values one at a time, through the encoding's arrow builder.
+    /// If you already hold a `Vec` (or a slice) of a primitive column's values,
+    /// [`from_vec`](TypedArray::from_vec) takes over its allocation and
+    /// [`from_slice`](TypedArray::from_slice) copies it in one go — both far
+    /// faster.
+    ///
     /// # Panics
     /// Never: the logical type is [`InfallibleBuild`].
     pub fn from_values(values: impl IntoIterator<Item = impl Into<L::Owned>>) -> Self {
@@ -493,12 +499,22 @@ impl<L: PrimitiveType> AsRef<[L::Native]> for TypedArray<L> {
     }
 }
 
+/// Builds an array from a `Vec` of anything that converts into the owned values,
+/// e.g. `Vec<&str>` for a `TypedArray<Utf8>`.
+///
+/// That conversion is why this goes value by value through
+/// [`from_values`](TypedArray::from_values). For a `Vec` that already holds a
+/// primitive column's own values, [`from_vec`](TypedArray::from_vec) takes over
+/// the allocation instead — and it is the only spelling that can, since one
+/// `From<Vec<_>>` impl cannot be both.
 impl<L: InfallibleBuild, T: Into<L::Owned>> From<Vec<T>> for TypedArray<L> {
     fn from(values: Vec<T>) -> Self {
         Self::from_values(values)
     }
 }
 
+/// Collects owned values, value by value — see the `From<Vec<T>>` impl above
+/// for why, and [`from_vec`](TypedArray::from_vec) for the bulk alternative.
 impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for TypedArray<L> {
     fn from_iter<I: IntoIterator<Item = T>>(values: I) -> Self {
         Self::from_values(values)
