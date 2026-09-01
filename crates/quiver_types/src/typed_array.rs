@@ -1,7 +1,7 @@
 //! [`TypedArray<L>`]: the data half of a [`Column`](crate::Column) —
 //! the arrow array plus its downcast view, with no name and no metadata.
 
-use arrow::array::{Array as _, ArrayRef};
+use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::data_type::{InfallibleBuild, PrimitiveType, RefType};
@@ -43,6 +43,34 @@ pub struct TypedArray<L: LogicalType> {
     /// The fully-downcast representation.
     typed: L::Typed,
 }
+
+/// An arrow primitive type usable as row indices in
+/// [`TypedArray::take`]: the integer types.
+///
+/// Named for that one use: arrow's `take` accepts only integer indices, and
+/// this keeps a `Float64Array` from reaching it.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` cannot be used as an index type",
+    label = "`take` indices must be one of arrow's `Int8Type`–`Int64Type`, `UInt8Type`–`UInt64Type`"
+)]
+pub trait IndexType: arrow::datatypes::ArrowPrimitiveType {}
+
+macro_rules! impl_index_type {
+    ($($arrow:ty),* $(,)?) => {
+        $(impl IndexType for $arrow {})*
+    };
+}
+
+impl_index_type!(
+    arrow::datatypes::Int8Type,
+    arrow::datatypes::Int16Type,
+    arrow::datatypes::Int32Type,
+    arrow::datatypes::Int64Type,
+    arrow::datatypes::UInt8Type,
+    arrow::datatypes::UInt16Type,
+    arrow::datatypes::UInt32Type,
+    arrow::datatypes::UInt64Type,
+);
 
 impl<L: LogicalType> TypedArray<L> {
     /// May the values of this array be null?
@@ -201,6 +229,85 @@ impl<L: LogicalType> TypedArray<L> {
             L::downcast(&*array).expect("Cannot fail: slicing preserves the data type and validity")
         });
         Self { array, typed }
+    }
+
+    /// The rows where `mask` is true, in order — arrow's `filter` kernel,
+    /// keeping the logical type.
+    ///
+    /// A filter selects a subset of the rows, so it can neither change the data
+    /// type nor introduce nulls: the result is a `TypedArray<L>` by
+    /// construction, with nothing to re-validate at the call site. Null entries
+    /// in `mask` count as false (as in arrow).
+    ///
+    /// ```
+    /// # use quiver::{TypedArray, Utf8};
+    /// # use quiver::arrow::array::BooleanArray;
+    /// let names = TypedArray::<Utf8>::from_values(["Alice", "Bob", "Carol"]);
+    /// let mask = BooleanArray::from(vec![true, false, true]);
+    /// assert_eq!(names.filter(&mask).to_vec(), ["Alice", "Carol"]);
+    /// ```
+    ///
+    /// # Panics
+    /// If `mask` is not exactly as long as this array.
+    #[must_use]
+    pub fn filter(&self, mask: &arrow::array::BooleanArray) -> Self {
+        assert_eq!(
+            mask.len(),
+            self.len(),
+            "The filter mask must be as long as the array"
+        );
+
+        let array = arrow::compute::filter(&*self.array, mask)
+            .expect("Cannot fail: the mask length was checked");
+        Self::try_new(array).expect("Cannot fail: a filter preserves the data type and validity")
+    }
+
+    /// The rows at `indices`, in order — arrow's `take` kernel, keeping the
+    /// logical type.
+    ///
+    /// Like [`filter`](TypedArray::filter), the result is a `TypedArray<L>` by
+    /// construction: `take` reorders and repeats existing rows, so the data type
+    /// carries over.
+    ///
+    /// ```
+    /// # use quiver::{TypedArray, Utf8};
+    /// # use quiver::arrow::array::UInt32Array;
+    /// let names = TypedArray::<Utf8>::from_values(["Alice", "Bob", "Carol"]);
+    /// let indices = UInt32Array::from(vec![2, 0, 2]);
+    /// assert_eq!(names.take(&indices).to_vec(), ["Carol", "Alice", "Carol"]);
+    /// ```
+    ///
+    /// # Panics
+    /// If an index is out of bounds, or — unless `L` is an `Option<…>` — if
+    /// `indices` contains nulls: a null index takes a null, which a non-nullable
+    /// `L` cannot hold. Call [`optional`](TypedArray::optional) first for that.
+    #[must_use]
+    pub fn take<I: IndexType>(&self, indices: &arrow::array::PrimitiveArray<I>) -> Self {
+        assert!(
+            L::NULLABLE || indices.null_count() == 0,
+            "A null index takes a null, which the non-nullable logical type cannot hold — \
+             call `optional()` first"
+        );
+
+        let options = arrow::compute::TakeOptions { check_bounds: true };
+        let array = arrow::compute::take(&*self.array, indices, Some(options))
+            .unwrap_or_else(|err| panic!("Invalid `take` indices: {err}"));
+        Self::try_new(array)
+            .expect("Cannot fail: `take` preserves the data type, and the nulls were checked")
+    }
+
+    /// The arrays' rows, one array after another — arrow's `concat` kernel,
+    /// keeping the logical type.
+    ///
+    /// # Errors
+    /// If `arrays` is empty, if the total length overflows the encoding's
+    /// offsets, or — for a multi-encoding logical type like
+    /// [`AnyList`](crate::AnyList) — if the arrays do not all have the *same*
+    /// arrow data type. For a single-encoding `L`, only the first two can happen.
+    pub fn concat(arrays: &[&Self]) -> Result<Self, ColumnError> {
+        let arrays: Vec<&dyn Array> = arrays.iter().map(|array| &*array.array).collect();
+        let array = arrow::compute::concat(&arrays).map_err(ColumnError::Build)?;
+        Self::try_new(array)
     }
 
     /// The underlying arrow array.

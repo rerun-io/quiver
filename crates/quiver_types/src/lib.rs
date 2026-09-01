@@ -110,4 +110,4 @@ pub use self::timestamp::{
     Utc,
 };
 pub use self::transparent::Transparent;
-pub use self::typed_array::{TypedArray, TypedArrayIntoIter, TypedArrayIter};
+pub use self::typed_array::{IndexType, TypedArray, TypedArrayIntoIter, TypedArrayIter};

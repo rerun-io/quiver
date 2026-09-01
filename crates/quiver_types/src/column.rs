@@ -283,6 +283,38 @@ impl<L: LogicalType> Column<L> {
         }
     }
 
+    /// The rows where `mask` is true, in order — see
+    /// [`TypedArray::filter`].
+    ///
+    /// The name and metadata are preserved, as in [`slice`](Column::slice).
+    ///
+    /// # Panics
+    /// If `mask` is not exactly as long as this column.
+    #[must_use]
+    pub fn filter(&self, mask: &arrow::array::BooleanArray) -> Self {
+        Self {
+            array: self.array.filter(mask),
+            name: Arc::clone(&self.name),
+            metadata: Arc::clone(&self.metadata),
+        }
+    }
+
+    /// The rows at `indices`, in order — see [`TypedArray::take`].
+    ///
+    /// The name and metadata are preserved, as in [`slice`](Column::slice).
+    ///
+    /// # Panics
+    /// If an index is out of bounds, or — unless `L` is an `Option<…>` — if
+    /// `indices` contains nulls.
+    #[must_use]
+    pub fn take<I: crate::IndexType>(&self, indices: &arrow::array::PrimitiveArray<I>) -> Self {
+        Self {
+            array: self.array.take(indices),
+            name: Arc::clone(&self.name),
+            metadata: Arc::clone(&self.metadata),
+        }
+    }
+
     /// The data half of this column: the typed array, without the name or the
     /// metadata.
     #[must_use]
