@@ -200,7 +200,8 @@ pub trait PrimitiveType: LogicalType {
 /// Logical types that can also be *built* from one contiguous buffer of values.
 ///
 /// Enables the bulk [`TypedArray::from_slice`](crate::TypedArray::from_slice)
-/// and the zero-copy [`TypedArray::from_buffer`](crate::TypedArray::from_buffer).
+/// and the zero-copy [`TypedArray::from_vec`](crate::TypedArray::from_vec) /
+/// [`TypedArray::from_buffer`](crate::TypedArray::from_buffer).
 ///
 /// The write counterpart of [`PrimitiveType`], and a separate trait because the
 /// two are not equally available: reading back the values of an array quiver has
@@ -213,6 +214,10 @@ pub trait PrimitiveType: LogicalType {
 pub trait PrimitiveBuild: PrimitiveType {
     /// Builds a null-free array holding exactly `values`, with one bulk copy.
     fn array_from_slice(values: &[Self::Native]) -> ArrayRef;
+
+    /// Builds a null-free array holding exactly `values`, taking over the
+    /// allocation — no copy at all.
+    fn array_from_vec(values: Vec<Self::Native>) -> ArrayRef;
 
     /// Builds a null-free array from an arrow values buffer, zero-copy.
     ///
@@ -479,7 +484,12 @@ macro_rules! impl_primitive_data_type {
 
         impl crate::data_type::PrimitiveBuild for $logical {
             fn array_from_slice(values: &[$native]) -> arrow::array::ArrayRef {
-                let values = arrow::buffer::ScalarBuffer::from(values.to_vec());
+                Self::array_from_vec(values.to_vec())
+            }
+
+            fn array_from_vec(values: Vec<$native>) -> arrow::array::ArrayRef {
+                // `ScalarBuffer::from(Vec<_>)` takes over the allocation.
+                let values = arrow::buffer::ScalarBuffer::from(values);
                 std::sync::Arc::new(<<Self as crate::LogicalType>::Typed>::new(values, None))
             }
 

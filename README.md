@@ -238,7 +238,8 @@ More of the `Column` API:
   to the slice, so `&column` is a drop-in for an arrow `ScalarBuffer`
 * Bulk writes, for the same columns: `from_slice()` is the inverse of `as_slice()`,
   copying the values in one `memcpy` instead of walking them through an arrow
-  builder, and `from_buffer()` wraps an arrow `Buffer` zero-copy
+  builder. `from_vec()` takes over the `Vec`'s allocation and `from_buffer()` wraps
+  an arrow `Buffer`, both without copying at all
 * Per-column metadata: `metadata()`/`with_metadata()`, stored on the arrow `Field`
   when converting to/from a record batch. Statically known metadata can be *declared*:
   `#[quiver(metadata("sorted" = "true"))]` — stamped on encode (instance metadata

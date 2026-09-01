@@ -184,7 +184,12 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> crate::PrimitiveBuild
     for Timestamp<U, Z>
 {
     fn array_from_slice(values: &[i64]) -> ArrayRef {
-        Self::from_values_buffer(arrow::buffer::ScalarBuffer::from(values.to_vec()))
+        Self::array_from_vec(values.to_vec())
+    }
+
+    fn array_from_vec(values: Vec<i64>) -> ArrayRef {
+        // `ScalarBuffer::from(Vec<_>)` takes over the allocation.
+        Self::from_values_buffer(arrow::buffer::ScalarBuffer::from(values))
     }
 
     fn array_from_buffer(buffer: arrow::buffer::Buffer) -> Result<ArrayRef, ColumnError> {

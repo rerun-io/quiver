@@ -512,6 +512,14 @@ impl<L: crate::PrimitiveBuild> Column<L> {
         Self::new(name, TypedArray::from_slice(values))
     }
 
+    /// Builds a column from a `Vec` of values, taking over the allocation.
+    ///
+    /// See [`TypedArray::from_vec`].
+    #[must_use]
+    pub fn from_vec(name: impl Into<String>, values: Vec<L::Native>) -> Self {
+        Self::new(name, TypedArray::from_vec(values))
+    }
+
     /// Wraps an arrow values buffer, zero-copy.
     ///
     /// See [`TypedArray::from_buffer`].

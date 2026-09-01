@@ -627,6 +627,45 @@ fn from_slice() {
 }
 
 #[test]
+fn from_vec_takes_over_the_allocation() {
+    // Nothing is copied: the array's values are the `Vec`'s own allocation.
+    let values = vec![1_i64, 2, 3];
+    let address = values.as_ptr();
+    let array = TypedArray::<i64>::from_vec(values);
+    assert_eq!(array.as_slice(), &[1, 2, 3]);
+    assert!(std::ptr::eq(array.as_slice().as_ptr(), address));
+
+    // Fixed-size binary too, where the `Vec<[u8; N]>` flattens to its bytes:
+    let values = vec![[1_u8, 2, 3, 4], [5, 6, 7, 8]];
+    let address = values.as_ptr();
+    let array = TypedArray::<FixedSizeBinary<4>>::from_vec(values);
+    assert_eq!(array.as_slice(), &[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    assert!(std::ptr::eq(array.as_slice().as_ptr(), address));
+
+    // …and a `primitive` newtype, where the `Vec` is cast to the repr's native
+    // type first:
+    let values = vec![ChunkId([7; 16]), ChunkId([8; 16])];
+    let address = values.as_ptr();
+    let array = TypedArray::<ChunkId>::from_vec(values);
+    assert_eq!(array.as_slice(), &[ChunkId([7; 16]), ChunkId([8; 16])]);
+    assert!(std::ptr::eq(array.as_slice().as_ptr(), address));
+
+    // A marker keeps its data type, timezone included:
+    let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_vec(vec![10, 20]);
+    assert_eq!(
+        array.as_arrow().data_type(),
+        &TypedArray::<Timestamp<Nanosecond, Utc>>::data_type()
+    );
+    assert_eq!(array.as_slice(), &[10_i64, 20]);
+
+    // Spare capacity, and empty:
+    let mut values: Vec<i64> = Vec::with_capacity(64);
+    values.extend([1, 2]);
+    assert_eq!(TypedArray::<i64>::from_vec(values).as_slice(), &[1, 2]);
+    assert!(TypedArray::<i64>::from_vec(vec![]).is_empty());
+}
+
+#[test]
 fn from_buffer() {
     let buffer = Buffer::from_slice_ref([1_i64, 2, 3]);
     let array = TypedArray::<i64>::from_buffer(buffer.clone()).unwrap();

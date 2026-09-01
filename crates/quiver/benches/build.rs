@@ -2,6 +2,10 @@
 //! [`TypedArray::from_buffer`]) against the per-element
 //! [`TypedArray::from_values`].
 //!
+//! `from_vec` is not timed here: it takes over the `Vec`'s allocation, so it
+//! costs what `from_buffer` costs, and a benchmark loop would only measure the
+//! `Vec` it has to rebuild for every call.
+//!
 //! Self-contained: no benchmark framework, just a small timing harness, to keep
 //! the dependency tree lean (`cargo-deny` denies duplicate versions).
 //!

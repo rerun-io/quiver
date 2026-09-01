@@ -434,6 +434,29 @@ impl<L: crate::PrimitiveBuild> TypedArray<L> {
             .expect("Cannot fail: a null-free values buffer of the right element size is valid")
     }
 
+    /// Builds an array from a `Vec` of values, taking over the allocation —
+    /// no copy at all.
+    ///
+    /// The zero-copy form of [`from_slice`](TypedArray::from_slice). Note that
+    /// the `From<Vec<T>>` and `FromIterator` impls do *not* come here: they
+    /// accept any values that convert into `L::Owned`, so they go through the
+    /// per-element [`from_values`](TypedArray::from_values).
+    ///
+    /// ```
+    /// # use quiver::{FixedSizeBinary, TypedArray};
+    /// let ids = vec![[1_u8; 16], [2; 16]];
+    /// let array = TypedArray::<FixedSizeBinary<16>>::from_vec(ids);
+    /// assert_eq!(array.as_slice(), &[[1_u8; 16], [2; 16]]);
+    /// ```
+    ///
+    /// # Panics
+    /// Never: a null-free buffer of whole elements is a valid array of `L`.
+    #[must_use]
+    pub fn from_vec(values: Vec<L::Native>) -> Self {
+        Self::try_new(L::array_from_vec(values))
+            .expect("Cannot fail: a null-free values buffer of the right element size is valid")
+    }
+
     /// Wraps an arrow values buffer, zero-copy — the inverse of the buffer
     /// behind [`as_slice`](TypedArray::as_slice).
     ///

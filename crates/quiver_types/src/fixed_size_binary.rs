@@ -142,8 +142,12 @@ impl<const N: usize> PrimitiveType for FixedSizeBinary<N> {
 /// one `memcpy` of the `len * N` bytes, instead of a per-element builder.
 impl<const N: usize> PrimitiveBuild for FixedSizeBinary<N> {
     fn array_from_slice(values: &[Self::Native]) -> ArrayRef {
-        Self::array_from_buffer(arrow::buffer::Buffer::from(values.as_flattened()))
-            .expect("Cannot fail: N bytes per element, and bytes need no alignment")
+        Self::from_byte_buffer(arrow::buffer::Buffer::from(values.as_flattened()))
+    }
+
+    fn array_from_vec(values: Vec<Self::Native>) -> ArrayRef {
+        // `Vec<[u8; N]>` → `Vec<u8>` → `Buffer` keeps the same allocation.
+        Self::from_byte_buffer(arrow::buffer::Buffer::from_vec(values.into_flattened()))
     }
 
     fn array_from_buffer(buffer: arrow::buffer::Buffer) -> Result<ArrayRef, ColumnError> {
@@ -171,6 +175,14 @@ impl<const N: usize> PrimitiveBuild for FixedSizeBinary<N> {
         let array = arrow::array::FixedSizeBinaryArray::try_new(N as i32, buffer, None)
             .map_err(ColumnError::Build)?;
         Ok(std::sync::Arc::new(array))
+    }
+}
+
+impl<const N: usize> FixedSizeBinary<N> {
+    /// Wraps `len * N` bytes, which is every buffer the callers above can build.
+    fn from_byte_buffer(buffer: arrow::buffer::Buffer) -> ArrayRef {
+        Self::array_from_buffer(buffer)
+            .expect("Cannot fail: N bytes per element, and bytes need no alignment")
     }
 }
 

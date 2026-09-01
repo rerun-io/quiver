@@ -269,6 +269,10 @@ fn column_from_slice() {
     assert_eq!(column.as_slice(), &[1, 2, 3]);
     assert_eq!(column, Column::<i64>::from_values("frame", [1_i64, 2, 3]));
 
+    let column = Column::<i64>::from_vec("frame", vec![1, 2, 3]);
+    assert_eq!(column.name(), "frame");
+    assert_eq!(column.as_slice(), &[1, 2, 3]);
+
     let buffer = quiver::arrow::buffer::Buffer::from_slice_ref([1_i64, 2, 3]);
     let column = Column::<i64>::from_buffer("frame", buffer).unwrap();
     assert_eq!(column.name(), "frame");

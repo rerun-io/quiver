@@ -32,8 +32,10 @@ use crate::data_type::PrimitiveType;
 /// [`Column::as_slice`](crate::Column::as_slice), which yields the *newtype*
 /// (e.g. `&[Uuid]` for a `FixedSizeBinary<16>`-backed `Uuid`) — and then
 /// `column[index]` borrows the newtype as well, so the two agree.
-/// The bulk *build*, [`Column::from_slice`](crate::Column::from_slice), comes
-/// with it, taking the newtype the same way.
+/// The bulk *builds*, [`Column::from_slice`](crate::Column::from_slice) and
+/// [`Column::from_vec`](crate::Column::from_vec), come with it, taking the
+/// newtype the same way — and a `Vec<Uuid>` becomes the array's values buffer
+/// without a copy.
 ///
 /// That reinterprets the representation's buffer as the newtype, so the newtype
 /// must be layout-compatible with the representation's native type and accept
@@ -165,6 +167,15 @@ macro_rules! newtype_data_type {
                 // alignment as the representation's native type.
                 <$repr as $crate::PrimitiveBuild>::array_from_slice(
                     $crate::bytemuck::must_cast_slice(values),
+                )
+            }
+
+            fn array_from_vec(values: ::std::vec::Vec<Self>) -> $crate::arrow::array::ArrayRef {
+                // Cannot fail: the `must_cast_slice` above already requires the
+                // same size and alignment, which is all a `Vec` cast needs —
+                // and it keeps the allocation, so this stays zero-copy.
+                <$repr as $crate::PrimitiveBuild>::array_from_vec(
+                    $crate::bytemuck::allocation::cast_vec(values),
                 )
             }
 

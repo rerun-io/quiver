@@ -167,6 +167,10 @@ where
         Repr::array_from_slice(values)
     }
 
+    fn array_from_vec(values: Vec<Self::Native>) -> arrow::array::ArrayRef {
+        Repr::array_from_vec(values)
+    }
+
     fn array_from_buffer(
         buffer: arrow::buffer::Buffer,
     ) -> Result<arrow::array::ArrayRef, ColumnError> {
