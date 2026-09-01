@@ -425,10 +425,11 @@ impl<L: crate::PrimitiveBuild> TypedArray<L> {
     /// let array = TypedArray::<FixedSizeBinary<16>>::from_slice(&ids);
     /// assert_eq!(array.as_slice(), &ids);
     /// ```
-    ///
-    /// # Panics
-    /// Never: a null-free buffer of whole elements is a valid array of `L`.
     #[must_use]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "cannot fail: a null-free values buffer of the right element size is valid"
+    )]
     pub fn from_slice(values: &[L::Native]) -> Self {
         Self::try_new(L::array_from_slice(values))
             .expect("Cannot fail: a null-free values buffer of the right element size is valid")
@@ -448,10 +449,11 @@ impl<L: crate::PrimitiveBuild> TypedArray<L> {
     /// let array = TypedArray::<FixedSizeBinary<16>>::from_vec(ids);
     /// assert_eq!(array.as_slice(), &[[1_u8; 16], [2; 16]]);
     /// ```
-    ///
-    /// # Panics
-    /// Never: a null-free buffer of whole elements is a valid array of `L`.
     #[must_use]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "cannot fail: a null-free values buffer of the right element size is valid"
+    )]
     pub fn from_vec(values: Vec<L::Native>) -> Self {
         Self::try_new(L::array_from_vec(values))
             .expect("Cannot fail: a null-free values buffer of the right element size is valid")
