@@ -233,6 +233,9 @@ More of the `Column` API:
   and carries over the field metadata. The `COLUMN_*` descriptors do the same without
   hard-coding the name
 * Reading: `value/get`, `iter()` (borrowed), `value_owned/iter_owned/to_vec` (owned)
+* Type-preserving kernels: `slice()`, `filter()`, `take()` and `concat()` return the
+  same `Column<L>`/`TypedArray<L>` — a filter of a `FixedSizeBinary(16)` array is a
+  `FixedSizeBinary(16)` array, so there is nothing to unwrap, re-validate or re-wrap
 * Bulk zero-copy reads: `as_slice()` — `&[f32]`, `&[[u8; 16]]`, … — for primitive
   and fixed-size binary non-nullable columns. Those columns also `Deref`/`AsRef`
   to the slice, so `&column` is a drop-in for an arrow `ScalarBuffer`

@@ -587,6 +587,191 @@ fn as_slice_respects_offset() {
 }
 
 #[test]
+fn filter() {
+    use quiver::arrow::array::BooleanArray;
+
+    let array = TypedArray::<i64>::from_values([1, 2, 3, 4]);
+    let mask = BooleanArray::from(vec![true, false, true, false]);
+    assert_eq!(array.filter(&mask).to_vec(), [1, 3]);
+
+    // Null mask entries count as false, and the edges are plain:
+    let array = TypedArray::<Utf8>::from_values(["a", "b", "c"]);
+    assert_eq!(
+        array
+            .filter(&BooleanArray::from(vec![Some(true), None, Some(true)]))
+            .to_vec(),
+        ["a", "c"]
+    );
+    assert_eq!(
+        array.filter(&BooleanArray::from(vec![true; 3])).to_vec(),
+        ["a", "b", "c"]
+    );
+    assert!(array.filter(&BooleanArray::from(vec![false; 3])).is_empty());
+
+    // The exact data type survives, timezone and element width included:
+    let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_values([1_i64, 2]);
+    let filtered = array.filter(&BooleanArray::from(vec![false, true]));
+    assert_eq!(
+        filtered.as_arrow().data_type(),
+        &TypedArray::<Timestamp<Nanosecond, Utc>>::data_type()
+    );
+    assert_eq!(filtered.to_vec(), [2]);
+
+    let array = TypedArray::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4]]);
+    assert_eq!(
+        array
+            .filter(&BooleanArray::from(vec![false, true]))
+            .as_slice(),
+        &[[3_u8, 4]]
+    );
+
+    // Nulls are kept where the logical type allows them:
+    let array = TypedArray::<Option<i64>>::from_nullable_values([Some(1), None, Some(3)]);
+    assert_eq!(
+        array
+            .filter(&BooleanArray::from(vec![false, true, true]))
+            .to_vec(),
+        [None, Some(3)]
+    );
+
+    // Nested and compressed encodings go through arrow's kernel too, and come
+    // back as the same encoding:
+    let array = TypedArray::<List<i64>>::from_values([vec![1_i64, 2], vec![], vec![3]]);
+    assert_eq!(
+        array
+            .filter(&BooleanArray::from(vec![true, false, true]))
+            .to_vec(),
+        [vec![1_i64, 2], vec![3]]
+    );
+
+    let array = TypedArray::<quiver::Run<i32, Utf8>>::try_from_values(["a", "a", "b"]).unwrap();
+    let filtered = array.filter(&BooleanArray::from(vec![true, false, true]));
+    assert!(matches!(
+        filtered.as_arrow().data_type(),
+        DataType::RunEndEncoded(..)
+    ));
+    assert_eq!(filtered.to_vec(), ["a", "b"]);
+
+    let array =
+        TypedArray::<quiver::Dictionary<i32, Utf8>>::try_from_values(["a", "b", "a"]).unwrap();
+    let filtered = array.filter(&BooleanArray::from(vec![true, false, true]));
+    assert!(matches!(
+        filtered.as_arrow().data_type(),
+        DataType::Dictionary(..)
+    ));
+    assert_eq!(filtered.to_vec(), ["a", "a"]);
+}
+
+#[test]
+#[should_panic(expected = "The filter mask must be as long as the array")]
+fn filter_mask_length_mismatch() {
+    use quiver::arrow::array::BooleanArray;
+
+    let array = TypedArray::<i64>::from_values([1, 2, 3]);
+    let _filtered: TypedArray<i64> = array.filter(&BooleanArray::from(vec![true, false]));
+}
+
+#[test]
+fn take() {
+    use quiver::arrow::array::{Int8Array, UInt32Array};
+
+    let array = TypedArray::<Utf8>::from_values(["a", "b", "c"]);
+    let taken = array.take(&UInt32Array::from(vec![2, 0, 2]));
+    assert_eq!(taken.to_vec(), ["c", "a", "c"]);
+
+    // Any integer index type, and no indices at all:
+    assert_eq!(array.take(&Int8Array::from(vec![1_i8])).to_vec(), ["b"]);
+    assert!(array.take(&UInt32Array::from(Vec::<u32>::new())).is_empty());
+
+    // The data type survives, here where it is not in the array's Rust type:
+    let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_values([1_i64, 2]);
+    let taken = array.take(&UInt32Array::from(vec![1, 1]));
+    assert_eq!(
+        taken.as_arrow().data_type(),
+        &TypedArray::<Timestamp<Nanosecond, Utc>>::data_type()
+    );
+    assert_eq!(taken.to_vec(), [2, 2]);
+
+    // Null indices take nulls, which only a nullable logical type may hold:
+    let array = TypedArray::<Option<i64>>::from_nullable_values([Some(1), Some(2)]);
+    let indices = UInt32Array::from(vec![Some(1), None]);
+    assert_eq!(array.take(&indices).to_vec(), [Some(2), None]);
+
+    let array = TypedArray::<List<i64>>::from_values([vec![1_i64, 2], vec![3]]);
+    assert_eq!(
+        array.take(&UInt32Array::from(vec![1, 0])).to_vec(),
+        [vec![3], vec![1_i64, 2]]
+    );
+}
+
+#[test]
+#[should_panic(expected = "Invalid `take` indices")]
+fn take_index_out_of_bounds() {
+    use quiver::arrow::array::UInt32Array;
+
+    let array = TypedArray::<i64>::from_values([1, 2, 3]);
+    let _taken: TypedArray<i64> = array.take(&UInt32Array::from(vec![3]));
+}
+
+#[test]
+#[should_panic(expected = "call `optional()` first")]
+fn take_null_index_into_a_non_nullable_array() {
+    use quiver::arrow::array::UInt32Array;
+
+    let array = TypedArray::<i64>::from_values([1, 2, 3]);
+    let _taken: TypedArray<i64> = array.take(&UInt32Array::from(vec![Some(0), None]));
+}
+
+#[test]
+fn concat() {
+    let first = TypedArray::<Utf8>::from_values(["a", "b"]);
+    let second = TypedArray::<Utf8>::from_values(["c"]);
+    let joined = TypedArray::concat(&[&first, &second]).unwrap();
+    assert_eq!(joined.to_vec(), ["a", "b", "c"]);
+
+    // One array, and an empty one, are not special:
+    assert_eq!(TypedArray::concat(&[&second]).unwrap().to_vec(), ["c"]);
+    assert_eq!(
+        TypedArray::concat(&[&TypedArray::<Utf8>::default(), &second])
+            .unwrap()
+            .to_vec(),
+        ["c"]
+    );
+
+    // No arrays at all has no data type to build from:
+    assert!(TypedArray::<Utf8>::concat(&[]).is_err());
+
+    // The data type survives, and so does nesting:
+    let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_values([1_i64]);
+    let joined = TypedArray::concat(&[&array, &array]).unwrap();
+    assert_eq!(
+        joined.as_arrow().data_type(),
+        &TypedArray::<Timestamp<Nanosecond, Utc>>::data_type()
+    );
+    assert_eq!(joined.to_vec(), [1, 1]);
+
+    let array = TypedArray::<List<i64>>::from_values([vec![1_i64, 2]]);
+    assert_eq!(
+        TypedArray::concat(&[&array, &array]).unwrap().to_vec(),
+        [vec![1_i64, 2], vec![1, 2]]
+    );
+
+    // A multi-encoding logical type is the one case where the arrays can differ:
+    let utf8: ArrayRef = Arc::new(StringArray::from(vec!["a"]));
+    let utf8 = TypedArray::<quiver::AnyUtf8>::try_new(utf8).unwrap();
+    let view: ArrayRef = Arc::new(quiver::arrow::array::StringViewArray::from(vec!["b"]));
+    let view = TypedArray::<quiver::AnyUtf8>::try_new(view).unwrap();
+    assert!(matches!(
+        TypedArray::concat(&[&utf8, &view]),
+        Err(ColumnError::Build(_))
+    ));
+    assert_eq!(
+        TypedArray::concat(&[&utf8, &utf8]).unwrap().to_vec(),
+        ["a", "a"]
+    );
+}
+
+#[test]
 fn index() {
     let strings = TypedArray::<Utf8>::from_values(["a", "b"]);
     assert_eq!(&strings[0], "a");

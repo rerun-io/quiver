@@ -302,6 +302,25 @@ fn column_slice() {
 }
 
 #[test]
+fn column_filter_and_take() {
+    use quiver::arrow::array::{BooleanArray, UInt32Array};
+
+    let column = Column::<i64>::from_values("frame", [1, 2, 3, 4])
+        .with_metadata(BTreeMap::from([("k".to_owned(), "v".to_owned())]));
+
+    // The name and the metadata survive, as they do through `slice`:
+    let filtered = column.filter(&BooleanArray::from(vec![true, false, false, true]));
+    assert_eq!(filtered.to_vec(), [1, 4]);
+    assert_eq!(filtered.name(), "frame");
+    assert_eq!(filtered.metadata()["k"], "v");
+
+    let taken = column.take(&UInt32Array::from(vec![3, 3]));
+    assert_eq!(taken.to_vec(), [4, 4]);
+    assert_eq!(taken.name(), "frame");
+    assert_eq!(taken.metadata()["k"], "v");
+}
+
+#[test]
 fn names() {
     const SENSOR: ColumnDesc<Utf8> = ColumnDesc::new("Measurements", "sensor");
     const RAW: DynColumnDesc = DynColumnDesc::new("Measurements", "raw");
