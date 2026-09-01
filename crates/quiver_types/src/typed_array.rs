@@ -164,6 +164,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// If `index` is out of bounds.
     #[must_use]
     #[inline]
+    #[track_caller]
     pub fn value(&self, index: usize) -> L::Value<'_> {
         assert!(index < self.len(), "Index {index} out of bounds");
         // SAFETY: bounds checked just above.
@@ -179,6 +180,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// # Panics
     /// If `index` is out of bounds.
     #[must_use]
+    #[track_caller]
     pub fn value_owned(&self, index: usize) -> L::Owned {
         L::to_owned_value(self.value(index))
     }
@@ -248,6 +250,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// # Panics
     /// If the range is out of bounds (like arrow's `slice`).
     #[must_use]
+    #[track_caller]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
         let array = self.array.slice(offset, length);
         let typed = L::slice_typed(&self.typed, offset, length).unwrap_or_else(|| {
@@ -275,6 +278,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// # Panics
     /// If `mask` is not exactly as long as this array.
     #[must_use]
+    #[track_caller]
     pub fn filter(&self, mask: &arrow::array::BooleanArray) -> Self {
         assert_eq!(
             mask.len(),
@@ -307,6 +311,7 @@ impl<L: LogicalType> TypedArray<L> {
     /// `indices` contains nulls: a null index takes a null, which a non-nullable
     /// `L` cannot hold. Call [`optional`](TypedArray::optional) first for that.
     #[must_use]
+    #[track_caller]
     pub fn take<I: IndexType>(&self, indices: &arrow::array::PrimitiveArray<I>) -> Self {
         assert!(
             L::NULLABLE || indices.null_count() == 0,
@@ -451,6 +456,7 @@ impl<L: crate::ConcreteType> TypedArray<Option<L>> {
     /// [`Column::new_null`](crate::Column::new_null). For any `len`, including
     /// zero.
     #[must_use]
+    #[track_caller]
     pub fn new_null(len: usize) -> Self {
         let data_type = L::data_type();
 
@@ -504,6 +510,7 @@ impl<L: RefType> TypedArray<L> {
     /// # Panics
     /// If `index` is out of bounds.
     #[inline]
+    #[track_caller]
     pub fn value_ref(&self, index: usize) -> &L::Ref {
         assert!(index < self.len(), "Index {index} out of bounds");
         L::value_ref(&self.typed, index)
@@ -522,6 +529,7 @@ impl<L: RefType> TypedArray<L> {
 impl<L: RefType> std::ops::Index<usize> for TypedArray<L> {
     type Output = L::Ref;
 
+    #[track_caller]
     fn index(&self, index: usize) -> &Self::Output {
         self.value_ref(index)
     }
