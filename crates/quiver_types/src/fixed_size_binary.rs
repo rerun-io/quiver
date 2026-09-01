@@ -10,7 +10,8 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 
 use crate::data_type::{
-    ColumnError, InfallibleBuild, LogicalType, PrimitiveType, RefType, downcast_array,
+    ColumnError, InfallibleBuild, LogicalType, PrimitiveBuild, PrimitiveType, RefType,
+    downcast_array,
 };
 
 /// Marker for an arrow `FixedSizeBinary(N)` column, e.g. `FixedSizeBinary<16>`
@@ -134,6 +135,54 @@ impl<const N: usize> PrimitiveType for FixedSizeBinary<N> {
             "Guaranteed by the validated data type"
         );
         chunks
+    }
+}
+
+/// Enables the bulk [`TypedArray::from_slice`](crate::TypedArray::from_slice):
+/// one `memcpy` of the `len * N` bytes, instead of a per-element builder.
+impl<const N: usize> PrimitiveBuild for FixedSizeBinary<N> {
+    fn array_from_slice(values: &[Self::Native]) -> ArrayRef {
+        Self::from_byte_buffer(arrow::buffer::Buffer::from(values.as_flattened()))
+    }
+
+    fn array_from_vec(values: Vec<Self::Native>) -> ArrayRef {
+        // `Vec<[u8; N]>` → `Vec<u8>` → `Buffer` keeps the same allocation.
+        Self::from_byte_buffer(arrow::buffer::Buffer::from_vec(values.into_flattened()))
+    }
+
+    fn array_from_buffer(buffer: arrow::buffer::Buffer) -> Result<ArrayRef, ColumnError> {
+        const {
+            assert!(
+                0 < N,
+                "from_slice() / from_buffer() are not available for FixedSizeBinary<0> arrays: \
+                 zero-width elements carry no length"
+            );
+            assert!(N <= i32::MAX as usize, "FixedSizeBinary size too large");
+        }
+
+        // `FixedSizeBinaryArray::try_new` would silently round a trailing
+        // partial element down, so reject it here.
+        if !buffer.len().is_multiple_of(N) {
+            return Err(ColumnError::Build(
+                arrow::error::ArrowError::InvalidArgumentError(format!(
+                    "A buffer of {} bytes is not a whole number of {N}-byte elements",
+                    buffer.len()
+                )),
+            ));
+        }
+
+        #[expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let array = arrow::array::FixedSizeBinaryArray::try_new(N as i32, buffer, None)
+            .map_err(ColumnError::Build)?;
+        Ok(std::sync::Arc::new(array))
+    }
+}
+
+impl<const N: usize> FixedSizeBinary<N> {
+    /// Wraps `len * N` bytes, which is every buffer the callers above can build.
+    fn from_byte_buffer(buffer: arrow::buffer::Buffer) -> ArrayRef {
+        Self::array_from_buffer(buffer)
+            .expect("Cannot fail: N bytes per element, and bytes need no alignment")
     }
 }
 

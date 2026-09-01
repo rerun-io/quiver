@@ -106,6 +106,27 @@ impl<U: TimeUnitSpec + 'static> PrimitiveType for Duration<U> {
     }
 }
 
+impl<U: TimeUnitSpec + 'static> crate::PrimitiveBuild for Duration<U> {
+    fn array_from_slice(values: &[i64]) -> ArrayRef {
+        Self::array_from_vec(values.to_vec())
+    }
+
+    fn array_from_vec(values: Vec<i64>) -> ArrayRef {
+        // `ScalarBuffer::from(Vec<_>)` takes over the allocation.
+        let values = arrow::buffer::ScalarBuffer::from(values);
+        std::sync::Arc::new(arrow::array::PrimitiveArray::<U::DurationType>::new(
+            values, None,
+        ))
+    }
+
+    fn array_from_buffer(buffer: arrow::buffer::Buffer) -> Result<ArrayRef, ColumnError> {
+        let values = crate::data_type::values_buffer::<i64>(buffer)?;
+        Ok(std::sync::Arc::new(arrow::array::PrimitiveArray::<
+            U::DurationType,
+        >::new(values, None)))
+    }
+}
+
 impl<U: TimeUnitSpec + 'static> RefType for Duration<U> {
     type Ref = i64;
 

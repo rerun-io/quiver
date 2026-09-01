@@ -178,6 +178,34 @@ impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> PrimitiveType for Tim
     }
 }
 
+/// The bulk build ([`TypedArray::from_slice`](crate::TypedArray::from_slice))
+/// keeps the timezone, which lives in the data type, not in the values.
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> crate::PrimitiveBuild
+    for Timestamp<U, Z>
+{
+    fn array_from_slice(values: &[i64]) -> ArrayRef {
+        Self::array_from_vec(values.to_vec())
+    }
+
+    fn array_from_vec(values: Vec<i64>) -> ArrayRef {
+        // `ScalarBuffer::from(Vec<_>)` takes over the allocation.
+        Self::from_values_buffer(arrow::buffer::ScalarBuffer::from(values))
+    }
+
+    fn array_from_buffer(buffer: arrow::buffer::Buffer) -> Result<ArrayRef, ColumnError> {
+        Ok(Self::from_values_buffer(crate::data_type::values_buffer::<
+            i64,
+        >(buffer)?))
+    }
+}
+
+impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> Timestamp<U, Z> {
+    fn from_values_buffer(values: arrow::buffer::ScalarBuffer<i64>) -> ArrayRef {
+        let array = arrow::array::PrimitiveArray::<U::TimestampType>::new(values, None);
+        std::sync::Arc::new(array.with_timezone_opt(Z::timezone()))
+    }
+}
+
 impl<U: TimeUnitSpec + 'static, Z: TimezoneSpec + 'static> RefType for Timestamp<U, Z> {
     type Ref = i64;
 

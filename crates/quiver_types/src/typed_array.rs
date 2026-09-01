@@ -296,6 +296,12 @@ impl<L: InfallibleBuild> TypedArray<L> {
     /// Infallible — for the one fallible encoding (dictionaries),
     /// see [`TypedArray::try_from_values`].
     ///
+    /// Walks the values one at a time, through the encoding's arrow builder.
+    /// If you already hold a `Vec` (or a slice) of a primitive column's values,
+    /// [`from_vec`](TypedArray::from_vec) takes over its allocation and
+    /// [`from_slice`](TypedArray::from_slice) copies it in one go — both far
+    /// faster.
+    ///
     /// # Panics
     /// Never: the logical type is [`InfallibleBuild`].
     pub fn from_values(values: impl IntoIterator<Item = impl Into<L::Owned>>) -> Self {
@@ -409,6 +415,70 @@ impl<L: PrimitiveType> TypedArray<L> {
     }
 }
 
+impl<L: crate::PrimitiveBuild> TypedArray<L> {
+    /// Builds an array from a contiguous slice of values — the inverse of
+    /// [`as_slice`](TypedArray::as_slice), and the bulk counterpart of
+    /// [`from_values`](TypedArray::from_values).
+    ///
+    /// One `memcpy`: unlike [`from_values`](TypedArray::from_values), which
+    /// walks the values one at a time through the encoding's builder (wrapping
+    /// each in an `Option` and building a null buffer that a non-nullable array
+    /// then discards), this copies the whole slice in one go.
+    ///
+    /// ```
+    /// # use quiver::{FixedSizeBinary, TypedArray};
+    /// let ids = [[1; 16], [2; 16]];
+    /// let array = TypedArray::<FixedSizeBinary<16>>::from_slice(&ids);
+    /// assert_eq!(array.as_slice(), &ids);
+    /// ```
+    #[must_use]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "cannot fail: a null-free values buffer of the right element size is valid"
+    )]
+    pub fn from_slice(values: &[L::Native]) -> Self {
+        Self::try_new(L::array_from_slice(values))
+            .expect("Cannot fail: a null-free values buffer of the right element size is valid")
+    }
+
+    /// Builds an array from a `Vec` of values, taking over the allocation —
+    /// no copy at all.
+    ///
+    /// The zero-copy form of [`from_slice`](TypedArray::from_slice). Note that
+    /// the `From<Vec<T>>` and `FromIterator` impls do *not* come here: they
+    /// accept any values that convert into `L::Owned`, so they go through the
+    /// per-element [`from_values`](TypedArray::from_values).
+    ///
+    /// ```
+    /// # use quiver::{FixedSizeBinary, TypedArray};
+    /// let ids = vec![[1_u8; 16], [2; 16]];
+    /// let array = TypedArray::<FixedSizeBinary<16>>::from_vec(ids);
+    /// assert_eq!(array.as_slice(), &[[1_u8; 16], [2; 16]]);
+    /// ```
+    #[must_use]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "cannot fail: a null-free values buffer of the right element size is valid"
+    )]
+    pub fn from_vec(values: Vec<L::Native>) -> Self {
+        Self::try_new(L::array_from_vec(values))
+            .expect("Cannot fail: a null-free values buffer of the right element size is valid")
+    }
+
+    /// Wraps an arrow values buffer, zero-copy — the inverse of the buffer
+    /// behind [`as_slice`](TypedArray::as_slice).
+    ///
+    /// The whole buffer becomes the array's values, so its length decides the
+    /// array's length. The result is null-free.
+    ///
+    /// # Errors
+    /// If the buffer is not a whole number of elements long, or is not aligned
+    /// for the element type (arrow requires the values buffer to be).
+    pub fn from_buffer(buffer: arrow::buffer::Buffer) -> Result<Self, ColumnError> {
+        Self::try_new(L::array_from_buffer(buffer)?)
+    }
+}
+
 /// `&array` where `&[L::Native]` is expected — see
 /// [`Column`](crate::Column)'s `Deref` for the details.
 impl<L: PrimitiveType> std::ops::Deref for TypedArray<L> {
@@ -429,12 +499,22 @@ impl<L: PrimitiveType> AsRef<[L::Native]> for TypedArray<L> {
     }
 }
 
+/// Builds an array from a `Vec` of anything that converts into the owned values,
+/// e.g. `Vec<&str>` for a `TypedArray<Utf8>`.
+///
+/// That conversion is why this goes value by value through
+/// [`from_values`](TypedArray::from_values). For a `Vec` that already holds a
+/// primitive column's own values, [`from_vec`](TypedArray::from_vec) takes over
+/// the allocation instead — and it is the only spelling that can, since one
+/// `From<Vec<_>>` impl cannot be both.
 impl<L: InfallibleBuild, T: Into<L::Owned>> From<Vec<T>> for TypedArray<L> {
     fn from(values: Vec<T>) -> Self {
         Self::from_values(values)
     }
 }
 
+/// Collects owned values, value by value — see the `From<Vec<T>>` impl above
+/// for why, and [`from_vec`](TypedArray::from_vec) for the bulk alternative.
 impl<L: InfallibleBuild, T: Into<L::Owned>> FromIterator<T> for TypedArray<L> {
     fn from_iter<I: IntoIterator<Item = T>>(values: I) -> Self {
         Self::from_values(values)

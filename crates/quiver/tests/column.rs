@@ -262,6 +262,24 @@ fn deref_to_slice() {
 }
 
 #[test]
+fn column_from_slice() {
+    // The bulk constructors name the column, like every other one:
+    let column = Column::<i64>::from_slice("frame", &[1, 2, 3]);
+    assert_eq!(column.name(), "frame");
+    assert_eq!(column.as_slice(), &[1, 2, 3]);
+    assert_eq!(column, Column::<i64>::from_values("frame", [1_i64, 2, 3]));
+
+    let column = Column::<i64>::from_vec("frame", vec![1, 2, 3]);
+    assert_eq!(column.name(), "frame");
+    assert_eq!(column.as_slice(), &[1, 2, 3]);
+
+    let buffer = quiver::arrow::buffer::Buffer::from_slice_ref([1_i64, 2, 3]);
+    let column = Column::<i64>::from_buffer("frame", buffer).unwrap();
+    assert_eq!(column.name(), "frame");
+    assert_eq!(column.as_slice(), &[1, 2, 3]);
+}
+
+#[test]
 fn column_partial_eq() {
     let a = Column::<Utf8>::from_values("sensor", ["x", "y"]);
     let b = Column::<Utf8>::from_values("sensor", ["x", "y"]);

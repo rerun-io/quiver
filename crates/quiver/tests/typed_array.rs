@@ -13,6 +13,7 @@ use quiver::arrow::array::{
     ArrayRef, DurationMillisecondArray, FixedSizeBinaryArray, Int64Array, ListArray, StringArray,
     TimestampNanosecondArray, TimestampSecondArray,
 };
+use quiver::arrow::buffer::Buffer;
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Int64Type};
 use quiver::arrow::error::ArrowError;
 use quiver::arrow::record_batch::RecordBatch;
@@ -584,6 +585,125 @@ fn as_slice_respects_offset() {
     let array = TypedArray::<FixedSizeBinary<2>>::from_values([[1_u8, 2], [3, 4], [5, 6], [7, 8]]);
     let sliced = array.slice(1, 2);
     assert_eq!(sliced.as_slice(), &[[3_u8, 4], [5, 6]]);
+}
+
+#[test]
+fn from_slice() {
+    // The inverse of `as_slice`, for every flavour of primitive buffer:
+    let array = TypedArray::<i64>::from_slice(&[1, 2, 3]);
+    assert_eq!(array.as_slice(), &[1, 2, 3]);
+    assert_eq!(array, TypedArray::<i64>::from_values([1_i64, 2, 3]));
+
+    let array = TypedArray::<FixedSizeBinary<4>>::from_slice(&[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    assert_eq!(array.as_slice(), &[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    assert_eq!(
+        array,
+        TypedArray::<FixedSizeBinary<4>>::from_values([[1_u8, 2, 3, 4], [5, 6, 7, 8]])
+    );
+
+    // The data type is the full one: a marker's timezone is not in the values:
+    let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_slice(&[10, 20]);
+    assert_eq!(
+        array.as_arrow().data_type(),
+        &TypedArray::<Timestamp<Nanosecond, Utc>>::data_type()
+    );
+    assert_eq!(array.as_slice(), &[10_i64, 20]);
+
+    let array = TypedArray::<Duration<Millisecond>>::from_slice(&[10, 20]);
+    assert_eq!(
+        array.as_arrow().data_type(),
+        &TypedArray::<Duration<Millisecond>>::data_type()
+    );
+
+    // A `primitive` newtype builds from the newtype itself, like it reads:
+    let ids = [ChunkId([7; 16]), ChunkId([8; 16])];
+    let array = TypedArray::<ChunkId>::from_slice(&ids);
+    assert_eq!(array.as_slice(), &ids);
+
+    // Empty, and never null:
+    let array = TypedArray::<i64>::from_slice(&[]);
+    assert!(array.is_empty());
+    assert_eq!(array.as_arrow().null_count(), 0);
+}
+
+#[test]
+fn from_vec_takes_over_the_allocation() {
+    // Nothing is copied: the array's values are the `Vec`'s own allocation.
+    let values = vec![1_i64, 2, 3];
+    let address = values.as_ptr();
+    let array = TypedArray::<i64>::from_vec(values);
+    assert_eq!(array.as_slice(), &[1, 2, 3]);
+    assert!(std::ptr::eq(array.as_slice().as_ptr(), address));
+
+    // Fixed-size binary too, where the `Vec<[u8; N]>` flattens to its bytes:
+    let values = vec![[1_u8, 2, 3, 4], [5, 6, 7, 8]];
+    let address = values.as_ptr();
+    let array = TypedArray::<FixedSizeBinary<4>>::from_vec(values);
+    assert_eq!(array.as_slice(), &[[1_u8, 2, 3, 4], [5, 6, 7, 8]]);
+    assert!(std::ptr::eq(array.as_slice().as_ptr(), address));
+
+    // …and a `primitive` newtype, where the `Vec` is cast to the repr's native
+    // type first:
+    let values = vec![ChunkId([7; 16]), ChunkId([8; 16])];
+    let address = values.as_ptr();
+    let array = TypedArray::<ChunkId>::from_vec(values);
+    assert_eq!(array.as_slice(), &[ChunkId([7; 16]), ChunkId([8; 16])]);
+    assert!(std::ptr::eq(array.as_slice().as_ptr(), address));
+
+    // A marker keeps its data type, timezone included:
+    let array = TypedArray::<Timestamp<Nanosecond, Utc>>::from_vec(vec![10, 20]);
+    assert_eq!(
+        array.as_arrow().data_type(),
+        &TypedArray::<Timestamp<Nanosecond, Utc>>::data_type()
+    );
+    assert_eq!(array.as_slice(), &[10_i64, 20]);
+
+    // Spare capacity, and empty:
+    let mut values: Vec<i64> = Vec::with_capacity(64);
+    values.extend([1, 2]);
+    assert_eq!(TypedArray::<i64>::from_vec(values).as_slice(), &[1, 2]);
+    assert!(TypedArray::<i64>::from_vec(vec![]).is_empty());
+}
+
+#[test]
+fn from_buffer() {
+    let buffer = Buffer::from_slice_ref([1_i64, 2, 3]);
+    let array = TypedArray::<i64>::from_buffer(buffer.clone()).unwrap();
+    assert_eq!(array.as_slice(), &[1, 2, 3]);
+
+    // Zero-copy: the array shares the buffer it was given.
+    assert!(std::ptr::eq(
+        array.as_slice().as_ptr(),
+        buffer.as_ptr().cast()
+    ));
+
+    // A trailing partial element is rejected, rather than silently dropped:
+    let buffer = Buffer::from(vec![0_u8; 9]);
+    assert!(matches!(
+        TypedArray::<i64>::from_buffer(buffer.clone()),
+        Err(ColumnError::Build(_))
+    ));
+    assert!(matches!(
+        TypedArray::<FixedSizeBinary<4>>::from_buffer(buffer),
+        Err(ColumnError::Build(_))
+    ));
+
+    // So is a buffer arrow could not read as `i64`s — slicing one byte in
+    // leaves the pointer misaligned:
+    let buffer = Buffer::from(vec![0_u8; 16]).slice(1);
+    assert!(matches!(
+        TypedArray::<i64>::from_buffer(buffer),
+        Err(ColumnError::Build(_))
+    ));
+
+    // Bytes need no alignment, so the same buffer is fine as fixed-size binary:
+    let buffer = Buffer::from(vec![1_u8; 9]).slice(1);
+    let array = TypedArray::<FixedSizeBinary<4>>::from_buffer(buffer).unwrap();
+    assert_eq!(array.as_slice(), &[[1_u8; 4], [1; 4]]);
+
+    // Empty:
+    let array = TypedArray::<i64>::from_buffer(Buffer::from(vec![0_u8; 0])).unwrap();
+    assert!(array.is_empty());
 }
 
 #[test]
