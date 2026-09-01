@@ -32,6 +32,8 @@ use crate::data_type::PrimitiveType;
 /// [`Column::as_slice`](crate::Column::as_slice), which yields the *newtype*
 /// (e.g. `&[Uuid]` for a `FixedSizeBinary<16>`-backed `Uuid`) — and then
 /// `column[index]` borrows the newtype as well, so the two agree.
+/// The bulk *build*, [`Column::from_slice`](crate::Column::from_slice), comes
+/// with it, taking the newtype the same way.
 ///
 /// That reinterprets the representation's buffer as the newtype, so the newtype
 /// must be layout-compatible with the representation's native type and accept
@@ -151,6 +153,25 @@ macro_rules! newtype_data_type {
                 // Checked at compile time: `Self` has the same size and
                 // alignment as the representation's native type.
                 $crate::bytemuck::must_cast_slice(<$repr as $crate::PrimitiveType>::values(typed))
+            }
+        }
+
+        impl $crate::PrimitiveBuild for $newtype
+        where
+            $repr: $crate::PrimitiveBuild,
+        {
+            fn array_from_slice(values: &[Self]) -> $crate::arrow::array::ArrayRef {
+                // Checked at compile time: `Self` has the same size and
+                // alignment as the representation's native type.
+                <$repr as $crate::PrimitiveBuild>::array_from_slice(
+                    $crate::bytemuck::must_cast_slice(values),
+                )
+            }
+
+            fn array_from_buffer(
+                buffer: $crate::arrow::buffer::Buffer,
+            ) -> ::core::result::Result<$crate::arrow::array::ArrayRef, $crate::ColumnError> {
+                <$repr as $crate::PrimitiveBuild>::array_from_buffer(buffer)
             }
         }
     };

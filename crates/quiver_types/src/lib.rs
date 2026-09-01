@@ -85,7 +85,7 @@ pub use self::column::Column;
 pub use self::column::{ColumnIntoIter, ColumnIter};
 pub use self::column_desc::{ColumnDesc, DynColumnDesc};
 pub use self::data_type::{
-    ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveType, RefType,
+    ColumnError, ConcreteType, InfallibleBuild, LogicalType, PrimitiveBuild, PrimitiveType, RefType,
 };
 pub use self::date::{Date32, Date64};
 pub use self::dictionary::{Dictionary, DictionaryKey, TypedDictionary};

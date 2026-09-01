@@ -139,3 +139,23 @@ where
         Repr::values(typed)
     }
 }
+
+/// Like [`TypedArray::as_slice`](crate::TypedArray::as_slice), the bulk build
+/// takes the *representation's* values.
+impl<T, Repr> crate::PrimitiveBuild for As<T, Repr>
+where
+    T: 'static,
+    Repr: crate::PrimitiveBuild + 'static,
+    T: From<Repr::Owned>,
+    Repr::Owned: From<T>,
+{
+    fn array_from_slice(values: &[Self::Native]) -> arrow::array::ArrayRef {
+        Repr::array_from_slice(values)
+    }
+
+    fn array_from_buffer(
+        buffer: arrow::buffer::Buffer,
+    ) -> Result<arrow::array::ArrayRef, ColumnError> {
+        Repr::array_from_buffer(buffer)
+    }
+}

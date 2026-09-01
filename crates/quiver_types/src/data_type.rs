@@ -186,6 +186,8 @@ pub trait ConcreteType: LogicalType {
 /// by the primitive-backed marker types
 /// ([`Date32`](crate::Date32), [`Timestamp`](crate::Timestamp), …),
 /// and by [`FixedSizeBinary<N>`](crate::FixedSizeBinary) (stored contiguously).
+///
+/// See [`PrimitiveBuild`] for the write direction.
 pub trait PrimitiveType: LogicalType {
     /// The in-memory element type: `f32` for `f32`, `i64` for `Timestamp<…>`,
     /// `[u8; N]` for `[u8; N]`, etc.
@@ -193,6 +195,72 @@ pub trait PrimitiveType: LogicalType {
 
     /// All values as one contiguous slice.
     fn values(typed: &Self::Typed) -> &[Self::Native];
+}
+
+/// Logical types that can also be *built* from one contiguous buffer of values.
+///
+/// Enables the bulk [`TypedArray::from_slice`](crate::TypedArray::from_slice)
+/// and the zero-copy [`TypedArray::from_buffer`](crate::TypedArray::from_buffer).
+///
+/// The write counterpart of [`PrimitiveType`], and a separate trait because the
+/// two are not equally available: reading back the values of an array quiver has
+/// already validated is always sound, while *writing* a buffer is only correct
+/// when every buffer of the right shape is a valid array of this logical type.
+/// That rules out the validating newtypes
+/// ([`try_newtype_data_type!`](crate::try_newtype_data_type), and the built-in
+/// `NonZero*` / [`char`] columns), which check every value at construction —
+/// they read in bulk, but are built value by value.
+pub trait PrimitiveBuild: PrimitiveType {
+    /// Builds a null-free array holding exactly `values`, with one bulk copy.
+    fn array_from_slice(values: &[Self::Native]) -> ArrayRef;
+
+    /// Builds a null-free array from an arrow values buffer, zero-copy.
+    ///
+    /// # Errors
+    /// If the buffer is not a whole number of elements long, or is not aligned
+    /// for the element type.
+    fn array_from_buffer(buffer: arrow::buffer::Buffer) -> Result<ArrayRef, ColumnError>;
+}
+
+/// Reinterprets an arrow byte buffer as a values buffer of `T`, for the
+/// [`PrimitiveBuild`] implementations.
+///
+/// Arrow's own `ScalarBuffer<T>` conversion panics on both counts, so both are
+/// checked here first.
+///
+/// # Errors
+/// If the buffer is not a whole number of `T`s long, or is not aligned for `T`.
+pub(crate) fn values_buffer<T: arrow::datatypes::ArrowNativeType>(
+    buffer: arrow::buffer::Buffer,
+) -> Result<arrow::buffer::ScalarBuffer<T>, ColumnError> {
+    let element_size = size_of::<T>();
+    let len = buffer.len() / element_size;
+    if len * element_size != buffer.len() {
+        return Err(ColumnError::Build(
+            arrow::error::ArrowError::InvalidArgumentError(format!(
+                "A buffer of {} bytes is not a whole number of {element_size}-byte elements",
+                buffer.len()
+            )),
+        ));
+    }
+
+    if len == 0 {
+        // An empty arrow buffer is a dangling pointer, which need not meet `T`'s
+        // alignment. There is nothing to read, so hand back an empty values
+        // buffer rather than rejecting it below.
+        return Ok(arrow::buffer::ScalarBuffer::default());
+    }
+
+    if buffer.as_ptr().align_offset(align_of::<T>()) != 0 {
+        return Err(ColumnError::Build(
+            arrow::error::ArrowError::InvalidArgumentError(format!(
+                "The buffer is not aligned to {} bytes, as the element type requires",
+                align_of::<T>()
+            )),
+        ));
+    }
+
+    Ok(arrow::buffer::ScalarBuffer::new(buffer, 0, len))
 }
 
 /// Logical types whose element values can be borrowed as plain references
@@ -406,6 +474,22 @@ macro_rules! impl_primitive_data_type {
             #[inline]
             fn value_ref(typed: &Self::Typed, index: usize) -> &$native {
                 &typed.values()[index]
+            }
+        }
+
+        impl crate::data_type::PrimitiveBuild for $logical {
+            fn array_from_slice(values: &[$native]) -> arrow::array::ArrayRef {
+                let values = arrow::buffer::ScalarBuffer::from(values.to_vec());
+                std::sync::Arc::new(<<Self as crate::LogicalType>::Typed>::new(values, None))
+            }
+
+            fn array_from_buffer(
+                buffer: arrow::buffer::Buffer,
+            ) -> Result<arrow::array::ArrayRef, crate::ColumnError> {
+                let values = crate::data_type::values_buffer::<$native>(buffer)?;
+                Ok(std::sync::Arc::new(
+                    <<Self as crate::LogicalType>::Typed>::new(values, None),
+                ))
             }
         }
     };

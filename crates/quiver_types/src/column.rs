@@ -495,6 +495,38 @@ impl<L: PrimitiveType> Column<L> {
     }
 }
 
+impl<L: crate::PrimitiveBuild> Column<L> {
+    /// Builds a column from a contiguous slice of values — one bulk copy,
+    /// the inverse of [`as_slice`](Column::as_slice).
+    ///
+    /// See [`TypedArray::from_slice`] for what it saves over
+    /// [`from_values`](Column::from_values).
+    ///
+    /// ```
+    /// # use quiver::Column;
+    /// let column = Column::<f32>::from_slice("weight", &[1.0, 2.0, 3.0]);
+    /// assert_eq!(column.as_slice(), &[1.0, 2.0, 3.0]);
+    /// ```
+    #[must_use]
+    pub fn from_slice(name: impl Into<String>, values: &[L::Native]) -> Self {
+        Self::new(name, TypedArray::from_slice(values))
+    }
+
+    /// Wraps an arrow values buffer, zero-copy.
+    ///
+    /// See [`TypedArray::from_buffer`].
+    ///
+    /// # Errors
+    /// If the buffer is not a whole number of elements long, or is not aligned
+    /// for the element type.
+    pub fn from_buffer(
+        name: impl Into<String>,
+        buffer: arrow::buffer::Buffer,
+    ) -> Result<Self, ColumnError> {
+        Ok(Self::new(name, TypedArray::from_buffer(buffer)?))
+    }
+}
+
 /// `&column` where `&[L::Native]` is expected, for the same columns as
 /// [`as_slice`](Column::as_slice) — so a `Column<u64>` is a drop-in for the
 /// `ScalarBuffer<u64>` it replaces:

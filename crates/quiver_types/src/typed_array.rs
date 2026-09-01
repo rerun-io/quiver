@@ -409,6 +409,45 @@ impl<L: PrimitiveType> TypedArray<L> {
     }
 }
 
+impl<L: crate::PrimitiveBuild> TypedArray<L> {
+    /// Builds an array from a contiguous slice of values — the inverse of
+    /// [`as_slice`](TypedArray::as_slice), and the bulk counterpart of
+    /// [`from_values`](TypedArray::from_values).
+    ///
+    /// One `memcpy`: unlike [`from_values`](TypedArray::from_values), which
+    /// walks the values one at a time through the encoding's builder (wrapping
+    /// each in an `Option` and building a null buffer that a non-nullable array
+    /// then discards), this copies the whole slice in one go.
+    ///
+    /// ```
+    /// # use quiver::{FixedSizeBinary, TypedArray};
+    /// let ids = [[1; 16], [2; 16]];
+    /// let array = TypedArray::<FixedSizeBinary<16>>::from_slice(&ids);
+    /// assert_eq!(array.as_slice(), &ids);
+    /// ```
+    ///
+    /// # Panics
+    /// Never: a null-free buffer of whole elements is a valid array of `L`.
+    #[must_use]
+    pub fn from_slice(values: &[L::Native]) -> Self {
+        Self::try_new(L::array_from_slice(values))
+            .expect("Cannot fail: a null-free values buffer of the right element size is valid")
+    }
+
+    /// Wraps an arrow values buffer, zero-copy — the inverse of the buffer
+    /// behind [`as_slice`](TypedArray::as_slice).
+    ///
+    /// The whole buffer becomes the array's values, so its length decides the
+    /// array's length. The result is null-free.
+    ///
+    /// # Errors
+    /// If the buffer is not a whole number of elements long, or is not aligned
+    /// for the element type (arrow requires the values buffer to be).
+    pub fn from_buffer(buffer: arrow::buffer::Buffer) -> Result<Self, ColumnError> {
+        Self::try_new(L::array_from_buffer(buffer)?)
+    }
+}
+
 /// `&array` where `&[L::Native]` is expected — see
 /// [`Column`](crate::Column)'s `Deref` for the details.
 impl<L: PrimitiveType> std::ops::Deref for TypedArray<L> {
