@@ -220,6 +220,7 @@ impl<L: LogicalType> Column<L> {
     /// Panics if out of bounds.
     #[must_use]
     #[inline]
+    #[track_caller]
     pub fn value(&self, index: usize) -> L::Value<'_> {
         self.array.value(index)
     }
@@ -232,6 +233,7 @@ impl<L: LogicalType> Column<L> {
     ///
     /// Panics if out of bounds.
     #[must_use]
+    #[track_caller]
     pub fn value_owned(&self, index: usize) -> L::Owned {
         L::to_owned_value(self.value(index))
     }
@@ -277,6 +279,7 @@ impl<L: LogicalType> Column<L> {
     /// # Panics
     /// If the range is out of bounds (like arrow's `slice`).
     #[must_use]
+    #[track_caller]
     pub fn slice(&self, offset: usize, length: usize) -> Self {
         Self {
             array: self.array.slice(offset, length),
@@ -293,6 +296,7 @@ impl<L: LogicalType> Column<L> {
     /// # Panics
     /// If `mask` is not exactly as long as this column.
     #[must_use]
+    #[track_caller]
     pub fn filter(&self, mask: &arrow::array::BooleanArray) -> Self {
         Self {
             array: self.array.filter(mask),
@@ -309,6 +313,7 @@ impl<L: LogicalType> Column<L> {
     /// If an index is out of bounds, or — unless `L` is an `Option<…>` — if
     /// `indices` contains nulls.
     #[must_use]
+    #[track_caller]
     pub fn take<I: crate::IndexType>(&self, indices: &arrow::array::PrimitiveArray<I>) -> Self {
         Self {
             array: self.array.take(indices),
@@ -497,6 +502,7 @@ impl<L: crate::ConcreteType> Column<L> {
 impl<L: RefType> std::ops::Index<usize> for Column<L> {
     type Output = L::Ref;
 
+    #[track_caller]
     fn index(&self, index: usize) -> &Self::Output {
         &self.array[index]
     }
@@ -635,6 +641,7 @@ impl<L: crate::ConcreteType> Column<Option<L>> {
     /// *reachable*, through [`optional`](Column::optional); see
     /// [`Run`](crate::Run) for what it reads as.
     #[must_use]
+    #[track_caller]
     pub fn new_null(name: impl Into<String>, len: usize) -> Self {
         Self::new(name, TypedArray::<Option<L>>::new_null(len))
     }

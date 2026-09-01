@@ -80,9 +80,8 @@ impl<L: LogicalType> TypedArray<L> {
     /// recursively), then downcasts it (zero-copy).
     ///
     /// # Cost
-    /// What this costs depends on `L`, and the difference is invisible at the
-    /// call site — it decides whether re-wrapping an array in a loop is free or
-    /// quadratic:
+    /// At worst O(len) — never more — but which of these it is depends on `L`,
+    /// and is invisible at the call site:
     ///
     /// * **O(1)** for a leaf type (`i64`, `Utf8`, `FixedSizeBinary<N>`,
     ///   `Timestamp<…>`, and the newtypes over them): a data type comparison, an

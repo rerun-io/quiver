@@ -125,6 +125,7 @@ impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
     /// # Panics
     /// If `index` is out of bounds.
     #[must_use]
+    #[track_caller]
     pub fn value(&self, index: usize) -> L::Value<'a> {
         assert!(
             index < self.len(),
@@ -140,6 +141,7 @@ impl<'a, L: LogicalType + 'a> ListValue<'a, L> {
     ///
     /// Panics if out of bounds.
     #[must_use]
+    #[track_caller]
     pub fn value_owned(&self, index: usize) -> L::Owned {
         L::to_owned_value(self.value(index))
     }
@@ -187,6 +189,7 @@ impl<'a, L: LogicalType + 'a> IntoIterator for &ListValue<'a, L> {
 impl<L: RefType> std::ops::Index<usize> for ListValue<'_, L> {
     type Output = L::Ref;
 
+    #[track_caller]
     fn index(&self, index: usize) -> &Self::Output {
         assert!(
             index < self.len(),
