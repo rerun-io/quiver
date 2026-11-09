@@ -136,6 +136,28 @@ fn new_null() {
 }
 
 #[test]
+fn extract_or_null() {
+    const ETAG: ColumnDesc<Option<Utf8>> = ColumnDesc::new("Manifest", "etag");
+
+    let size: ArrayRef = Arc::new(quiver::arrow::array::Int64Array::from(vec![1, 2]));
+    let etag: ArrayRef = Arc::new(StringArray::from(vec![Some("x"), None]));
+
+    let missing = RecordBatch::try_from_iter([("size", Arc::clone(&size))]).unwrap();
+    let column = ETAG.extract_or_null(&missing).unwrap();
+    assert_eq!(column.to_vec(), [None, None]);
+    assert_eq!(column.name(), "etag");
+
+    let present = RecordBatch::try_from_iter([("etag", etag)]).unwrap();
+    assert_eq!(
+        ETAG.extract_or_null(&present).unwrap().to_vec(),
+        [Some("x".to_owned()), None]
+    );
+
+    let wrong_type = RecordBatch::try_from_iter([("etag", size)]).unwrap();
+    assert!(ETAG.extract_or_null(&wrong_type).is_err());
+}
+
+#[test]
 fn from_record_batch_and_name() {
     let names: ArrayRef = Arc::new(StringArray::from(vec!["alice", "bob"]));
     let ages: ArrayRef = Arc::new(Int64Array::from(vec![30, 40]));

@@ -61,6 +61,7 @@ use proc_macro::TokenStream;
 /// * `#[quiver(null_if_missing)]` — a missing column is parsed as a column of nulls,
 ///   instead of being an error. Only for `quiver::Column<Option<…>>` fields.
 ///   Useful for reading data written before the column was added.
+///   Without the derive, use `ColumnDesc::extract_or_null`.
 ///
 /// ## Column order
 /// All column matching is done by *name*; column order never matters when parsing.
