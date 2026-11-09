@@ -58,6 +58,9 @@ struct ColumnField {
     /// Is the column allowed to be missing? (the field is an `Option`)
     optional: bool,
 
+    /// Is a missing column parsed as a column of nulls? (`#[quiver(null_if_missing)]`)
+    null_if_missing: bool,
+
     /// Field metadata declared with `#[quiver(metadata("key" = "value", …))]`.
     declared_metadata: Vec<(String, String)>,
 
@@ -179,6 +182,7 @@ impl Quiver {
         let mut column_name = ident.to_string();
         let mut is_metadata = false;
         let mut is_extra_columns = false;
+        let mut null_if_missing = false;
         let mut declared_metadata: Vec<(String, String)> = Vec::new();
 
         for attr in &field.attrs {
@@ -203,8 +207,13 @@ impl Quiver {
                     } else if meta.path.is_ident("extra_columns") {
                         is_extra_columns = true;
                         Ok(())
+                    } else if meta.path.is_ident("null_if_missing") {
+                        null_if_missing = true;
+                        Ok(())
                     } else {
-                        Err(meta.error("Expected `name`, `metadata`, or `extra_columns`"))
+                        Err(meta.error(
+                            "Expected `name`, `metadata`, `extra_columns`, or `null_if_missing`",
+                        ))
                     }
                 })?;
             }
@@ -214,6 +223,13 @@ impl Quiver {
             return Err(syn::Error::new_spanned(
                 field,
                 "Declared `metadata(…)` only applies to column fields",
+            ));
+        }
+
+        if (is_metadata || is_extra_columns) && null_if_missing {
+            return Err(syn::Error::new_spanned(
+                field,
+                "`null_if_missing` only applies to column fields",
             ));
         }
 
@@ -235,10 +251,22 @@ impl Quiver {
             self.extra_columns_field = Some(ident);
         } else {
             let (optional, kind) = classify_type(&self.krate.clone(), &field.ty)?;
+            if null_if_missing {
+                let is_nullable_column = !optional
+                    && matches!(&kind, ColumnKind::Wrapper { logical_type }
+                        if option_inner(logical_type).is_some());
+                if !is_nullable_column {
+                    return Err(syn::Error::new_spanned(
+                        &field.ty,
+                        "`null_if_missing` requires a nullable `quiver::Column<Option<…>>` field",
+                    ));
+                }
+            }
             self.columns.push(ColumnField {
                 ident,
                 column_name,
                 optional,
+                null_if_missing,
                 declared_metadata,
                 kind,
             });
@@ -324,6 +352,7 @@ impl Quiver {
                     declared_metadata,
                     kind,
                     optional,
+                    null_if_missing,
                     ..
                 } = column;
                 let declared = declared_metadata.iter().map(|(key, value)| {
@@ -349,29 +378,29 @@ impl Quiver {
                     // Not statically known:
                     ColumnKind::Any | ColumnKind::Downcast { .. } => return None,
                 };
-                Some((field, *optional))
+                Some((field, *optional, *null_if_missing))
             })
             .collect::<Option<Vec<_>>>()?;
 
-        let max_fields: Vec<_> = fields.iter().map(|(field, _)| field).collect();
+        let max_fields: Vec<_> = fields.iter().map(|(field, _, _)| field).collect();
         let min_fields: Vec<_> = fields
             .iter()
-            .filter(|(_, optional)| !optional)
-            .map(|(field, _)| field)
+            .filter(|(_, optional, null_if_missing)| !optional && !null_if_missing)
+            .map(|(field, _, _)| field)
             .collect();
 
-        // `empty_record_batch` is only generated when every column is
-        // required (`min_schema() == max_schema()`): with optional columns
+        // `empty_record_batch` is not generated when there are optional columns:
         // there is no single obvious empty batch (include them or not?),
         // and a round-trip would silently turn `None` into `Some(empty)`.
-        let empty_record_batch_fn = (min_fields.len() == max_fields.len()).then(|| {
+        // `null_if_missing` columns are always emitted, so they don't count.
+        let has_optional_fields = fields.iter().any(|(_, optional, _)| *optional);
+        let empty_record_batch_fn = (!has_optional_fields).then(|| {
             quote! {
                 /// An empty (zero-row) record batch with every declared column
-                /// present ([`Self::min_schema`], which here equals
-                /// [`Self::max_schema`]).
+                /// present ([`Self::max_schema`]).
                 ///
-                /// Only generated when all columns are required:
-                /// structs with optional (`Option<…>`) columns don't get this fn.
+                /// Only generated when no column is optional:
+                /// structs with `Option<…>` columns don't get this fn.
                 #[must_use]
                 pub fn empty_record_batch() -> #krate::arrow::record_batch::RecordBatch {
                     #krate::arrow::record_batch::RecordBatch::new_empty(
@@ -386,7 +415,8 @@ impl Quiver {
             impl #ident {
                 /// The static schema of the *required* columns:
                 /// the guaranteed-present subset of every matching record batch.
-                /// Optional (`Option<…>`) columns are excluded; see [`Self::max_schema`].
+                /// Optional (`Option<…>`) and `null_if_missing` columns are excluded;
+                /// see [`Self::max_schema`].
                 ///
                 /// Per-instance metadata is not included.
                 #[must_use]
@@ -397,7 +427,7 @@ impl Quiver {
                 }
 
                 /// The static schema of *all* declared columns,
-                /// including optional (`Option<…>`) ones —
+                /// including optional (`Option<…>`) and `null_if_missing` ones —
                 /// which may be missing from an actual record batch;
                 /// see [`Self::min_schema`].
                 ///
@@ -613,6 +643,7 @@ impl ColumnField {
             ident,
             column_name,
             optional,
+            null_if_missing,
             declared_metadata: _, // encode-side only; parsing does not validate metadata
             kind,
         } = self;
@@ -638,6 +669,19 @@ impl ColumnField {
                             ::core::option::Option::Some(#convert)
                         }
                         ::core::option::Option::None => ::core::option::Option::None,
+                    };
+                }
+            } else if *null_if_missing {
+                quote! {
+                    let #ident = match batch.schema_ref().column_with_name(#column_name) {
+                        ::core::option::Option::Some((index, field)) => {
+                            let array = batch.column(index);
+                            #convert
+                        }
+                        ::core::option::Option::None => <#krate::Column<#logical_type>>::new_null(
+                            #column_name,
+                            batch.num_rows(),
+                        ),
                     };
                 }
             } else {
@@ -729,6 +773,7 @@ impl ColumnField {
             ident,
             column_name,
             optional,
+            null_if_missing: _, // only affects parsing
             declared_metadata,
             kind,
         } = self;
