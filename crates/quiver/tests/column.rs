@@ -139,7 +139,7 @@ fn new_null() {
 fn extract_or_null() {
     const ETAG: ColumnDesc<Option<Utf8>> = ColumnDesc::new("Manifest", "etag");
 
-    let size: ArrayRef = Arc::new(quiver::arrow::array::Int64Array::from(vec![1, 2]));
+    let size: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
     let etag: ArrayRef = Arc::new(StringArray::from(vec![Some("x"), None]));
 
     let missing = RecordBatch::try_from_iter([("size", Arc::clone(&size))]).unwrap();
@@ -154,7 +154,10 @@ fn extract_or_null() {
     );
 
     let wrong_type = RecordBatch::try_from_iter([("etag", size)]).unwrap();
-    assert!(ETAG.extract_or_null(&wrong_type).is_err());
+    assert!(matches!(
+        *ETAG.extract_or_null(&wrong_type).unwrap_err().kind,
+        ErrorKind::WrongDataType { column, actual: DataType::Int64, .. } if column == "etag"
+    ));
 }
 
 #[test]
