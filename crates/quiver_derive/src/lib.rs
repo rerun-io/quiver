@@ -22,8 +22,7 @@ use proc_macro::TokenStream;
 ///   of all declared columns (including optional ones); only generated when all columns have a
 ///   statically-known data type (no `ArrayRef`, `ListArray`, …)
 /// * `fn empty_record_batch()` — an infallible, zero-row record batch with every declared column;
-///   only generated when, additionally, all columns are required (no `Option<…>` columns,
-///   i.e. `min_schema() == max_schema()`)
+///   only generated when, additionally, no column is optional (no `Option<…>` columns)
 ///
 /// ## Field types
 /// * `quiver::Column<L>` — a strongly-typed wrapper; validates the exact data type
@@ -59,6 +58,10 @@ use proc_macro::TokenStream;
 /// * `#[quiver(metadata)]` — this `BTreeMap<String, String>` field holds the record batch metadata
 /// * `#[quiver(extra_columns)]` — this `Vec<DynColumn>` field holds all columns not declared in the struct.
 ///   If absent, unknown columns are an error.
+/// * `#[quiver(null_if_missing)]` — a missing column is parsed as a column of nulls,
+///   instead of being an error. Only for `quiver::Column<Option<…>>` fields.
+///   Useful for reading data written before the column was added.
+///   Without the derive, use `ColumnDesc::extract_or_null`.
 ///
 /// ## Column order
 /// All column matching is done by *name*; column order never matters when parsing.

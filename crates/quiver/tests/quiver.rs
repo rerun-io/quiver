@@ -1241,3 +1241,49 @@ fn column_name_constants_in_patterns() {
     // Renames are honored:
     assert_eq!(Annotated::COLUMN_FRAME_START_NAME, "frame_nr");
 }
+
+/// A struct whose `etag` column was added after data was already written.
+#[derive(Quiver)]
+struct Evolved {
+    name: quiver::Column<Utf8>,
+
+    #[quiver(null_if_missing)]
+    etag: quiver::Column<Option<Utf8>>,
+}
+
+#[test]
+fn null_if_missing() {
+    // Missing column: parsed as nulls, with the batch's row count:
+    let batch = batch_of(&[(
+        "name",
+        Arc::new(StringArray::from(vec!["a", "b"])) as ArrayRef,
+    )]);
+    let evolved = Evolved::try_from(&batch).unwrap();
+    assert_eq!(evolved.etag.to_vec(), [None, None]);
+
+    // …and always emitted on encode:
+    let batch = evolved.into_record_batch().unwrap();
+    assert!(batch.column_by_name("etag").is_some());
+
+    // Present column: parsed as usual:
+    let batch = batch_of(&[
+        ("name", Arc::new(StringArray::from(vec!["a"])) as ArrayRef),
+        ("etag", Arc::new(StringArray::from(vec!["x"])) as ArrayRef),
+    ]);
+    assert_eq!(
+        Evolved::try_from(batch).unwrap().etag.to_vec(),
+        [Some("x".to_owned())]
+    );
+
+    // Present with the wrong data type: still an error:
+    let batch = batch_of(&[
+        ("name", Arc::new(StringArray::from(vec!["a"])) as ArrayRef),
+        ("etag", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+    ]);
+    assert!(Evolved::try_from(batch).is_err());
+
+    // Not guaranteed present in the input:
+    assert!(Evolved::min_schema().field_with_name("etag").is_err());
+    assert!(Evolved::max_schema().field_with_name("etag").is_ok());
+    assert_eq!(Evolved::empty_record_batch().num_columns(), 2);
+}

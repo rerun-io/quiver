@@ -399,6 +399,39 @@ impl<L: crate::ConcreteType> ColumnDesc<Option<L>> {
     pub fn new_null(&self, len: usize) -> Column<Option<L>> {
         Column::<Option<L>>::new_null(self.name, len).with_metadata(self.arrow_metadata())
     }
+
+    /// Like [`extract`](ColumnDesc::extract), but a missing column is
+    /// returned as a column of nulls, one per row of `batch`.
+    ///
+    /// For reading data written before the column was added.
+    /// The non-derive counterpart of `#[quiver(null_if_missing)]`.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use quiver::{ColumnDesc, Utf8};
+    /// # use quiver::arrow::array::{ArrayRef, Int64Array};
+    /// # use quiver::arrow::record_batch::RecordBatch;
+    /// const ETAG: ColumnDesc<Option<Utf8>> = ColumnDesc::new("Manifest", "etag");
+    ///
+    /// let batch = RecordBatch::try_from_iter([
+    ///     ("size", Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef),
+    /// ])
+    /// .unwrap();
+    /// assert_eq!(ETAG.extract_or_null(&batch).unwrap().to_vec(), [None, None]);
+    /// ```
+    ///
+    /// # Errors
+    /// Errors if the column is present, but has the wrong data type.
+    pub fn extract_or_null(
+        &self,
+        batch: &arrow::record_batch::RecordBatch,
+    ) -> Result<Column<Option<L>>, Error> {
+        if batch.schema_ref().column_with_name(self.name).is_some() {
+            self.extract(batch)
+        } else {
+            Ok(self.new_null(batch.num_rows()))
+        }
+    }
 }
 
 impl<L: LogicalType> ColumnDesc<L> {

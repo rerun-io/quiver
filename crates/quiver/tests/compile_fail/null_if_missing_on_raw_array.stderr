@@ -1,0 +1,5 @@
+error: `null_if_missing` is only supported on `quiver::Column<Option<…>>` fields
+ --> tests/compile_fail/null_if_missing_on_raw_array.rs:6:11
+  |
+6 |     name: quiver::arrow::array::StringArray,
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

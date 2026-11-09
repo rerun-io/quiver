@@ -1,0 +1,5 @@
+error: `null_if_missing` cannot be combined with an `Option<…>` field: a missing column is either `None` or nulls, not both. Use `quiver::Column<Option<…>>`
+ --> tests/compile_fail/null_if_missing_on_optional_nullable.rs:6:11
+  |
+6 |     name: Option<quiver::Column<Option<quiver::Utf8>>>,
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

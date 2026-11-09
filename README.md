@@ -77,6 +77,11 @@ struct Thing {
     /// Strongly typed values; the whole *column* may be missing
     pub dob: Option<Column<i64>>,
 
+    /// A missing column is parsed as all nulls,
+    /// e.g. for data written before the column was added
+    #[quiver(null_if_missing)]
+    pub etag: Column<Option<Utf8>>,
+
     /// A raw arrow array: any data type, any nullability — dynamically typed
     pub comment: ArrayRef,
 
@@ -92,7 +97,7 @@ struct Thing {
 // * `fn from_record_batch()` and `fn into_record_batch()` - discoverable aliases for the above
 // * `COLUMN_*` descriptor constants - single-column access without hard-coding names
 // * `fn min_schema()`/`fn max_schema()` - when all columns are statically typed
-// * `fn empty_record_batch()` - when, additionally, all columns are required (min == max)
+// * `fn empty_record_batch()` - when, additionally, no column is `Option<…>`
 ```
 
 Building columns from values is infallible.
