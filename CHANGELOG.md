@@ -6,6 +6,15 @@ This file is updated upon each release by `./scripts/generate_changelog.py`.
 Do NOT add entries here manually — they are generated from PR titles and labels.
 
 
+## 0.6.2 - 2026-11-09
+
+Full diff at https://github.com/rerun-io/quiver/compare/0.6.1..0.6.2
+
+#### New features
+* Add `#[quiver(null_if_missing)]` and `ColumnDesc::extract_or_null` for columns added after data was written [#66](https://github.com/rerun-io/quiver/pull/66) by [@emilk](https://github.com/emilk)
+* Add `TypedArray::from_slice` / `from_vec` / `from_buffer` [#64](https://github.com/rerun-io/quiver/pull/64) by [@emilk](https://github.com/emilk)
+* Type-preserving kernels: `TypedArray::filter` / `take` / `concat` [#65](https://github.com/rerun-io/quiver/pull/65) by [@emilk](https://github.com/emilk)
+
 ## 0.6.1 - 2026-08-31
 
 Full diff at https://github.com/rerun-io/quiver/compare/0.6.0..0.6.1
