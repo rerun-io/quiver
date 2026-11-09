@@ -1,4 +1,4 @@
-//! `#[quiver(null_if_missing)]` requires a nullable `Column<Option<…>>`.
+//! `#[quiver(null_if_missing)]` requires nullable values.
 
 #[derive(quiver::Quiver)]
 struct Thing {

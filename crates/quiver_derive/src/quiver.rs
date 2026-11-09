@@ -252,15 +252,7 @@ impl Quiver {
         } else {
             let (optional, kind) = classify_type(&self.krate.clone(), &field.ty)?;
             if null_if_missing {
-                let is_nullable_column = !optional
-                    && matches!(&kind, ColumnKind::Wrapper { logical_type }
-                        if option_inner(logical_type).is_some());
-                if !is_nullable_column {
-                    return Err(syn::Error::new_spanned(
-                        &field.ty,
-                        "`null_if_missing` requires a nullable `quiver::Column<Option<…>>` field",
-                    ));
-                }
+                check_null_if_missing(&field.ty, optional, &kind)?;
             }
             self.columns.push(ColumnField {
                 ident,
@@ -860,6 +852,32 @@ impl ColumnField {
             }
         }
     }
+}
+
+/// `#[quiver(null_if_missing)]` is only valid on `quiver::Column<Option<…>>`:
+/// the column must always be present after parsing, and able to hold nulls.
+fn check_null_if_missing(ty: &syn::Type, optional: bool, kind: &ColumnKind) -> syn::Result<()> {
+    let error = |message: &str| Err(syn::Error::new_spanned(ty, message));
+
+    if optional {
+        return error(
+            "`null_if_missing` cannot be combined with an `Option<…>` field: \
+             a missing column is either `None` or nulls, not both. \
+             Use `quiver::Column<Option<…>>`",
+        );
+    }
+
+    let ColumnKind::Wrapper { logical_type } = kind else {
+        return error("`null_if_missing` is only supported on `quiver::Column<Option<…>>` fields");
+    };
+
+    if option_inner(logical_type).is_none() {
+        return error(
+            "`null_if_missing` requires nullable values: use `quiver::Column<Option<…>>`",
+        );
+    }
+
+    Ok(())
 }
 
 /// Generates an expression downcasting `array` (a `&ArrayRef`) to `array_type`.

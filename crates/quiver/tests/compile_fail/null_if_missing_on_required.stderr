@@ -1,5 +1,0 @@
-error: `null_if_missing` requires a nullable `quiver::Column<Option<…>>` field
- --> tests/compile_fail/null_if_missing_on_required.rs:6:11
-  |
-6 |     name: quiver::Column<quiver::Utf8>,
-  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
