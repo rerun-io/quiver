@@ -607,14 +607,12 @@ impl Quiver {
                         #schema_metadata,
                     );
                     // Arrow cannot infer the row count of a batch without columns:
-                    let options = #krate::arrow::record_batch::RecordBatchOptions::new()
-                        .with_row_count(::core::option::Option::Some(
-                            columns.first().map_or(0, #krate::arrow::array::Array::len),
-                        ));
+                    let row_count = columns.is_empty().then_some(0);
                     #krate::arrow::record_batch::RecordBatch::try_new_with_options(
                         ::std::sync::Arc::new(schema),
                         columns,
-                        &options,
+                        &#krate::arrow::record_batch::RecordBatchOptions::new()
+                            .with_row_count(row_count),
                     )
                     .map_err(|err| {
                         #krate::Error::new(#record_type, #krate::ErrorKind::BuildRecordBatch(err))

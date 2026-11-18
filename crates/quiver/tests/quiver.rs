@@ -314,7 +314,9 @@ fn column_length_mismatch() {
     let result = RecordBatch::try_from(thing);
     let err = result.err().unwrap();
     assert_eq!(err.record_type, "Thing");
-    assert!(matches!(*err.kind, ErrorKind::BuildRecordBatch(_)));
+    assert!(
+        matches!(&*err.kind, ErrorKind::BuildRecordBatch(err) if err.to_string().contains("must have the same length"))
+    );
 }
 
 #[test]
