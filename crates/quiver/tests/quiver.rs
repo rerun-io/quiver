@@ -2,7 +2,7 @@
 
 #![cfg(feature = "derive")]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use quiver::arrow::array::{
@@ -10,7 +10,7 @@ use quiver::arrow::array::{
     Int32Array, Int64Array, ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
-use quiver::arrow::record_batch::RecordBatch;
+use quiver::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use quiver::{DynColumn, DynColumnDesc, ErrorKind, List, Quiver, Utf8};
 
 /// Important thing
@@ -65,7 +65,10 @@ fn batch_of(columns: &[(&str, ArrayRef)]) -> RecordBatch {
         .map(|(name, array)| Field::new(*name, array.data_type().clone(), true))
         .collect();
     let arrays: Vec<_> = columns.iter().map(|(_, array)| Arc::clone(array)).collect();
-    RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), arrays)
+    let schema = ArrowSchema::new_with_metadata(fields, HashMap::new());
+    let options = RecordBatchOptions::new()
+        .with_row_count(Some(arrays.first().map_or(0, |array| array.len())));
+    RecordBatch::try_new_with_options(Arc::new(schema), arrays, &options)
         .expect("Bad columns passed to test helper")
 }
 
@@ -271,6 +274,33 @@ fn wrong_array_type() {
     assert!(
         matches!(*err.kind, ErrorKind::WrongArrayType { column, expected, actual: DataType::Int64, } if column == "list" && expected == "ListArray")
     );
+}
+
+#[test]
+fn record_without_columns() {
+    #[derive(Quiver)]
+    struct AllOptional {
+        #[quiver(metadata)]
+        metadata: BTreeMap<String, String>,
+        name: Option<StringArray>,
+    }
+
+    assert!(AllOptional::min_schema().fields().is_empty());
+    assert_eq!(AllOptional::max_schema().fields().len(), 1);
+
+    let record = AllOptional {
+        metadata: BTreeMap::from([("key".to_owned(), "value".to_owned())]),
+        name: None,
+    };
+
+    let batch = RecordBatch::try_from(record).unwrap();
+    assert_eq!(batch.num_columns(), 0);
+    assert_eq!(batch.num_rows(), 0);
+    assert_eq!(batch.schema_ref().metadata()["key"], "value");
+
+    let record = AllOptional::try_from(batch).unwrap();
+    assert_eq!(record.name, None);
+    assert_eq!(record.metadata["key"], "value");
 }
 
 #[test]
