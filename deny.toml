@@ -32,7 +32,7 @@ all-features = true
 version = 2
 unused-ignored-advisory = "deny"
 ignore = [
-  { id = "RUSTSEC-2026-0543", reason = "chrono 0.4.44 via arrow-array, arrow-arith and arrow-cast 58.3.0 <- arrow 58.3.0 <- quiver_types. Exercised only inside arrow, for temporal conversions and formatting (e.g. `Debug` of a timestamp column); quiver has no direct dependency on chrono. Unmaintained, not a vulnerability, and covers every chrono release. Blocked by arrow-array, arrow-arith and arrow-cast 60.1.0 (latest) requiring chrono ^0.4.40. Remove when arrow moves off chrono (apache/arrow-rs#9183). RR-6449" },
+  { id = "RUSTSEC-2026-0543", reason = "chrono 0.4.44 via arrow-array, arrow-arith and arrow-cast 58.3.0 <- arrow 58.3.0 <- quiver_types. Exercised only inside arrow, for temporal conversion, parsing, arithmetic and formatting (e.g. `Debug` of a timestamp column); quiver has no direct dependency on chrono. Unmaintained, not a vulnerability, and covers every chrono release. Blocked by chrono being a required dependency of arrow-array, arrow-arith and arrow-cast, up to 60.1.0 (latest). Remove when quiver depends on an arrow release that no longer requires chrono (apache/arrow-rs#9183). RR-6449" },
 ]
 
 
