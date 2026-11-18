@@ -32,7 +32,7 @@ disallowed-methods = [
   # `#[derive(Quiver)]` expands into the user's crate, where it is linted with the user's `clippy.toml`.
   # Rerun disallows these two, so the derive must not emit them.
   { path = "arrow::datatypes::Schema::new", reason = "Use `Schema::new_with_metadata` instead" },
-  { path = "arrow::record_batch::RecordBatch::try_new", reason = "Use `RecordBatch::try_new_with_options` with an explicit row count instead: `try_new` cannot build a batch without columns" },
+  { path = "arrow::record_batch::RecordBatch::try_new", reason = "Use `RecordBatch::try_new_with_options` instead" },
 
   { path = "std::env::temp_dir", reason = "Use the tempdir crate instead" },
   { path = "std::panic::catch_unwind", reason = "We compile with `panic = 'abort'`" },

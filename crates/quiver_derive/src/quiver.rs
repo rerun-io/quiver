@@ -606,13 +606,12 @@ impl Quiver {
                         fields,
                         #schema_metadata,
                     );
-                    // Arrow cannot infer the row count of a batch without columns:
-                    let row_count = columns.is_empty().then_some(0);
+                    // No row count is given: a record has none of its own, so arrow
+                    // infers it from the columns, and refuses a batch without columns.
                     #krate::arrow::record_batch::RecordBatch::try_new_with_options(
                         ::std::sync::Arc::new(schema),
                         columns,
-                        &#krate::arrow::record_batch::RecordBatchOptions::new()
-                            .with_row_count(row_count),
+                        &#krate::arrow::record_batch::RecordBatchOptions::new(),
                     )
                     .map_err(|err| {
                         #krate::Error::new(#record_type, #krate::ErrorKind::BuildRecordBatch(err))
@@ -624,10 +623,9 @@ impl Quiver {
             impl #ident {
                 /// Converts into an arrow record batch.
                 ///
-                /// A record without any column converts into a batch with zero rows.
-                ///
                 /// # Errors
-                /// Errors on column length mismatch.
+                /// Errors on column length mismatch, or if the record has no column:
+                /// a batch without columns needs a row count, which a record does not have.
                 pub fn into_record_batch(
                     self,
                 ) -> ::core::result::Result<

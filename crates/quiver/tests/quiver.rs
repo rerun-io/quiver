@@ -288,32 +288,20 @@ fn record_without_columns() {
     assert!(AllOptional::min_schema().fields().is_empty());
     assert_eq!(AllOptional::max_schema().fields().len(), 1);
 
-    let record = AllOptional {
-        metadata: BTreeMap::from([("key".to_owned(), "value".to_owned())]),
-        name: None,
-    };
-
-    let batch = RecordBatch::try_from(record).unwrap();
-    assert_eq!(batch.num_columns(), 0);
-    assert_eq!(batch.num_rows(), 0);
-    assert_eq!(batch.schema_ref().metadata()["key"], "value");
-
-    let record = AllOptional::try_from(batch).unwrap();
-    assert_eq!(record.name, None);
-    assert_eq!(record.metadata["key"], "value");
-
-    // A record has no row count of its own, so that of a batch without columns is lost:
+    // A batch without columns needs a row count, which a record does not have.
+    // Failing beats guessing zero: that would silently drop the rows of a parsed batch.
     let five_rows = RecordBatch::try_new_with_options(
         Arc::new(ArrowSchema::empty()),
         vec![],
         &RecordBatchOptions::new().with_row_count(Some(5)),
     )
     .unwrap();
-    let batch = AllOptional::try_from(five_rows)
-        .unwrap()
-        .into_record_batch()
-        .unwrap();
-    assert_eq!(batch.num_rows(), 0);
+    let record = AllOptional::try_from(five_rows).unwrap();
+    assert_eq!(record.name, None);
+
+    let err = record.into_record_batch().err().unwrap();
+    assert_eq!(err.record_type, "AllOptional");
+    assert!(matches!(*err.kind, ErrorKind::BuildRecordBatch(_)));
 }
 
 /// Structs without any required column: their `min_schema` has no fields.
@@ -331,7 +319,7 @@ fn no_required_column() {
     assert!(NoColumns::min_schema().fields().is_empty());
     assert!(NoColumns::max_schema().fields().is_empty());
     assert_eq!(NoColumns::empty_record_batch().num_columns(), 0);
-    assert_eq!(NoColumns {}.into_record_batch().unwrap().num_rows(), 0);
+    assert!(NoColumns {}.into_record_batch().is_err());
 
     assert!(OnlyExtraColumns::min_schema().fields().is_empty());
     let record = OnlyExtraColumns {
