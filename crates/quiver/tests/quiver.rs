@@ -301,6 +301,49 @@ fn record_without_columns() {
     let record = AllOptional::try_from(batch).unwrap();
     assert_eq!(record.name, None);
     assert_eq!(record.metadata["key"], "value");
+
+    // A record has no row count of its own, so that of a batch without columns is lost:
+    let five_rows = RecordBatch::try_new_with_options(
+        Arc::new(ArrowSchema::empty()),
+        vec![],
+        &RecordBatchOptions::new().with_row_count(Some(5)),
+    )
+    .unwrap();
+    let batch = AllOptional::try_from(five_rows)
+        .unwrap()
+        .into_record_batch()
+        .unwrap();
+    assert_eq!(batch.num_rows(), 0);
+}
+
+/// Structs without any required column: their `min_schema` has no fields.
+#[test]
+fn no_required_column() {
+    #[derive(Quiver)]
+    struct NoColumns {}
+
+    #[derive(Quiver)]
+    struct OnlyExtraColumns {
+        #[quiver(extra_columns)]
+        other_columns: Vec<DynColumn>,
+    }
+
+    assert!(NoColumns::min_schema().fields().is_empty());
+    assert!(NoColumns::max_schema().fields().is_empty());
+    assert_eq!(NoColumns::empty_record_batch().num_columns(), 0);
+    assert_eq!(NoColumns {}.into_record_batch().unwrap().num_rows(), 0);
+
+    assert!(OnlyExtraColumns::min_schema().fields().is_empty());
+    let record = OnlyExtraColumns {
+        other_columns: vec![
+            DynColumn::try_new(
+                Arc::new(Field::new("age", DataType::Int64, true)),
+                Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef,
+            )
+            .unwrap(),
+        ],
+    };
+    assert_eq!(record.into_record_batch().unwrap().num_rows(), 2);
 }
 
 #[test]
