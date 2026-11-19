@@ -2,7 +2,7 @@
 
 #![cfg(feature = "derive")]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use quiver::arrow::array::{
@@ -10,7 +10,7 @@ use quiver::arrow::array::{
     Int32Array, Int64Array, ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
 use quiver::arrow::datatypes::{DataType, Field, Int32Type, Schema as ArrowSchema};
-use quiver::arrow::record_batch::RecordBatch;
+use quiver::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use quiver::{DynColumn, DynColumnDesc, ErrorKind, List, Quiver, Utf8};
 
 /// Important thing
@@ -65,7 +65,10 @@ fn batch_of(columns: &[(&str, ArrayRef)]) -> RecordBatch {
         .map(|(name, array)| Field::new(*name, array.data_type().clone(), true))
         .collect();
     let arrays: Vec<_> = columns.iter().map(|(_, array)| Arc::clone(array)).collect();
-    RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), arrays)
+    let schema = ArrowSchema::new_with_metadata(fields, HashMap::new());
+    let options = RecordBatchOptions::new()
+        .with_row_count(Some(arrays.first().map_or(0, |array| array.len())));
+    RecordBatch::try_new_with_options(Arc::new(schema), arrays, &options)
         .expect("Bad columns passed to test helper")
 }
 
@@ -274,6 +277,64 @@ fn wrong_array_type() {
 }
 
 #[test]
+fn record_without_columns() {
+    #[derive(Quiver)]
+    struct AllOptional {
+        #[quiver(metadata)]
+        metadata: BTreeMap<String, String>,
+        name: Option<StringArray>,
+    }
+
+    assert!(AllOptional::min_schema().fields().is_empty());
+    assert_eq!(AllOptional::max_schema().fields().len(), 1);
+
+    // A batch without columns needs a row count, which a record does not have.
+    // Failing beats guessing zero: that would silently drop the rows of a parsed batch.
+    let five_rows = RecordBatch::try_new_with_options(
+        Arc::new(ArrowSchema::empty()),
+        vec![],
+        &RecordBatchOptions::new().with_row_count(Some(5)),
+    )
+    .unwrap();
+    let record = AllOptional::try_from(five_rows).unwrap();
+    assert_eq!(record.name, None);
+
+    let err = record.into_record_batch().err().unwrap();
+    assert_eq!(err.record_type, "AllOptional");
+    assert!(matches!(*err.kind, ErrorKind::BuildRecordBatch(_)));
+}
+
+/// Structs without any required column: their `min_schema` has no fields.
+#[test]
+fn no_required_column() {
+    #[derive(Quiver)]
+    struct NoColumns {}
+
+    #[derive(Quiver)]
+    struct OnlyExtraColumns {
+        #[quiver(extra_columns)]
+        other_columns: Vec<DynColumn>,
+    }
+
+    assert!(NoColumns::min_schema().fields().is_empty());
+    assert!(NoColumns::max_schema().fields().is_empty());
+    assert_eq!(NoColumns::empty_record_batch().num_columns(), 0);
+    assert!(NoColumns {}.into_record_batch().is_err());
+
+    assert!(OnlyExtraColumns::min_schema().fields().is_empty());
+    let record = OnlyExtraColumns {
+        other_columns: vec![
+            DynColumn::try_new(
+                Arc::new(Field::new("age", DataType::Int64, true)),
+                Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef,
+            )
+            .unwrap(),
+        ],
+    };
+    assert_eq!(record.into_record_batch().unwrap().num_rows(), 2);
+}
+
+#[test]
 fn column_length_mismatch() {
     let thing = Thing {
         metadata: BTreeMap::default(),
@@ -284,7 +345,9 @@ fn column_length_mismatch() {
     let result = RecordBatch::try_from(thing);
     let err = result.err().unwrap();
     assert_eq!(err.record_type, "Thing");
-    assert!(matches!(*err.kind, ErrorKind::BuildRecordBatch(_)));
+    assert!(
+        matches!(&*err.kind, ErrorKind::BuildRecordBatch(err) if err.to_string().contains("must have the same length"))
+    );
 }
 
 #[test]

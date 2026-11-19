@@ -5,13 +5,13 @@
 //! bare array — element access, iteration, slicing, encodings — is tested on
 //! [`quiver::TypedArray`], in `typed_array.rs`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use quiver::arrow::array::Array as _;
 use quiver::arrow::array::{ArrayRef, Int64Array, StringArray, StringViewArray};
 use quiver::arrow::datatypes::{DataType, Field, Schema};
-use quiver::arrow::record_batch::RecordBatch;
+use quiver::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use quiver::{
     AnyUtf8, Column, ColumnDesc, DynColumn, DynColumnDesc, ErrorKind, FixedSizeBinary, List,
     TypedArray, Utf8,
@@ -164,13 +164,20 @@ fn extract_or_null() {
 fn from_record_batch_and_name() {
     let names: ArrayRef = Arc::new(StringArray::from(vec!["alice", "bob"]));
     let ages: ArrayRef = Arc::new(Int64Array::from(vec![30, 40]));
-    let schema = Schema::new(vec![
-        Field::new("name", DataType::Utf8, false).with_metadata(std::collections::HashMap::from([
-            ("pii".to_owned(), "true".to_owned()),
-        ])),
-        Field::new("age", DataType::Int64, false),
-    ]);
-    let batch = RecordBatch::try_new(Arc::new(schema), vec![names, ages]).unwrap();
+    let schema = Schema::new_with_metadata(
+        vec![
+            Field::new("name", DataType::Utf8, false)
+                .with_metadata(HashMap::from([("pii".to_owned(), "true".to_owned())])),
+            Field::new("age", DataType::Int64, false),
+        ],
+        HashMap::new(),
+    );
+    let batch = RecordBatch::try_new_with_options(
+        Arc::new(schema),
+        vec![names, ages],
+        &RecordBatchOptions::new().with_row_count(Some(2)),
+    )
+    .unwrap();
 
     // Happy path: looks up by name, validates, and carries over the name and
     // the field metadata.
@@ -542,8 +549,9 @@ fn dyn_column_try_new_validation() {
 
     // Field and array agree, so the pair always fits a record batch:
     let (field, array) = column.into_parts();
-    let schema = Schema::new(vec![field]);
-    assert!(RecordBatch::try_new(Arc::new(schema), vec![array]).is_ok());
+    let schema = Schema::new_with_metadata(vec![field], HashMap::new());
+    let options = RecordBatchOptions::new().with_row_count(Some(array.len()));
+    assert!(RecordBatch::try_new_with_options(Arc::new(schema), vec![array], &options).is_ok());
 }
 
 #[test]

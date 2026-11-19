@@ -413,9 +413,13 @@ impl Quiver {
                 /// Per-instance metadata is not included.
                 #[must_use]
                 pub fn min_schema() -> #krate::arrow::datatypes::Schema {
-                    #krate::arrow::datatypes::Schema::new(::std::vec![
-                        #(#min_fields),*
-                    ])
+                    // The annotation is needed when there are no fields:
+                    let fields: ::std::vec::Vec<#krate::arrow::datatypes::Field> =
+                        ::std::vec![#(#min_fields),*];
+                    #krate::arrow::datatypes::Schema::new_with_metadata(
+                        fields,
+                        ::std::collections::HashMap::new(),
+                    )
                 }
 
                 /// The static schema of *all* declared columns,
@@ -426,9 +430,12 @@ impl Quiver {
                 /// Per-instance metadata is not included.
                 #[must_use]
                 pub fn max_schema() -> #krate::arrow::datatypes::Schema {
-                    #krate::arrow::datatypes::Schema::new(::std::vec![
-                        #(#max_fields),*
-                    ])
+                    let fields: ::std::vec::Vec<#krate::arrow::datatypes::Field> =
+                        ::std::vec![#(#max_fields),*];
+                    #krate::arrow::datatypes::Schema::new_with_metadata(
+                        fields,
+                        ::std::collections::HashMap::new(),
+                    )
                 }
 
                 #empty_record_batch_fn
@@ -577,13 +584,10 @@ impl Quiver {
             }
         });
 
-        let schema = if let Some(metadata_ident) = metadata_field {
-            quote! {
-                #krate::arrow::datatypes::Schema::new(fields)
-                    .with_metadata(value.#metadata_ident.into_iter().collect())
-            }
+        let schema_metadata = if let Some(metadata_ident) = metadata_field {
+            quote! { value.#metadata_ident.into_iter().collect() }
         } else {
-            quote! { #krate::arrow::datatypes::Schema::new(fields) }
+            quote! { ::std::collections::HashMap::new() }
         };
 
         quote! {
@@ -598,10 +602,16 @@ impl Quiver {
                         ::std::vec::Vec::new();
                     #(#pushes)*
                     #push_extra
-                    let schema = #schema;
-                    #krate::arrow::record_batch::RecordBatch::try_new(
+                    let schema = #krate::arrow::datatypes::Schema::new_with_metadata(
+                        fields,
+                        #schema_metadata,
+                    );
+                    // No row count is given: a record has none of its own, so arrow
+                    // infers it from the columns, and refuses a batch without columns.
+                    #krate::arrow::record_batch::RecordBatch::try_new_with_options(
                         ::std::sync::Arc::new(schema),
                         columns,
+                        &#krate::arrow::record_batch::RecordBatchOptions::new(),
                     )
                     .map_err(|err| {
                         #krate::Error::new(#record_type, #krate::ErrorKind::BuildRecordBatch(err))
@@ -614,7 +624,8 @@ impl Quiver {
                 /// Converts into an arrow record batch.
                 ///
                 /// # Errors
-                /// Errors on column length mismatch.
+                /// Errors on column length mismatch, or if the record has no column:
+                /// a batch without columns needs a row count, which a record does not have.
                 pub fn into_record_batch(
                     self,
                 ) -> ::core::result::Result<
